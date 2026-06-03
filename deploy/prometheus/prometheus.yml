@@ -1,0 +1,52 @@
+# Pandora Prometheus 配置
+#
+# 抓取目标:13 个 go 服务的 metrics 端口(51001~51022,见 docs/design/infra.md §6.3)+
+# Pandora 自身(promehteus 自监控)。
+#
+# host.docker.internal 让容器内的 prometheus 能访问 host 上跑的 go 服务进程。
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    project: pandora
+    env: dev
+
+scrape_configs:
+  # Prometheus 自监控
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # 13 个 go 服务
+  - job_name: pandora-go-services
+    static_configs:
+      # 基础玩家服务
+      - targets: ['host.docker.internal:51001']
+        labels: { service: login }
+      - targets: ['host.docker.internal:51002']
+        labels: { service: player }
+      - targets: ['host.docker.internal:51003']
+        labels: { service: data_service }
+      - targets: ['host.docker.internal:51004']
+        labels: { service: friend }
+      - targets: ['host.docker.internal:51005']
+        labels: { service: chat }
+      - targets: ['host.docker.internal:51006']
+        labels: { service: player_locator }
+      # 队伍 / 匹配 / 交易
+      - targets: ['host.docker.internal:51010']
+        labels: { service: team }
+      - targets: ['host.docker.internal:51011']
+        labels: { service: matchmaker }
+      - targets: ['host.docker.internal:51012']
+        labels: { service: trade }
+      - targets: ['host.docker.internal:51013']
+        labels: { service: dialogue }
+      # DS 调度 / 结算
+      - targets: ['host.docker.internal:51020']
+        labels: { service: ds_allocator }
+      - targets: ['host.docker.internal:51021']
+        labels: { service: hub_allocator }
+      - targets: ['host.docker.internal:51022']
+        labels: { service: battle_result }

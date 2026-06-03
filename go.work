@@ -1,25 +1,29 @@
-go 1.23
+go 1.24.0
+
+toolchain go1.24.5
 
 // Pandora Go workspace
 //
-// 13 个业务 go 服务 + 1 个公共框架 pkg
-// W1-D1 阶段所有 go.mod 还未创建,本文件先占位,
-// 等 W1-D2 拷 mmorpg 公共代码到 pkg/ 时再 `go work sync`。
+// W1-D2 阶段:只 use ./pkg(公共框架已落地)。
+// 13 个业务服务 W2+ 写代码时,逐个启用对应 use 行。
+//
+// 注:Go 版本由 go mod tidy 拉来的依赖(go-zero 1.9.x / sarama 1.43.1 等)
+// 自动要求 1.24,虽然 PROGRESS.md 写的目标版本是 1.23,但 1.24 兼容,接受升级。
 
-use (
-	./pkg
+use ./pkg
 
-	./login
-	./player
-	./data_service
-	./friend
-	./chat
-	./player_locator
-	./team
-	./matchmaker
-	./trade
-	./dialogue
-	./ds_allocator
-	./hub_allocator
-	./battle_result
-)
+// W2+ 启用以下 use 行(每个服务在 cmd/main.go + go.mod 创建后启用):
+//
+// use ./login
+// use ./player
+// use ./data_service
+// use ./friend
+// use ./chat
+// use ./player_locator
+// use ./team
+// use ./matchmaker
+// use ./trade
+// use ./dialogue
+// use ./ds_allocator
+// use ./hub_allocator
+// use ./battle_result

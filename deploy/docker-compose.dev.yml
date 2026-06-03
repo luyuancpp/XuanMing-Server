@@ -1,0 +1,184 @@
+# Pandora 开发环境基础设施
+#
+# 端口规划严格对齐 docs/design/infra.md §6.1,与 mmorpg(3306/6379/9092/2379/9090/3000)错开。
+#
+# 用法:
+#   pwsh tools/scripts/dev_up.ps1
+#   pwsh tools/scripts/dev_down.ps1
+#
+# 数据卷默认保留(开发期重启不丢数据);彻底清理用 dev_down.ps1 -Volumes
+
+services:
+  # ===== MySQL 8.4 =====
+  mysql:
+    image: mysql:8.4
+    container_name: pandora-mysql
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-pandora_dev_root}
+      MYSQL_USER: ${MYSQL_USER:-pandora}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-pandora_dev_pwd}
+    command:
+      - --default-authentication-plugin=caching_sha2_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --max_connections=500
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-pandora_dev_root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [pandora-net]
+
+  # ===== Redis 7.4 =====
+  redis:
+    image: redis:7.4-alpine
+    container_name: pandora-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - "1gb"
+      - --maxmemory-policy
+      - "allkeys-lru"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [pandora-net]
+
+  # ===== Zookeeper(给 Kafka 用)=====
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.7.1
+    container_name: pandora-zookeeper
+    restart: unless-stopped
+    ports:
+      - "2182:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zk-data:/var/lib/zookeeper/data
+      - zk-log:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep -q imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [pandora-net]
+
+  # ===== Kafka 3.7(KRaft 模式坑多,先用 ZK 模式稳)=====
+  kafka:
+    image: confluentinc/cp-kafka:7.7.1
+    container_name: pandora-kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # 9092 docker 内部网络互访;9093 暴露给 host(go 服务连这个)
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 4
+      KAFKA_LOG_RETENTION_HOURS: 168
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks: [pandora-net]
+
+  # ===== etcd 3.5 =====
+  etcd:
+    image: bitnami/etcd:3.5.17
+    container_name: pandora-etcd
+    restart: unless-stopped
+    ports:
+      - "2380:2379"  # client
+      - "2381:2380"  # peer
+    environment:
+      ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_ADVERTISE_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_NAME: pandora-etcd
+    volumes:
+      - etcd-data:/bitnami/etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [pandora-net]
+
+  # ===== Prometheus 2.55 =====
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: pandora-prometheus
+    restart: unless-stopped
+    ports:
+      - "9091:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom-data:/prometheus
+    networks: [pandora-net]
+
+  # ===== Grafana 11 =====
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: pandora-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-pandora_dev_admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks: [pandora-net]
+
+networks:
+  pandora-net:
+    name: pandora-net
+    driver: bridge
+
+volumes:
+  mysql-data: { name: pandora-mysql-data }
+  redis-data: { name: pandora-redis-data }
+  zk-data:    { name: pandora-zk-data }
+  zk-log:     { name: pandora-zk-log }
+  kafka-data: { name: pandora-kafka-data }
+  etcd-data:  { name: pandora-etcd-data }
+  prom-data:  { name: pandora-prom-data }
+  grafana-data: { name: pandora-grafana-data }
