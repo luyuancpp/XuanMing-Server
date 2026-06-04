@@ -18,7 +18,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"github.com/zeromicro/go-zero/core/logx"
+	klog "github.com/go-kratos/kratos/v2/log"
 )
 
 // 默认 key 前缀,跟 docs/design/infra.md §3.2 命名规范保持一致。
@@ -58,7 +58,7 @@ func (rl *RedisLocker) TryLock(ctx context.Context, key string, ttl time.Duratio
 	setCmd := rl.redisClient.SetNX(ctx, finalLockKey, lockValue, ttl)
 	success, err := setCmd.Result()
 	if err != nil {
-		logx.Errorf("Redis TryLock failed | key=%s | err=%v", finalLockKey, err)
+		klog.Errorf("Redis TryLock failed | key=%s | err=%v", finalLockKey, err)
 		return &TryLockResult{locked: false}, fmt.Errorf("redis setnx failed: %w", err)
 	}
 
@@ -77,7 +77,7 @@ func (tlr *TryLockResult) IsLocked() bool { return tlr.locked }
 // 返回 (释放成功?, 错误)。锁已过期或被别人接管 → (false, nil)。
 func (tlr *TryLockResult) Release(ctx context.Context) (bool, error) {
 	if !tlr.locked {
-		logx.Errorf("Release lock failed: not holding lock | key=%s", tlr.lockKey)
+		klog.Errorf("Release lock failed: not holding lock | key=%s", tlr.lockKey)
 		return false, nil
 	}
 
@@ -93,17 +93,17 @@ func (tlr *TryLockResult) Release(ctx context.Context) (bool, error) {
 		Eval(ctx, luaScript, []string{tlr.lockKey}, tlr.lockValue).
 		Int64()
 	if err != nil {
-		logx.Errorf("Release lock Redis error | key=%s | err=%v", tlr.lockKey, err)
+		klog.Errorf("Release lock Redis error | key=%s | err=%v", tlr.lockKey, err)
 		return false, fmt.Errorf("redis eval release script failed: %w", err)
 	}
 
 	if delResult == 1 {
-		logx.Debugf("Release lock success | key=%s", tlr.lockKey)
+		klog.Debugf("Release lock success | key=%s", tlr.lockKey)
 		tlr.locked = false
 		return true, nil
 	}
 	// 已过期或被接管
-	logx.Errorf("Release lock failed: lock expired or not owned | key=%s", tlr.lockKey)
+	klog.Errorf("Release lock failed: lock expired or not owned | key=%s", tlr.lockKey)
 	tlr.locked = false
 	return false, nil
 }
@@ -111,7 +111,7 @@ func (tlr *TryLockResult) Release(ctx context.Context) (bool, error) {
 // Extend 续锁,Lua 校验 owner。锁已过期或被接管 → (false, nil)。
 func (tlr *TryLockResult) Extend(ctx context.Context, extendTTL time.Duration) (bool, error) {
 	if !tlr.locked {
-		logx.Errorf("Extend lock failed: not holding lock | key=%s", tlr.lockKey)
+		klog.Errorf("Extend lock failed: not holding lock | key=%s", tlr.lockKey)
 		return false, nil
 	}
 
@@ -127,7 +127,7 @@ func (tlr *TryLockResult) Extend(ctx context.Context, extendTTL time.Duration) (
 		Eval(ctx, luaScript, []string{tlr.lockKey}, tlr.lockValue, int(extendTTL.Seconds())).
 		Int64()
 	if err != nil {
-		logx.Errorf("Extend lock Redis error | key=%s | err=%v", tlr.lockKey, err)
+		klog.Errorf("Extend lock Redis error | key=%s | err=%v", tlr.lockKey, err)
 		return false, fmt.Errorf("redis eval extend script failed: %w", err)
 	}
 

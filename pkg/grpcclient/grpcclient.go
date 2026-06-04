@@ -1,122 +1,100 @@
-// Package grpcclient 提供 Pandora 服务调用其它 gRPC 服务的客户端包装。
+// Package grpcclient 提供 Pandora 服务调用其它 gRPC 服务的客户端包装(基于 Kratos transport/grpc)。
 //
-// 设计目标:
-//   - 包装 zrpc.MustNewClient
-//   - 出站 trace_id 透传(从 log.WithTraceID 的 ctx 提取,放进 metadata)
-//   - 客户端 metrics:rpc_client_duration_seconds + total
-//   - 默认 5s 超时
+// 设计:
+//   - 包装 Kratos transport/grpc.Dial / DialInsecure
+//   - 默认挂接 Pandora client middleware(Trace 透传 + Metrics)
+//   - 服务发现:Kratos registry/etcd(W3+ 接入)/ 直连 endpoint(W2 简化版)
+//
+// 用法(直连):
+//
+//	conn := grpcclient.MustDial("127.0.0.1:50001")
+//	defer conn.Close()
+//	cli := loginpb.NewLoginServiceClient(conn)
+//
+// 用法(经服务发现):
+//
+//	conn := grpcclient.MustDialDiscovery("discovery:///pandora.login", reg)
+//	cli := loginpb.NewLoginServiceClient(conn)
 package grpcclient
 
 import (
 	"context"
-	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/zeromicro/go-zero/zrpc"
+	"github.com/go-kratos/kratos/v2/middleware"
+	"github.com/go-kratos/kratos/v2/registry"
+	"github.com/go-kratos/kratos/v2/selector"
+	"github.com/go-kratos/kratos/v2/selector/wrr"
+	kgrpc "github.com/go-kratos/kratos/v2/transport/grpc"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 
-	"github.com/luyuancpp/pandora/pkg/log"
-	"github.com/luyuancpp/pandora/pkg/metrics"
+	pmw "github.com/luyuancpp/pandora/pkg/middleware"
 )
 
-const (
-	// MetadataKeyTraceID 与 grpcserver 保持一致。
-	MetadataKeyTraceID = "x-pandora-trace-id"
-	DefaultTimeout     = 5 * time.Second
-)
-
-// clientDurationSeconds 跟踪客户端调用耗时。
-var clientDurationSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "pandora",
-	Subsystem: "rpc_client",
-	Name:      "duration_seconds",
-	Help:      "gRPC client-side call duration in seconds.",
-	Buckets:   metrics.StandardBuckets,
-}, []string{"target", "method"})
-
-var clientTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "pandora",
-	Subsystem: "rpc_client",
-	Name:      "total",
-	Help:      "gRPC client-side call count.",
-}, []string{"target", "method", "outcome"})
+// DefaultTimeout 是单次 RPC 默认超时(可被 ctx.WithTimeout 覆盖)。
+const DefaultTimeout = 5 * time.Second
 
 func init() {
-	metrics.Register(clientDurationSeconds)
-	metrics.Register(clientTotal)
+	// 设置全局默认负载均衡为加权轮询(WRR)
+	selector.SetGlobalSelector(wrr.NewBuilder())
 }
 
-// MustNewClient 创建一个挂载默认拦截器的 zrpc client。
+// MustDial 直连指定 endpoint(host:port),不走服务发现。
+// W2 简化版用,W3+ 切到 MustDialDiscovery。
 //
-//	client := grpcclient.MustNewClient(cfg.PlayerLocatorRpc)
-//	plc := plpb.NewPlayerLocatorClient(client.Conn())
-func MustNewClient(c zrpc.RpcClientConf, target string, opts ...zrpc.ClientOption) zrpc.Client {
-	allOpts := append([]zrpc.ClientOption{
-		zrpc.WithUnaryClientInterceptor(traceForwardInterceptor),
-		zrpc.WithUnaryClientInterceptor(makeMetricsInterceptor(target)),
-	}, opts...)
-	return zrpc.MustNewClient(c, allOpts...)
+// 默认挂载 Trace + Metrics middleware,默认 5s 超时。
+func MustDial(endpoint string, customMW ...middleware.Middleware) *grpc.ClientConn {
+	return mustDial(false, endpoint, nil, customMW...)
 }
 
-// traceForwardInterceptor 把 ctx 中的 trace_id 写进 outgoing metadata。
-func traceForwardInterceptor(
-	ctx context.Context,
-	method string,
-	req, reply interface{},
-	cc *grpc.ClientConn,
-	invoker grpc.UnaryInvoker,
-	opts ...grpc.CallOption,
-) error {
-	if v := ctx.Value(log.CtxKeyTraceID); v != nil {
-		if s, ok := v.(string); ok && s != "" {
-			ctx = metadata.AppendToOutgoingContext(ctx, MetadataKeyTraceID, s)
-		}
-	}
-	return invoker(ctx, method, req, reply, cc, opts...)
+// MustDialDiscovery 经服务发现连接(target 形如 "discovery:///pandora.login")。
+// reg 是 Kratos registry.Discovery 实现(etcd / consul / nacos)。
+func MustDialDiscovery(endpoint string, reg registry.Discovery, customMW ...middleware.Middleware) *grpc.ClientConn {
+	return mustDial(false, endpoint, reg, customMW...)
 }
 
-func makeMetricsInterceptor(target string) grpc.UnaryClientInterceptor {
-	return func(
-		ctx context.Context,
-		method string,
-		req, reply interface{},
-		cc *grpc.ClientConn,
-		invoker grpc.UnaryInvoker,
-		opts ...grpc.CallOption,
-	) error {
-		start := time.Now()
-		shortMethod := shortMethod(method)
-		err := invoker(ctx, method, req, reply, cc, opts...)
-		clientDurationSeconds.WithLabelValues(target, shortMethod).Observe(time.Since(start).Seconds())
-
-		outcome := "ok"
-		if err != nil {
-			outcome = "err"
-		}
-		clientTotal.WithLabelValues(target, shortMethod, outcome).Inc()
-		return err
-	}
+// MustDialInsecure 同 MustDial,但显式声明 insecure(不强制 TLS)。
+// 内网服务间通信用这个;Envoy 入站才用 TLS。
+func MustDialInsecure(endpoint string, customMW ...middleware.Middleware) *grpc.ClientConn {
+	return mustDial(true, endpoint, nil, customMW...)
 }
 
-// shortMethod 把 "/login.LoginService/Login" 截短成 "LoginService/Login"。
-func shortMethod(fullMethod string) string {
-	parts := strings.SplitN(strings.TrimPrefix(fullMethod, "/"), "/", 2)
-	if len(parts) != 2 {
-		return fullMethod
+func mustDial(insecure bool, endpoint string, reg registry.Discovery, customMW ...middleware.Middleware) *grpc.ClientConn {
+	mws := append([]middleware.Middleware{
+		pmw.Trace(),
+		pmw.Metrics(),
+	}, customMW...)
+
+	opts := []kgrpc.ClientOption{
+		kgrpc.WithEndpoint(endpoint),
+		kgrpc.WithTimeout(DefaultTimeout),
+		kgrpc.WithMiddleware(mws...),
 	}
-	svc := parts[0]
-	if dot := strings.LastIndex(svc, "."); dot >= 0 {
-		svc = svc[dot+1:]
+	if reg != nil {
+		opts = append(opts, kgrpc.WithDiscovery(reg))
 	}
-	return svc + "/" + parts[1]
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var (
+		conn *grpc.ClientConn
+		err  error
+	)
+	if insecure {
+		conn, err = kgrpc.DialInsecure(ctx, opts...)
+	} else {
+		conn, err = kgrpc.Dial(ctx, opts...)
+	}
+	if err != nil {
+		panic("grpcclient.MustDial " + endpoint + ": " + err.Error())
+	}
+	return conn
 }
 
-// WithTimeout 是给业务侧用的便捷函数,在 ctx 上设默认超时。
+// WithTimeout 是给业务侧用的便捷函数,在 ctx 上设默认超时(如果 ctx 已有 deadline 则不覆盖)。
 func WithTimeout(parent context.Context) (context.Context, context.CancelFunc) {
 	if _, ok := parent.Deadline(); ok {
-		// 已经有超时,不覆盖
 		return parent, func() {}
 	}
 	return context.WithTimeout(parent, DefaultTimeout)

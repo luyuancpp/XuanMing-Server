@@ -12,6 +12,10 @@
 #   buf lint
 #   buf generate --template buf.gen.go.yaml
 #   buf breaking --against '.git#branch=main'
+#
+# 依赖说明(2026-06-05 加 googleapis):
+#   - googleapis 提供 google/api/annotations.proto(http 注解,Kratos 用)
+#   - W2 起所有 service RPC 必须带 google.api.http 注解,以便 Kratos protoc-gen-go-http 生成 HTTP handler
 
 version: v2
 
@@ -32,7 +36,7 @@ breaking:
   use:
     - FILE
 
-deps: []
-
-# W1-D3 不引入 googleapis / well-known-types
-# W2+ 如果需要 google.protobuf.Timestamp / google.api.http 再加
+deps:
+  # googleapis:提供 google/api/annotations.proto(http 注解)
+  # 第一次 buf generate 会从 buf.build 拉这个模块,需要外网
+  - buf.build/googleapis/googleapis

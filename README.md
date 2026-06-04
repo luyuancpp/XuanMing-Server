@@ -51,17 +51,66 @@ Pandora/
 10. [`AGENTS.md`](./AGENTS.md) — AI 协作守则
 11. [`PROGRESS.md`](./PROGRESS.md) — 当前进度
 
-## 快速启动(待 W1-D2 完成后填充)
+## 快速启动
+
+### 1. 装开发工具链(首次)
+
+一键装齐 buf / mkcert / grpcurl(已装的会自动跳过):
 
 ```powershell
-# 1. 启动基础设施(MySQL / Redis / Kafka / etcd)
+pwsh tools/scripts/install_dev_tools.ps1
+```
+
+只检查不装:
+```powershell
+pwsh tools/scripts/install_dev_tools.ps1 -Check
+```
+
+强制重装:
+```powershell
+pwsh tools/scripts/install_dev_tools.ps1 -Force
+```
+
+工具版本锁定见脚本头部,**所有开发者用同一版本**避免环境漂移。
+
+要自己装的(脚本不管):**Go 1.24+ / Docker Desktop / Git**。
+
+### 2. 启动基础设施
+
+```powershell
 pwsh tools/scripts/dev_up.ps1
+```
 
-# 2. 编译所有服务
-pwsh tools/scripts/build.ps1
+启动 MySQL 3307 / Redis 6380 / Kafka 9093 / etcd 2380 / Prometheus 9091 / Grafana 3001 / Envoy 8443(W2 起)。
 
-# 3. 启动开发模式
-pwsh tools/scripts/dev_start.ps1
+### 3. 生成 proto 代码
+
+```powershell
+pwsh tools/scripts/proto_gen.ps1
+```
+
+第一次跑会从 buf.build 拉远程插件(`protocolbuffers/go` / `grpc/go` / `go-kratos/kratos`),需要外网。
+
+### 4. 编译 + 启动服务
+
+```powershell
+# 编译所有 Go 服务
+go build ./...
+
+# 启动 login(W2)
+go run ./services/account/login/cmd/login -conf services/account/login/etc/login-dev.yaml
+```
+
+### 5. 端到端验证
+
+```powershell
+# 直连 login(绕过 Envoy)
+grpcurl -plaintext -d '{"account":"test","password_hash":"abc","device_id":"d1"}' `
+  127.0.0.1:50001 pandora.login.v1.LoginService/Login
+
+# 经 Envoy(模拟客户端 gRPC-Web 路径)
+grpcurl -insecure -d '{"account":"test","password_hash":"abc","device_id":"d1"}' `
+  localhost:8443 pandora.login.v1.LoginService/Login
 ```
 
 ## 关联仓库

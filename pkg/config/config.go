@@ -1,16 +1,21 @@
 // Package config 提供 Pandora 服务的通用配置结构。
 //
-// 设计来源:抽自 mmorpg/go/login/internal/config/config.go,剥掉 MMO 业务
-// 字段(LegacyGate / SaToken / SceneManager 等),保留 go-zero zrpc 集成 +
-// 公共基础设施配置(Redis / Kafka / Snowflake / Locker / Etcd / Timeouts)。
+// 设计:
+//   - 基础字段(Server/Node/Redis/Kafka/Snowflake/Locker/Registry/Timeouts)集中放 Base
+//   - 各服务的 internal/conf/conf.go 嵌入 Base 并加业务字段
+//   - 配置加载用 Kratos config(W2 file source,W3+ 接 etcd)
 //
-// 用法:各服务的 internal/config/config.go 嵌入 config.Base 并加业务字段。
+// 跟之前 go-zero 版本的区别(2026-06-04 重写):
+//   - 删 zrpc.RpcServerConf 嵌入,改 Pandora 自定义 Server 结构
+//   - go-zero LogConf 改 zap(详见 pkg/log/log.go)
+//   - 字段保留 mmorpg 拷过来的语义,但风格按 Kratos 惯例(yaml + protobuf 都能映射)
 //
-//	type Config struct {
-//	    config.Base                           // 公共
-//	    PlayerLocatorRpc zrpc.RpcClientConf   // 业务私有
-//	    MyBusinessKnob   int
-//	}
+// 文件加载示例(各服务 main.go):
+//
+//	c := kconfig.New(kconfig.WithSource(file.NewSource("./etc/login-dev.yaml")))
+//	if err := c.Load(); err != nil { panic(err) }
+//	var cfg config.Base
+//	if err := c.Scan(&cfg); err != nil { panic(err) }
 package config
 
 import (
@@ -18,106 +23,153 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/zeromicro/go-zero/zrpc"
 )
 
-// Base 是所有 Pandora 服务的通用配置基��。
-// 嵌入 zrpc.RpcServerConf 获得 go-zero 服务发现/注册/Listen 全套。
+// Base 是所有 Pandora 服务的通用配置基类。
+//
+// 各业务服务 internal/conf/conf.go 模板:
+//
+//	type Config struct {
+//	    config.Base `yaml:",inline"`             // 公共
+//	    BusinessKnob int    `yaml:"business_knob"` // 业务私有
+//	}
 type Base struct {
-	zrpc.RpcServerConf
+	// Server 监听配置(gRPC + HTTP)
+	Server Server `yaml:"server"`
 
 	// Node 节点级配置(redis 客户端、session 超时等)
-	Node NodeConfig `json:"Node"`
+	Node NodeConfig `yaml:"node"`
 
 	// Snowflake 全局 ID 生成参数
-	Snowflake SnowflakeConf `json:"Snowflake"`
+	Snowflake SnowflakeConf `yaml:"snowflake,omitempty"`
 
 	// Locker 分布式锁默认 TTL
-	Locker LockerConf `json:"Locker,optional"`
+	Locker LockerConf `yaml:"locker,omitempty"`
 
-	// Registry 服务注册发现(默认走 zrpc 内置 etcd)
-	Registry RegistryConf `json:"Registry,optional"`
+	// Registry 服务注册发现(W2 用 file 配置,W3+ 接 etcd)
+	Registry RegistryConf `yaml:"registry,omitempty"`
 
 	// Timeouts 各种通用超时
-	Timeouts TimeoutConf `json:"Timeouts,optional"`
+	Timeouts TimeoutConf `yaml:"timeouts,omitempty"`
 
-	// Kafka 生产者/消费者通用配置(无 topic 字段,由业务侧 BuildTopic)
-	Kafka KafkaConfig `json:"Kafka,optional"`
+	// Kafka 生产者/消费者通用配置
+	Kafka KafkaConfig `yaml:"kafka,omitempty"`
+}
+
+// Server Kratos 风格的 server 监听配置(替代 go-zero zrpc.RpcServerConf)。
+type Server struct {
+	Grpc Grpc `yaml:"grpc"`
+	Http Http `yaml:"http,omitempty"` // 可选,W2 大部分服务只暴露 gRPC
+}
+
+// Grpc gRPC server 监听。
+type Grpc struct {
+	Network string        `yaml:"network,omitempty"` // 默认 "tcp"
+	Addr    string        `yaml:"addr"`              // 例 ":50001"
+	Timeout time.Duration `yaml:"timeout,omitempty"` // 默认 1s
+}
+
+// Http HTTP server 监听(给 protoc-gen-go-http 生成的 handler 用)。
+type Http struct {
+	Network string        `yaml:"network,omitempty"`
+	Addr    string        `yaml:"addr"`              // 例 ":51001"
+	Timeout time.Duration `yaml:"timeout,omitempty"`
 }
 
 // NodeConfig 节点级配置。
 type NodeConfig struct {
 	// ZoneId 是分服 ID。Pandora 单服模式默认填 1。
-	ZoneId           uint32        `json:"ZoneId,default=1"`
-	SessionExpireMin uint32        `json:"SessionExpireMin,default=1440"` // 24h
-	RedisClient      RedisConf     `json:"RedisClient"`
-	LeaseTTL         int64         `json:"LeaseTTL,default=10"`           // 秒
-	MaxLoginDuration time.Duration `json:"MaxLoginDuration,default=24h"`
-	LogoutGraceTime  time.Duration `json:"LogoutGraceTime,default=5m"`
+	ZoneId           uint32        `yaml:"zone_id"`
+	SessionExpireMin uint32        `yaml:"session_expire_min,omitempty"` // 默认 1440 (24h)
+	RedisClient      RedisConf     `yaml:"redis_client"`
+	LeaseTTL         int64         `yaml:"lease_ttl,omitempty"`          // 秒,默认 10
+	MaxLoginDuration time.Duration `yaml:"max_login_duration,omitempty"` // 默认 24h
+	LogoutGraceTime  time.Duration `yaml:"logout_grace_time,omitempty"`  // 默认 5m
 }
 
 // RedisConf Redis 客户端配置。
 type RedisConf struct {
-	Host         string        `json:"Host"`
-	Password     string        `json:"Password,optional"`
-	DB           uint32        `json:"DB,default=0"`
-	DefaultTTL   time.Duration `json:"DefaultTTL,default=24h"`
-	DialTimeout  time.Duration `json:"DialTimeout,default=3s"`
-	ReadTimeout  time.Duration `json:"ReadTimeout,default=2s"`
-	WriteTimeout time.Duration `json:"WriteTimeout,default=2s"`
+	Host         string        `yaml:"host"`
+	Password     string        `yaml:"password,omitempty"`
+	DB           uint32        `yaml:"db,omitempty"`
+	DefaultTTL   time.Duration `yaml:"default_ttl,omitempty"`
+	DialTimeout  time.Duration `yaml:"dial_timeout,omitempty"`
+	ReadTimeout  time.Duration `yaml:"read_timeout,omitempty"`
+	WriteTimeout time.Duration `yaml:"write_timeout,omitempty"`
 }
 
 // KafkaConfig Kafka 生产/消费通用配置。
 type KafkaConfig struct {
-	Brokers          []string                `json:"Brokers"`
-	GroupID          string                  `json:"GroupID,optional"`
-	PartitionCnt     int32                   `json:"PartitionCnt,default=4"`
-	InitialPartition int                     `json:"InitialPartition,default=4"`
-	DialTimeout      time.Duration           `json:"DialTimeout,default=10s"`
-	ReadTimeout      time.Duration           `json:"ReadTimeout,default=10s"`
-	WriteTimeout     time.Duration           `json:"WriteTimeout,default=10s"`
-	RetryMax         int                     `json:"RetryMax,default=3"`
-	RetryBackoff     time.Duration           `json:"RetryBackoff,default=200ms"`
-	ChannelBuffer    int                     `json:"ChannelBuffer,default=256"`
-	SyncInterval     time.Duration           `json:"SyncInterval,default=1s"`
-	StatsInterval    time.Duration           `json:"StatsInterval,default=30s"`
-	CompressionType  sarama.CompressionCodec `json:"CompressionType,default=0"`
-	Idempotent       bool                    `json:"Idempotent,default=true"`
-	MaxOpenRequests  int                     `json:"MaxOpenRequests,default=1"`
-	RetentionMs      int64                   `json:"RetentionMs,default=604800000"` // 7 天
+	Brokers          []string      `yaml:"brokers"`
+	GroupID          string        `yaml:"group_id,omitempty"`
+	PartitionCnt     int32         `yaml:"partition_cnt,omitempty"`     // 默认 4
+	InitialPartition int           `yaml:"initial_partition,omitempty"` // 默认 4
+	DialTimeout      time.Duration `yaml:"dial_timeout,omitempty"`
+	ReadTimeout      time.Duration `yaml:"read_timeout,omitempty"`
+	WriteTimeout     time.Duration `yaml:"write_timeout,omitempty"`
+	RetryMax         int           `yaml:"retry_max,omitempty"`
+	RetryBackoff     time.Duration `yaml:"retry_backoff,omitempty"`
+	ChannelBuffer    int           `yaml:"channel_buffer,omitempty"`
+	SyncInterval     time.Duration `yaml:"sync_interval,omitempty"`
+	StatsInterval    time.Duration `yaml:"stats_interval,omitempty"`
+	// CompressionType: "none" | "gzip" | "snappy" | "lz4" | "zstd"(默认 none)
+	// 用 string 比 int 更人类可读,内部用 ParseCompression 转换。
+	CompressionType string `yaml:"compression_type,omitempty"`
+	Idempotent      bool   `yaml:"idempotent,omitempty"`        // 默认 true
+	MaxOpenRequests int    `yaml:"max_open_requests,omitempty"` // idempotent=true 时必须为 1
+	RetentionMs     int64  `yaml:"retention_ms,omitempty"`      // 默认 7 天
 }
 
-// SnowflakeConf 雪花算法参数。Pandora 默认 17 位 NodeID + 15 位 step。
+// ParseCompression 把 yaml 里的字符串转成 sarama 类型。
+// 不识别的值返回 sarama.CompressionNone(不报错,日志由调用方打)。
+func (k KafkaConfig) ParseCompression() sarama.CompressionCodec {
+	switch k.CompressionType {
+	case "gzip":
+		return sarama.CompressionGZIP
+	case "snappy":
+		return sarama.CompressionSnappy
+	case "lz4":
+		return sarama.CompressionLZ4
+	case "zstd":
+		return sarama.CompressionZSTD
+	case "", "none":
+		return sarama.CompressionNone
+	default:
+		return sarama.CompressionNone
+	}
+}
+
+// SnowflakeConf 雪花算法参数。
 type SnowflakeConf struct {
-	Epoch    int64  `json:"Epoch,default=1773446400"` // 2026-03-14 UTC
-	NodeBits uint32 `json:"NodeBits,default=17"`
-	StepBits uint32 `json:"StepBits,default=15"`
+	Epoch    int64  `yaml:"epoch,omitempty"`     // 默认 1773446400 (2026-03-14 UTC)
+	NodeBits uint32 `yaml:"node_bits,omitempty"` // 默认 17
+	StepBits uint32 `yaml:"step_bits,omitempty"` // 默认 15
 }
 
 // LockerConf 分布式锁默认 TTL。
 type LockerConf struct {
-	AccountLockTTL uint32 `json:"AccountLockTTL,default=10"` // 秒
-	PlayerLockTTL  uint32 `json:"PlayerLockTTL,default=10"`
+	AccountLockTTL uint32 `yaml:"account_lock_ttl,omitempty"` // 秒,默认 10
+	PlayerLockTTL  uint32 `yaml:"player_lock_ttl,omitempty"`
 }
 
 // RegistryConf 服务注册发现。
 type RegistryConf struct {
-	Etcd EtcdRegistryConf `json:"Etcd"`
+	Etcd EtcdRegistryConf `yaml:"etcd,omitempty"`
 }
 
-// EtcdRegistryConf etcd 注册中心。
+// EtcdRegistryConf etcd 注册中心(W3+ 接入)。
 type EtcdRegistryConf struct {
-	Hosts       []string      `json:"Hosts"`
-	Key         string        `json:"Key,optional"` // service path,默认按服务名构造
-	DialTimeout time.Duration `json:"DialTimeout,default=5s"`
+	Hosts       []string      `yaml:"hosts"`
+	Key         string        `yaml:"key,omitempty"`           // service path,默认按服务名构造
+	DialTimeout time.Duration `yaml:"dial_timeout,omitempty"`  // 默认 5s
 }
 
 // TimeoutConf 各种公共超时。
 type TimeoutConf struct {
-	EtcdDialTimeout         time.Duration `json:"EtcdDialTimeout,default=5s"`
-	ServiceDiscoveryTimeout time.Duration `json:"ServiceDiscoveryTimeout,default=5s"`
-	TaskWaitTimeout         time.Duration `json:"TaskWaitTimeout,default=10s"`
-	RoleCacheExpire         time.Duration `json:"RoleCacheExpire,default=5m"`
+	EtcdDialTimeout         time.Duration `yaml:"etcd_dial_timeout,omitempty"`
+	ServiceDiscoveryTimeout time.Duration `yaml:"service_discovery_timeout,omitempty"`
+	TaskWaitTimeout         time.Duration `yaml:"task_wait_timeout,omitempty"`
+	RoleCacheExpire         time.Duration `yaml:"role_cache_expire,omitempty"`
 }
 
 // BuildTopic 按 docs/design/infra.md §4 规范构造 kafka topic。
@@ -132,7 +184,6 @@ func BuildTopic(domain, event string) string {
 //
 //	BuildDLQTopic("pandora.battle.result") → "pandora.dlq.battle.result"
 func BuildDLQTopic(originalTopic string) string {
-	// 替换 "pandora." 前缀为 "pandora.dlq."
 	const prefix = "pandora."
 	if len(originalTopic) > len(prefix) && originalTopic[:len(prefix)] == prefix {
 		return "pandora.dlq." + originalTopic[len(prefix):]

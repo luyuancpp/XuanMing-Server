@@ -16,7 +16,7 @@ import (
 	"sync"
 
 	"github.com/IBM/sarama"
-	"github.com/zeromicro/go-zero/core/logx"
+	klog "github.com/go-kratos/kratos/v2/log"
 )
 
 // Handler 是消息处理函数,由业务实现。
@@ -99,7 +99,7 @@ func (k *KeyOrderedConsumer) Start() {
 				if errors.Is(err, sarama.ErrClosedConsumerGroup) {
 					return
 				}
-				logx.Errorf("[kafkax] consume err topic=%s: %v", k.topic, err)
+				klog.Errorf("[kafkax] consume err topic=%s: %v", k.topic, err)
 			}
 		}
 	}()
@@ -115,22 +115,22 @@ func (k *KeyOrderedConsumer) Start() {
 				if !ok {
 					return
 				}
-				logx.Errorf("[kafkax] consumer error: %v", err)
+				klog.Errorf("[kafkax] consumer error: %v", err)
 			}
 		}
 	}()
 
-	logx.Infof("[kafkax] consumer started: topic=%s group=%s", k.topic, k.groupID)
+	klog.Infof("[kafkax] consumer started: topic=%s group=%s", k.topic, k.groupID)
 }
 
 // Close 优雅关闭。
 func (k *KeyOrderedConsumer) Close() error {
 	k.cancel()
 	if err := k.consumer.Close(); err != nil {
-		logx.Errorf("[kafkax] close: %v", err)
+		klog.Errorf("[kafkax] close: %v", err)
 	}
 	k.wg.Wait()
-	logx.Infof("[kafkax] consumer closed: topic=%s", k.topic)
+	klog.Infof("[kafkax] consumer closed: topic=%s", k.topic)
 	return nil
 }
 
@@ -151,7 +151,7 @@ func (k *KeyOrderedConsumer) ConsumeClaim(
 			}
 			if err := k.handler(sess.Context(), msg); err != nil {
 				// W1-D2 简化:log + ack。W2 写 battle_result 时改为 retry queue / DLQ。
-				logx.Errorf("[kafkax] handler err topic=%s partition=%d offset=%d key=%s: %v",
+				klog.Errorf("[kafkax] handler err topic=%s partition=%d offset=%d key=%s: %v",
 					msg.Topic, msg.Partition, msg.Offset, string(msg.Key), err)
 			}
 			sess.MarkMessage(msg, "")

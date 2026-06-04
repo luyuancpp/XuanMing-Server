@@ -29,7 +29,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/zeromicro/go-zero/core/logx"
+	klog "github.com/go-kratos/kratos/v2/log"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 )
@@ -138,7 +138,7 @@ func (c *Collector) Enable(autoDisableAfter time.Duration) {
 		go c.reportLoop(c.stopReport)
 	}
 
-	logx.Infof("[grpcstats] Enabled. interval=%v auto_disable=%v", c.reportInterval, autoDisableAfter)
+	klog.Infof("[grpcstats] Enabled. interval=%v auto_disable=%v", c.reportInterval, autoDisableAfter)
 }
 
 // Disable 停止采集并打印最后一次报告。
@@ -153,7 +153,7 @@ func (c *Collector) Disable() {
 	c.mu.Unlock()
 
 	c.reportOnce()
-	logx.Info("[grpcstats] Disabled.")
+	klog.Info("[grpcstats] Disabled.")
 }
 
 // IsEnabled 返回当前是否在采集。
@@ -235,7 +235,7 @@ func (c *Collector) reportLoop(stop chan struct{}) {
 
 			if !autoDisable.IsZero() && time.Now().After(autoDisable) {
 				c.enabled.Store(false)
-				logx.Info("[grpcstats] Auto-disabled after timeout.")
+				klog.Info("[grpcstats] Auto-disabled after timeout.")
 				c.reportOnce()
 				c.mu.Lock()
 				c.reporting = false
@@ -279,7 +279,7 @@ func (c *Collector) reportOnce() {
 	})
 
 	if len(snapshots) == 0 {
-		logx.Infof("[grpcstats] window=%v no traffic", c.reportInterval)
+		klog.Infof("[grpcstats] window=%v no traffic", c.reportInterval)
 		return
 	}
 
@@ -295,7 +295,7 @@ func (c *Collector) reportOnce() {
 		totalCount += s.RecvCount
 	}
 
-	logx.Infof("[grpcstats] window=%v total_calls=%d req_bytes=%s resp_bytes=%s",
+	klog.Infof("[grpcstats] window=%v total_calls=%d req_bytes=%s resp_bytes=%s",
 		c.reportInterval, totalCount, formatBytes(totalRecv), formatBytes(totalResp))
 
 	n := len(snapshots)
@@ -304,7 +304,7 @@ func (c *Collector) reportOnce() {
 	}
 	for i := 0; i < n; i++ {
 		s := snapshots[i]
-		logx.Infof("[grpcstats]   %s count=%d req=%s resp=%s avg_lat=%v max_lat=%v max_req=%s",
+		klog.Infof("[grpcstats]   %s count=%d req=%s resp=%s avg_lat=%v max_lat=%v max_req=%s",
 			s.FullMethod, s.RecvCount,
 			formatBytes(s.RecvBytes), formatBytes(s.RespBytes),
 			s.LatencyAvg, s.MaxLatency,
@@ -312,7 +312,7 @@ func (c *Collector) reportOnce() {
 	}
 
 	if len(snapshots) > c.topN {
-		logx.Infof("[grpcstats]   ... and %d more methods", len(snapshots)-c.topN)
+		klog.Infof("[grpcstats]   ... and %d more methods", len(snapshots)-c.topN)
 	}
 }
 

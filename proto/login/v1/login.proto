@@ -5,18 +5,53 @@
 //   - 颁发 Session Token(给客户端)
 //   - 颁发 DS Ticket(JWT,给 UE DS 校验)
 //   - 验证 DS Ticket(防重放,jti 黑名单)
+//
+// W2 (2026-06-05) 加 google.api.http 注解(Kratos protoc-gen-go-http 用):
+//   - 业务服同时暴露 gRPC + HTTP 两套 endpoint
+//   - Envoy gRPC-Web filter 把客户端请求转 gRPC,优先走 gRPC
+//   - HTTP endpoint 给运营后台 / 第三方 webhook 用,玩家客户端不直连
 
 syntax = "proto3";
 
 package pandora.login.v1;
 
 import "common/v1/errcode.proto";
+import "google/api/annotations.proto";
 
 service LoginService {
-  rpc Login(LoginReq) returns (LoginResp);
-  rpc Logout(LogoutReq) returns (LogoutResp);
-  rpc IssueDSTicket(IssueDSTicketReq) returns (IssueDSTicketResp);
-  rpc VerifyDSTicket(VerifyDSTicketReq) returns (VerifyDSTicketResp);
+  // Login 立即完成型(synchronous),response 含完整 session_token + hub 地址
+  // kafka push 不发给 caller(他看 RPC response 即可)
+  rpc Login(LoginReq) returns (LoginResp) {
+    option (google.api.http) = {
+      post: "/v1/login"
+      body: "*"
+    };
+  }
+
+  // Logout 立即完成型,清 session
+  rpc Logout(LogoutReq) returns (LogoutResp) {
+    option (google.api.http) = {
+      post: "/v1/logout"
+      body: "*"
+    };
+  }
+
+  // IssueDSTicket 立即完成型,DS 进入前 client 调拿短期票据
+  rpc IssueDSTicket(IssueDSTicketReq) returns (IssueDSTicketResp) {
+    option (google.api.http) = {
+      post: "/v1/ds/ticket/issue"
+      body: "*"
+    };
+  }
+
+  // VerifyDSTicket 立即完成型,DS 内部用(不暴露 HTTP path 给客户端)
+  // ⚠️ Envoy 应该用 ext_authz / route 限制此 path 只允许内网
+  rpc VerifyDSTicket(VerifyDSTicketReq) returns (VerifyDSTicketResp) {
+    option (google.api.http) = {
+      post: "/v1/ds/ticket/verify"
+      body: "*"
+    };
+  }
 }
 
 // ===== 登录 =====

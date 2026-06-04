@@ -5,27 +5,37 @@ toolchain go1.24.5
 // Pandora Go workspace
 //
 // W1-D2 阶段:只 use ./pkg(公共框架已落地)。
-// 13 个业务服务 W2+ 写代码时,逐个启用对应 use 行。
+// W2 起 13 个业务服务 + push 服务按业务域归位到 services/ 下。
 //
-// 注:Go 版本由 go mod tidy 拉来的依赖(go-zero 1.9.x / sarama 1.43.1 等)
-// 自动要求 1.24,虽然 PROGRESS.md 写的目标版本是 1.23,但 1.24 兼容,接受升级。
+// 目录决策(2026-06-05 重构):按业务域分组(对齐大厂 + kafka topic 域)
+//   - services/account/         账号身份(login, player)
+//   - services/social/          社交(friend, chat, dialogue)
+//   - services/matchmaking/     匹配组队(team, matchmaker)
+//   - services/battle/          战斗调度(ds_allocator, hub_allocator, battle_result)
+//   - services/economy/         经济(trade)
+//   - services/data/            数据层(data_service)
+//   - services/runtime/         运行时(player_locator, push)
+//
+// Go module 路径示例:github.com/luyuancpp/pandora/services/account/login
+//
+// 注:Go 版本由 go mod tidy 拉来的依赖(Kratos v2.9.2 / sarama 1.43.1 等)
+// 自动要求 1.24.0,虽然 PROGRESS.md 写的目标版本是 1.23,但 1.24 兼容,接受升级。
 
 use ./pkg
 
 // W2+ 启用以下 use 行(每个服务在 cmd/main.go + go.mod 创建后启用):
 //
-// use ./login
-// use ./player
-// use ./data_service
-// use ./friend
-// use ./chat
-// use ./player_locator
-// use ./team
-// use ./matchmaker
-// use ./trade
-// use ./dialogue
-// use ./ds_allocator
-// use ./hub_allocator
-// use ./battle_result
-// use ./gateway        ⭐ 2026-06-03 新增(go-zero gateway)
-// use ./push           ⭐ 2026-06-03 新增(WebSocket 推送服务)
+// use ./services/account/login
+// use ./services/account/player
+// use ./services/social/friend
+// use ./services/social/chat
+// use ./services/social/dialogue
+// use ./services/matchmaking/team
+// use ./services/matchmaking/matchmaker
+// use ./services/battle/ds_allocator
+// use ./services/battle/hub_allocator
+// use ./services/battle/battle_result
+// use ./services/economy/trade
+// use ./services/data/data_service
+// use ./services/runtime/player_locator
+// use ./services/runtime/push          ⭐ Kratos transport/grpc server stream

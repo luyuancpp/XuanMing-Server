@@ -442,3 +442,81 @@ curl_easy_setopt(EasyHandle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
 
 ⚠️ **Battle DS 内部 gRPC 调用必须在独立 goroutine + 5s 超时**,不阻塞 UE 主 tick 线程(W5-W6 实现约束)。
 
+
+---
+
+## W2 ⓪ — 后端目录按业务域重构(2026-06-05)
+
+### 背景
+
+W2 任务 ① 写 pkg 时发现:**14 个业务服在仓库根目录平铺**,加上未来扩展(guild / mail / payment 等可能 30+),根目录会非常乱。用户提出担忧,授权我用"最好最标准"方案。
+
+### 决策(2026-06-05)
+
+按**业务域分组**到 `services/` 下,对齐:
+1. 大厂业务级项目惯例(米哈游 / 字节 / 腾讯内部)
+2. Kafka topic 域(`pandora.<domain>.<event>`)
+3. DDD 风格的微服务架构
+
+### 新目录结构
+
+```
+F:/work/Pandora/
+├── services/
+│   ├── account/         (login, player)              ← 账号身份
+│   ├── social/          (friend, chat, dialogue)     ← 社交
+│   ├── matchmaking/     (team, matchmaker)           ← 匹配组队
+│   ├── battle/          (ds_allocator,               ← 战斗调度
+│   │                     hub_allocator,
+│   │                     battle_result)
+│   ├── economy/         (trade)                       ← 经济(后期 +shop/payment)
+│   ├── data/            (data_service)                ← 数据层
+│   └── runtime/         (player_locator, push)        ← 运行时基础设施
+├── pkg/                                               ← 公共框架(不变)
+├── proto/                                             ← 协议(不变)
+├── deploy/                                            ← 部署(不变)
+├── tools/                                             ← 工具脚本(不变)
+├── docs/                                              ← 文档(不变)
+└── robot/                                             ← 压测(不变)
+```
+
+### Module 路径
+
+| 旧 | 新 |
+|---|---|
+| `github.com/luyuancpp/pandora/login` | `github.com/luyuancpp/pandora/services/account/login` |
+| `github.com/luyuancpp/pandora/team` | `github.com/luyuancpp/pandora/services/matchmaking/team` |
+| ... | ... |
+
+### 删除
+
+- ❌ `gateway/`(D3 推翻,Envoy 替代,目录无意义)
+
+### 已完成的动作
+
+- [x] 创建 7 个业务域目录
+- [x] `git mv` 13 个空业务服到对应域(.gitkeep 保留)
+- [x] `git rm -r gateway/`
+- [x] 改 `go.work` 注释里 13 个 use 行的路径
+- [x] 批量替换 docs / PROGRESS / CLAUDE / AGENTS / README 中 14 个旧服务路径(`F:/work/Pandora/<svc>/` → `F:/work/Pandora/services/<group>/<svc>/`)
+- [x] PROGRESS.md 加本节
+
+### 为什么按域分组(决策理由)
+
+- **未来 30+ 服务也清晰**:每域 3-5 个服务,扫一眼 10 个域 vs 平铺 30 行
+- **新人定位快**:"商店在哪?" → 直接进 `services/economy/`
+- **协议-代码对齐**:`pandora.team.update` topic ↔ `services/matchmaking/team/` 目录
+- **业内惯例**:大厂业务级项目都按域分,平铺是 demo 风格
+- **改动一次永久受益**:module 路径锁死,后期不返工
+
+### 路径变更的连锁影响(W2 写代码时按新路径)
+
+1. ⚠️ 服务 module 路径变长(`pandora/services/account/login`),import 时 IDE 自动补全无差别
+2. ⚠️ 配置文件路径(`etc/`)跟服务在同目录,无影响
+3. ⚠️ Envoy cluster 名仍按服务名不带域(`login` / `team` / `push`),路由 prefix 仍按 proto package(`/pandora.login.v1.LoginService/`)— 不受目录影响
+4. ⚠️ docker image 名仍按服务名(`pandora-login:latest`)— 不受目录影响
+
+### 下次会话 AI 必读
+
+⚠️ **2026-06-05 起服务在 `services/<域>/<服务>/`**,任何 AI 看到"login/" 根目录平铺的内容时,要意识到那是历史路径,实际位置在 `services/account/login/`。
+

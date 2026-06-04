@@ -21,7 +21,7 @@ package svc
 
 import (
 	"github.com/redis/go-redis/v9"
-	"github.com/zeromicro/go-zero/core/logx"
+	klog "github.com/go-kratos/kratos/v2/log"
 
 	"github.com/luyuancpp/pandora/pkg/config"
 	"github.com/luyuancpp/pandora/pkg/redislock"
@@ -63,7 +63,7 @@ func MustNewBaseContext(c config.Base) *BaseContext {
 	// 3. Locker
 	lk := redislock.NewRedisLocker(rdb)
 
-	logx.Infof("[svc] BaseContext ready zone=%d redis=%s", c.Node.ZoneId, c.Node.RedisClient.Host)
+	klog.Infof("[svc] BaseContext ready zone=%d redis=%s", c.Node.ZoneId, c.Node.RedisClient.Host)
 
 	return &BaseContext{
 		RedisClient: rdb,
@@ -77,7 +77,7 @@ func MustNewBaseContext(c config.Base) *BaseContext {
 func (b *BaseContext) Close() error {
 	if b.RedisClient != nil {
 		if err := b.RedisClient.Close(); err != nil {
-			logx.Errorf("[svc] redis close: %v", err)
+			klog.Errorf("[svc] redis close: %v", err)
 		}
 	}
 	return nil

@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/zeromicro/go-zero/core/logx"
+	klog "github.com/go-kratos/kratos/v2/log"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/luyuancpp/pandora/pkg/config"
@@ -60,25 +60,25 @@ func NewKeyOrderedProducer(cfg config.KafkaConfig, topic string) (*KeyOrderedPro
 	c.Producer.Retry.Backoff = cfg.RetryBackoff
 	c.Producer.RequiredAcks = sarama.WaitForAll
 	c.ChannelBufferSize = cfg.ChannelBuffer
-	c.Producer.Compression = cfg.CompressionType
+	c.Producer.Compression = cfg.ParseCompression()
 	c.Producer.Idempotent = cfg.Idempotent
 	c.Net.MaxOpenRequests = 1
 
 	if err := c.Validate(); err != nil {
-		logx.Errorf("[kafkax] invalid sarama config: %v", err)
+		klog.Errorf("[kafkax] invalid sarama config: %v", err)
 		return nil, err
 	}
 
 	client, err := sarama.NewClient(cfg.Brokers, c)
 	if err != nil {
-		logx.Errorf("[kafkax] new client failed: %v", err)
+		klog.Errorf("[kafkax] new client failed: %v", err)
 		return nil, fmt.Errorf("new client: %w", err)
 	}
 
 	producer, err := sarama.NewSyncProducerFromClient(client)
 	if err != nil {
 		_ = client.Close()
-		logx.Errorf("[kafkax] new sync producer failed: %v", err)
+		klog.Errorf("[kafkax] new sync producer failed: %v", err)
 		return nil, fmt.Errorf("new sync producer: %w", err)
 	}
 
@@ -102,7 +102,7 @@ func NewKeyOrderedProducer(cfg config.KafkaConfig, topic string) (*KeyOrderedPro
 		p.consistent.AddPartition(i)
 	}
 
-	logx.Infof("[kafkax] producer ready: topic=%s partitions=%d idempotent=%v",
+	klog.Infof("[kafkax] producer ready: topic=%s partitions=%d idempotent=%v",
 		topic, cfg.PartitionCnt, cfg.Idempotent)
 	return p, nil
 }
@@ -181,13 +181,13 @@ func (p *KeyOrderedProducer) Close() error {
 
 	p.cancel()
 	if err := p.producer.Close(); err != nil {
-		logx.Errorf("[kafkax] producer close: %v", err)
+		klog.Errorf("[kafkax] producer close: %v", err)
 	}
 	if err := p.client.Close(); err != nil {
-		logx.Errorf("[kafkax] client close: %v", err)
+		klog.Errorf("[kafkax] client close: %v", err)
 	}
 
-	logx.Infof("[kafkax] producer closed: topic=%s success=%d error=%d",
+	klog.Infof("[kafkax] producer closed: topic=%s success=%d error=%d",
 		p.topic, atomic.LoadInt64(&p.successCount), atomic.LoadInt64(&p.errorCount))
 	return nil
 }

@@ -1,18 +1,22 @@
-// Package log 是 Pandora 服务的日志门面,基于 go-zero/core/logx 做薄包装。
+// Package log 是 Pandora 服务的日志门面,基于 Kratos log.Logger interface + zap 实现。
 //
 // 设计目标:
 //   - 统一所有服务的 service / trace_id / 业务字段约定(docs/design/infra.md §11)
-//   - 提供一站式 Setup,业务侧不需要手写 logx.MustSetup
-//   - 提供 With(ctx) 从 ctx 提取 trace_id / player_id 等业务字段
+//   - 提供一站式 Setup,业务侧不需要手写 zap.NewProduction
+//   - 提供 With(ctx) 从 ctx 提取 trace_id / player_id 等业务字段(语义跟之前 logx 版一致)
 //
-// 不引入 zap,避免与 go-zero 双写日志。
+// 框架决策(docs/design/pkg-copy-from-mmorpg.md §5):
+//   - go-zero logx → Kratos log + zap(2026-06-04)
+//   - Kratos log.Logger 是 interface,业务侧用 log.NewHelper(logger) 拿 Helper
 package log
 
 import (
 	"context"
 	"os"
 
-	"github.com/zeromicro/go-zero/core/logx"
+	klog "github.com/go-kratos/kratos/v2/log"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // ContextKey 是 log 包专用的 context key 类型,避免与业务 key 冲突。
@@ -27,55 +31,84 @@ const (
 
 // Setup 初始化日志系统,所有服务在 main() 开始处调用一次。
 //
-// 默认输出 JSON 到 stdout,Level=info。生产环境通过 LogConf 覆盖:
+// 默认输出 JSON 到 stdout,Level=info。
 //
-//	log.Setup("login", logx.LogConf{Mode: "file", Path: "logs/login"})
-func Setup(serviceName string, conf ...logx.LogConf) {
-	c := logx.LogConf{
-		ServiceName: serviceName,
-		Mode:        "console",
-		Encoding:    "json",
-		Level:       "info",
-		TimeFormat:  "2006-01-02T15:04:05.000Z07:00",
-	}
-	if len(conf) > 0 {
-		// 用户提供的 conf 覆盖默认值,但 ServiceName 始终用 Setup 参数
-		userConf := conf[0]
-		userConf.ServiceName = serviceName
-		c = userConf
+// 用法:
+//
+//	logger := log.Setup("login")
+//	helper := log.NewHelper(logger)
+//	helper.Info("service started")
+func Setup(serviceName string) klog.Logger {
+	encoderCfg := zapcore.EncoderConfig{
+		TimeKey:        "ts",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		CallerKey:      "caller",
+		MessageKey:     "msg",
+		StacktraceKey:  "stack",
+		LineEnding:     zapcore.DefaultLineEnding,
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder, // 2006-01-02T15:04:05.000Z0700
+		EncodeDuration: zapcore.SecondsDurationEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
 	}
 
-	if err := logx.SetUp(c); err != nil {
-		// 启动期日志失败 → 直接退出,否则跑起来都是哑巴
-		_, _ = os.Stderr.WriteString("log setup failed: " + err.Error() + "\n")
-		os.Exit(2)
-	}
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderCfg),
+		zapcore.Lock(os.Stdout),
+		zap.NewAtomicLevelAt(zap.InfoLevel),
+	)
+
+	zl := zap.New(core, zap.AddCaller(), zap.AddCallerSkip(3))
+
+	// 包装成 Kratos log.Logger,挂上 service 字段
+	logger := klog.With(NewZapLogger(zl),
+		"service", serviceName,
+	)
+
+	// 也设成全局默认,业务侧 klog.DefaultLogger 可用
+	klog.SetLogger(logger)
+
+	return logger
 }
 
-// With 从 ctx 抽出标准业务字段,返回带这些字段的 logx.Logger。
+// NewHelper 是 klog.NewHelper 的别名,业务侧用它拿 Helper。
+//
+//	h := log.NewHelper(log.Setup("login"))
+//	h.Info("hello")
+//	h.Errorw("redis_failed", "err", err, "key", "k1")
+func NewHelper(l klog.Logger) *klog.Helper {
+	return klog.NewHelper(l)
+}
+
+// With 从 ctx 抽出标准业务字段,返回带这些字段的 Helper。
 //
 // 调用方:
 //
-//	log.With(ctx).Infow("match found", logx.Field("mmr", 1234))
+//	log.With(ctx).Infow("match found", "mmr", 1234)
 //
 // 标准字段(infra.md §11):trace_id / player_id / match_id / team_id
-func With(ctx context.Context) logx.Logger {
-	l := logx.WithContext(ctx)
+func With(ctx context.Context) *klog.Helper {
+	logger := klog.DefaultLogger
+	kvs := []any{}
 
 	if v := ctx.Value(CtxKeyTraceID); v != nil {
-		l = l.WithFields(logx.Field("trace_id", v))
+		kvs = append(kvs, "trace_id", v)
 	}
 	if v := ctx.Value(CtxKeyPlayerID); v != nil {
-		l = l.WithFields(logx.Field("player_id", v))
+		kvs = append(kvs, "player_id", v)
 	}
 	if v := ctx.Value(CtxKeyMatchID); v != nil {
-		l = l.WithFields(logx.Field("match_id", v))
+		kvs = append(kvs, "match_id", v)
 	}
 	if v := ctx.Value(CtxKeyTeamID); v != nil {
-		l = l.WithFields(logx.Field("team_id", v))
+		kvs = append(kvs, "team_id", v)
 	}
 
-	return l
+	if len(kvs) > 0 {
+		logger = klog.With(logger, kvs...)
+	}
+	return klog.NewHelper(logger)
 }
 
 // WithTraceID 把 trace_id 塞进 ctx,后续 With(ctx) 自动带上。
