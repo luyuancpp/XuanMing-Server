@@ -66,7 +66,7 @@
 要点:
 - 改完必须跑 `pwsh tools/scripts/proto_gen.ps1`
 - commit message 加 `[proto]` 标记
-- 字段编号永不复用
+- 字段编号规则:上线后不复用;开发期间已删除字段可复用编号,但必须重新生成 proto 并完整编译所有已启用 module
 - `player_id` / `team_id` / `match_id` / `order_id` / `message_id` / `dialogue_id` / `hub_id` / `invite_id` 等 Snowflake 业务 ID **一律用 `uint64`**,不准新增 `int64` / `string` 型业务 ID;未知 / 空值用 `0`,需要 presence 时用 `optional uint64`
 - `npc_id` / `hero_id` / `skill_id` / `item_config_id` / `map_id` 等配置表 ID **默认用 `uint32`**,不准新增有符号配置 ID;容易和运行时实体混淆时优先命名 `<entity>_config_id`
 
@@ -112,9 +112,9 @@ AI 跑出错时:
 为节省 Claude 系模型 token,本项目固定按下面分工:
 
 **Claude 模型选择规则**:
-- **Claude Opus 4.7**:负责出 Plan / 审 Plan / 难题攻关 / 最终把关。包括深读文档和代码、列文件清单 / 动作 / 风险 / 工期、复杂架构评审、跨服务一致性、核心战斗 / 匹配 / 交易逻辑 review、安全漏洞分析、疑难 bug 定位、大范围重构方案审核。
-- **Claude Sonnet 4.6**:按 Opus 4.7 审过的 Plan 改代码和补测试,负责常规 go / UE C++ / proto / yaml / shell / ps1 / 文档修改、普通 bug 修复、项目内 build / test / lint 验证。Sonnet 不擅自扩大 Plan 范围。
-- 默认工作流:**Opus 4.7 出 Plan → 人审核 → Sonnet 4.6 按 Plan 写实现并验证 → Opus 4.7 最终 review → ChatGPT / Codex 做环境执行和 git 收尾**。
+- **Claude Opus 4.7 以上**:负责出 Plan / 审 Plan / 难题攻关 / 最终把关。包括深读文档和代码、列文件清单 / 动作 / 风险 / 工期、复杂架构评审、跨服务一致性、核心战斗 / 匹配 / 交易逻辑 review、安全漏洞分析、疑难 bug 定位、大范围重构方案审核。
+- **Claude Sonnet 4.6**:按 Opus 4.7 以上审过的 Plan 改代码和补测试,负责常规 go / UE C++ / proto / yaml / shell / ps1 / 文档修改、普通 bug 修复、项目内 build / test / lint 验证。Sonnet 不擅自扩大 Plan 范围。
+- 默认工作流:**Opus 4.7 以上出 Plan → 人审核 → Sonnet 4.6 按 Plan 写实现并验证 → Opus 4.7 以上最终 review → ChatGPT / Codex 做环境执行和 git 收尾**。
 
 **Claude 系模型(Copilot Claude / Claude Code / Cursor Claude 等)负责**:
 - 深度阅读代码和设计文档,分析完整详细做法

@@ -40,13 +40,12 @@ F:/work/Pandora-Client/         # UE 客户端 + DS(待定名,独立仓库)
 
 ## 5. proto 同步流程(双仓库)
 
-1. proto 只在 **`Pandora` 后端仓库**改
-2. 改完跑 `pwsh tools/scripts/proto_gen.ps1` 生成 go pb
-3. 同时生成 cpp pb 推送到 UE 仓库的 `Source/Pandora/Generated/Proto/`(CI 自动 PR)
-4. UE 客户端改动跟在后端 PR 之后合并
-5. 字段编号**永不复用**,只能 deprecate(`reserved 5;` + 注释原因)
-6. `player_id` / `team_id` / `match_id` / `order_id` / `message_id` / `dialogue_id` / `hub_id` / `invite_id` 等 Snowflake 业务 ID **一律用 `uint64`**;不准再用 `int64` / `string` 承载这类 ID。未知 / 空值用 `0`,需要表达 presence 时用 `optional uint64`
-7. 配置表 ID / 静态表 ID **默认用 `uint32`**(`npc_id` / `hero_id` / `skill_id` / `item_config_id` / `map_id` 等);如果字段名容易和运行时实体混淆,新协议优先命名为 `<entity>_config_id`
+1. 改完跑 `pwsh tools/scripts/proto_gen.ps1` 生成 go pb
+2. 同时生成 cpp pb 推送到 UE 仓库的 `Source/Pandora/Generated/Proto/`(CI 自动 PR)
+3. UE 客户端改动跟在后端 PR 之后合并
+4. 字段编号规则:上线后**不复用**,只能 deprecate(`reserved 5;` + 注释原因);开发期间已删除字段可复用编号,但必须重新生成 proto 并完整编译所有已启用 module
+5. `player_id` / `team_id` / `match_id` / `order_id` / `message_id` / `dialogue_id` / `hub_id` / `invite_id` 等 Snowflake 业务 ID **一律用 `uint64`**;不准再用 `int64` / `string` 承载这类 ID。未知 / 空值用 `0`,需要表达 presence 时用 `optional uint64`
+6. 配置表 ID / 静态表 ID **默认用 `uint32`**(`npc_id` / `hero_id` / `skill_id` / `item_config_id` / `map_id` 等);如果字段名容易和运行时实体混淆,新协议优先命名为 `<entity>_config_id`
 
 ## 6. 服务命名 / 端口规范
 
@@ -72,7 +71,7 @@ F:/work/Pandora-Client/         # UE 客户端 + DS(待定名,独立仓库)
 | W3 ④ | 2026-06-05 | **push 接 kafka + redis ZSET 离线 5min**(push 删 mock tick → KafkaConsumer 每 topic 一个共享 GroupID,Handler 按 `key=strconv.FormatUint(player_id,10)` 不变量 §9 路由 → 在线 ConnectionManager.SendTo / 离线 RedisOfflineCacheRepo Append;ZSET `pandora:push:offline:%d`,score=ts_ms,member=PushFrame proto bytes+seq 后缀防同 ms 去重塌陷,TxPipeline ZAdd+Expire 每写刷 TTL;`pkg/kafkax.PushToPlayers` helper 把原则 2 排除 caller 工程化(callerID=0 = 原则 3 例外全发);`pkg/kafkax/topics.go` 集中 6 个 push topic 常量;新增 `ERR_PUSH_OFFLINE_CORRUPTED=9301` / `ERR_PUSH_KAFKA_CONSUMER_DOWN=9302`;W3 ④ 仅订阅 proto 已就绪的 3 个(team.update/match.progress/chat.private),余 3 个等业务服上线补;单测 11 用例(producer 4 / offline 4 / consumer 3)) |
 | W3 ⑦.0 | 2026-06-05 | **业务 ID 全量 int64/string → uint64 迁移**(14 个业务 proto 按规则迁移并 regen go/cpp pb;`pkg/auth` JWT sub 改 `FormatUint/ParseUint`,`pkg/middleware` 拒绝负数 player_id,`pkg/kafkax.PushToPlayers` 改 `uint64` + kafka key `FormatUint`;login/push/player_locator 三服全链路同步;配置表 ID 如 `npc_id/hero_id/map_id` 保持/改为 `uint32`;`request_id/device_id/trace_id` 保持 string) |
 | 协议硬规则 | 2026-06-05 | **Snowflake 业务 ID 一律 uint64**(`player_id` / `team_id` / `match_id` / `order_id` 等);**配置表 ID 默认 uint32**(`npc_id` / `hero_id` / `skill_id` / `item_config_id` / `map_id` 等);后续 proto / Go / SQL / Redis / Kafka key 不得新增有符号业务 ID |
-| AI 协作 | 2026-06-05 | **Claude 模型分工固化**:Opus 4.7 负责出 Plan / 审 Plan / 难题攻关 / 最终把关;Sonnet 4.6 按审过的 Plan 写代码 / 补测试 / 跑项目内验证;ChatGPT / Codex 继续负责环境执行和 git 收尾 |
+| AI 协作 | 2026-06-05 | **Claude 模型分工固化**:Opus 4.7 以上负责出 Plan / 审 Plan / 难题攻关 / 最终把关;Sonnet 4.6 按审过的 Plan 写代码 / 补测试 / 跑项目内验证;ChatGPT / Codex 继续负责环境执行和 git 收尾 |
 
 后续每轮压测 / 大决策追加一行,**永不删旧行**。
 
@@ -96,7 +95,7 @@ F:/work/Pandora-Client/         # UE 客户端 + DS(待定名,独立仓库)
 2. **战斗结果幂等**(同一 match_id 只落库一次)
 3. **DS 票据短时效**(JWT exp 5min)
 4. **DS 崩溃必有补偿**(15s 心跳超时 → abandoned → 段位回滚)
-5. **proto 字段编号永不复用**
+5. **proto 字段编号上线后不复用**;开发期间已删除字段可复用编号,但必须重新生成 proto 并完整编译所有已启用 module
 6. **MMR 计算在 battle_result**(DS 不可信)
 7. **交易资源扣减必须原子 + 有补偿幂等键**
 8. **所有写都要带 trace_id**
@@ -115,7 +114,7 @@ F:/work/Pandora-Client/         # UE 客户端 + DS(待定名,独立仓库)
 4. **AI 不擅自删除文件**,删除请求必须人确认
 5. **AI 写代码必须遵循本项目规范**(端口 / 命名 / 不变量 / 中文注释)
 6. **跨 AI 分工硬规则**:Claude 系模型(Copilot Claude / Claude Code / Cursor Claude 等)负责深度分析 / plan / 改代码 / 项目内验证;遇到外部环境需求时,Claude 只输出环境配置方案 / 命令 / 风险 / 验收标准。ChatGPT / Codex 负责按该方案安装工具 / 改本机环境 / 生成证书 / 拉 Docker 镜像 / 启停本地环境 / 环境确认 / git status / diff --stat / commit message 建议 / 用户明确授权后的 commit。环境配好后,Claude 再用项目命令复查确认。Claude 系模型不安装工具、不改系统环境、不做 git 收尾。
-7. **Claude 模型分工**:Claude Opus 4.7 负责出 Plan / 审 Plan / 难题攻关 / 最终把关,包括深读文档和代码、列文件清单 / 动作 / 风险 / 工期、复杂架构评审、跨服务一致性、核心战斗 / 匹配 / 交易逻辑 review、安全漏洞分析、疑难 bug 定位、大范围重构方案审核。Claude Sonnet 4.6 按 Opus 4.7 审过的 Plan 写常规代码 / proto / yaml / 脚本 / 文档、补测试、修普通 bug、跑项目内 build / test / lint 验证,不得擅自扩大 Plan 范围。
+7. **Claude 模型分工**:Claude Opus 4.7 以上负责出 Plan / 审 Plan / 难题攻关 / 最终把关,包括深读文档和代码、列文件清单 / 动作 / 风险 / 工期、复杂架构评审、跨服务一致性、核心战斗 / 匹配 / 交易逻辑 review、安全漏洞分析、疑难 bug 定位、大范围重构方案审核。Claude Sonnet 4.6 按 Opus 4.7 以上审过的 Plan 写常规代码 / proto / yaml / 脚本 / 文档、补测试、修普通 bug、跑项目内 build / test / lint 验证,不得擅自扩大 Plan 范围。
 
 ## 11. UE 工程约束(写给 UE 仓库的开发者参考)
 
@@ -127,7 +126,6 @@ F:/work/Pandora-Client/         # UE 客户端 + DS(待定名,独立仓库)
 
 ## 12. 不要做的事
 
-- ❌ 不要在 main 分支直接开发(走 feature/<name> + PR)
 - ❌ 不要在 docs/design/ 之外随便建 README(集中维护)
 - ❌ 不要 import 第三方 GUI 库到 go 服务(go 服务都是 headless gRPC)
 - ❌ 不要把 player_id 当 prometheus label(高基数会爆)

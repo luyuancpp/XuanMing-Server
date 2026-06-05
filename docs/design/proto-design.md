@@ -296,7 +296,7 @@ pandora.dlq.<original_topic> 死信队列
 - C. **bazel + rules_proto**:大型项目最佳,但学习曲线陡
 
 **建议 A(buf)**,理由:
-- buf 内置 breaking change 检测,符合"字段编号永不复用"不变量
+- buf 内置 breaking change 检测,符合"字段编号上线后不复用"规则;开发期间已删除字段可复用编号,但必须重新生成 proto 并完整编译所有已启用 module
 - 双仓库场景下,buf 生成器可以一次配置 go + cpp 两种产物
 - 社区主流,UE 项目对接成熟
 
