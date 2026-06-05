@@ -106,15 +106,7 @@ F:/work/Pandora-Client/         # UE 客户端 + DS(待定名,独立仓库)
 
 ## 10. AI 协作约定
 
-详见 [`AGENTS.md`](./AGENTS.md)。核心:
-
-1. **AI 没有跨会话记忆**,每次新会话先读 `PROGRESS.md` + `docs/design/*.md`
-2. **AI 不操作远端仓库**(不 push、不改 GitHub settings、不登账号)
-3. **AI 操作前先开 plan 模式**,列动作清单给人审,审过批量执行
-4. **AI 不擅自删除文件**,删除请求必须人确认
-5. **AI 写代码必须遵循本项目规范**(端口 / 命名 / 不变量 / 中文注释)
-6. **跨 AI 分工硬规则**:Claude 系模型(Copilot Claude / Claude Code / Cursor Claude 等)负责深度分析 / plan / 改代码 / 项目内验证;遇到外部环境需求时,Claude 只输出环境配置方案 / 命令 / 风险 / 验收标准。ChatGPT / Codex 负责按该方案安装工具 / 改本机环境 / 生成证书 / 拉 Docker 镜像 / 启停本地环境 / 环境确认 / git status / diff --stat / commit message 建议 / 用户明确授权后的 commit。环境配好后,Claude 再用项目命令复查确认。Claude 系模型不安装工具、不改系统环境、不做 git 收尾。
-7. **Claude 模型分工**:Claude Opus 4.7 以上负责出 Plan / 审 Plan / 难题攻关 / 最终把关,包括深读文档和代码、列文件清单 / 动作 / 风险 / 工期、复杂架构评审、跨服务一致性、核心战斗 / 匹配 / 交易逻辑 review、安全漏洞分析、疑难 bug 定位、大范围重构方案审核。Claude Sonnet 4.6 按 Opus 4.7 以上审过的 Plan 写常规代码 / proto / yaml / 脚本 / 文档、补测试、修普通 bug、跑项目内 build / test / lint 验证,不得擅自扩大 Plan 范围。
+AI 协作规则以 [`AGENTS.md`](./AGENTS.md) 为准,本文件不重复维护细则,避免双文档漂移。
 
 ## 11. UE 工程约束(写给 UE 仓库的开发者参考)
 

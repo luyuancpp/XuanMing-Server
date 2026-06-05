@@ -61,14 +61,7 @@
 
 ## 6. proto 同步
 
-详见 `CLAUDE.md §5`。
-
-要点:
-- 改完必须跑 `pwsh tools/scripts/proto_gen.ps1`
-- commit message 加 `[proto]` 标记
-- 字段编号规则:上线后不复用;开发期间已删除字段可复用编号,但必须重新生成 proto 并完整编译所有已启用 module
-- `player_id` / `team_id` / `match_id` / `order_id` / `message_id` / `dialogue_id` / `hub_id` / `invite_id` 等 Snowflake 业务 ID **一律用 `uint64`**,不准新增 `int64` / `string` 型业务 ID;未知 / 空值用 `0`,需要 presence 时用 `optional uint64`
-- `npc_id` / `hero_id` / `skill_id` / `item_config_id` / `map_id` 等配置表 ID **默认用 `uint32`**,不准新增有符号配置 ID;容易和运行时实体混淆时优先命名 `<entity>_config_id`
+proto 规则以 `CLAUDE.md §5` 为准,本文件不重复维护细则,避免双文档漂移。
 
 ## 7. 跨 AI 协作冲突解决
 

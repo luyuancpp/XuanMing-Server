@@ -121,6 +121,11 @@ static_resources:
                   prefix: "/pandora.push.v1.PushService/"
                 requires:
                   provider_name: "pandora_session"
+              # team 服务所有写 RPC 均需 JWT(player_id 以 JWT sub 为准,R5)
+              - match:
+                  prefix: "/pandora.team.v1.TeamService/"
+                requires:
+                  provider_name: "pandora_session"
               # 没列到的 path(login.Login / login.VerifyDSTicket / grpc reflection)默认放行。
               # VerifyDSTicket 是 DS → login 的内部调用,不带玩家 JWT;靠 ext_authz 限内网(W3+)。
 
@@ -163,6 +168,14 @@ static_resources:
                   # ⭐ server stream 铁律:timeout=0(否则 Envoy 默认 15s 后断流)
                   timeout: 0s
                   idle_timeout: 0s
+
+              # ----- team(unary,立即完成型,5s 超时)-----
+              - match:
+                  prefix: "/pandora.team.v1.TeamService/"
+                route:
+                  cluster: team_cluster
+                  timeout: 5s
+                  idle_timeout: 60s
 
               # ----- gRPC reflection(联调用,grpcurl list/describe)-----
               # W2 dev:放行,联调省心
@@ -231,3 +244,24 @@ static_resources:
               socket_address:
                 address: host.docker.internal
                 port_value: 50014
+
+  # ===== team_cluster(unary,5s 超时)=====
+  - name: team_cluster
+    type: STRICT_DNS
+    dns_lookup_family: V4_ONLY
+    connect_timeout: 1s
+    lb_policy: ROUND_ROBIN
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
+    load_assignment:
+      cluster_name: team_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: host.docker.internal
+                port_value: 50010

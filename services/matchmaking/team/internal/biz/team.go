@@ -1,0 +1,528 @@
+// Package biz 是 team 服务的业务逻辑层(W3 ⑦ Phase 3,2026-06-05)。
+//
+// 设计原则(协议铁律 4 原则):
+//  1. 立即完成型:7 个 RPC 在 biz 内完成状态机迁移 + redis 写 + kafka push 后立即返回
+//  2. push 不发 caller:PushTeamUpdate callerPlayerID != 0 时不发给发起者自身
+//  3. kafka key = player_id(不变量 §9):PushToPlayers 已保证
+//  4. WATCH/MULTI/EXEC 乐观锁:所有写路径走 UpdateWithLock,冲突重试 OptimisticRetry 次
+//
+// 状态机合法迁移(见 proto/pandora/team/v1/team.proto):
+//
+//	FORMING  → READY(全员 ready)
+//	READY    → FORMING(任一成员 leave/kick)
+//	DISBANDED → 任何写操作都拒绝(ErrTeamWrongState)
+package biz
+
+import (
+	"context"
+	"time"
+
+	"google.golang.org/protobuf/proto"
+
+	teamv1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/team/v1"
+
+	"github.com/luyuancpp/pandora/pkg/errcode"
+	plog "github.com/luyuancpp/pandora/pkg/log"
+
+	"github.com/luyuancpp/pandora/services/matchmaking/team/internal/conf"
+	"github.com/luyuancpp/pandora/services/matchmaking/team/internal/data"
+)
+
+// TeamEventPusher 是 kafka push 的抽象接口。
+// 实现由 main 装配时注入(kafkax.KeyOrderedProducer.PushToPlayers 包装)。
+type TeamEventPusher interface {
+	// PushTeamUpdate 向 toPlayerIDs 广播队伍变更事件字节(不发给 callerPlayerID)。
+	// payload 是 proto.Marshal(teamv1.TeamUpdateEvent) 的结果。
+	PushTeamUpdate(ctx context.Context, callerPlayerID uint64, toPlayerIDs []uint64, payload []byte) (sent int, err error)
+}
+
+// ── 常量 ─────────────────────────────────────────────────────────────────────
+
+const (
+	stateForming   int32 = 1
+	stateReady     int32 = 2
+	stateMatching  int32 = 3
+	stateInBattle  int32 = 4
+	stateDisbanded int32 = 5
+)
+
+// ── TeamUsecase ───────────────────────────────────────────────────────────────
+
+// TeamUsecase 是 team 业务逻辑的核心。
+type TeamUsecase struct {
+	repo   data.TeamRepo
+	pusher TeamEventPusher
+	cfg    conf.TeamConf
+}
+
+// NewTeamUsecase 构造 TeamUsecase。
+func NewTeamUsecase(repo data.TeamRepo, pusher TeamEventPusher, cfg conf.TeamConf) *TeamUsecase {
+	return &TeamUsecase{repo: repo, pusher: pusher, cfg: cfg}
+}
+
+// InviteTTLMs 返回邀请令牌 TTL 的毫秒数,供 service 层计算 expires_at_ms。
+func (u *TeamUsecase) InviteTTLMs() int64 {
+	return u.cfg.InviteTTL.Std().Milliseconds()
+}
+
+// activeTTL 返回活跃队伍 Redis key 的生命周期。
+func (u *TeamUsecase) activeTTL() time.Duration {
+	return u.cfg.ActiveTTL.Std()
+}
+
+// ── 7 RPC ──────────────────────────────────────────────────────────────────
+
+// CreateTeam 创建队伍,playerID 为队长。
+// 前置条件:playerID 不在任何队伍中。
+func (u *TeamUsecase) CreateTeam(ctx context.Context, teamID, playerID uint64) (*data.TeamRecord, error) {
+	ttl := u.activeTTL()
+
+	// 1. 原子声明玩家归属(SETNX),保证不变量 §1:一人只能在一个队
+	if existTeamID, claimed, err := u.repo.ClaimPlayer(ctx, playerID, teamID, ttl); err != nil {
+		return nil, err
+	} else if !claimed {
+		return nil, errcode.New(errcode.ErrTeamAlreadyInTeam, "player %d already in team %d", playerID, existTeamID)
+	}
+
+	now := time.Now().UnixMilli()
+	team := &data.TeamRecord{
+		TeamID:      teamID,
+		CaptainID:   playerID,
+		State:       stateForming,
+		Members:     []data.MemberRecord{{PlayerID: playerID}},
+		CreatedAtMs: now,
+		UpdatedAtMs: now,
+		MaxSize:     int32(u.cfg.MaxMembers),
+	}
+
+	if err := u.repo.Create(ctx, team, ttl); err != nil {
+		// 回滚 claim,避免玩家被永久锁在不存在的队伍
+		_ = u.repo.DeletePlayerIndex(ctx, playerID)
+		return nil, err
+	}
+
+	// 2. push 给队长自己(创建者收到快照确认)
+	u.pushUpdate(ctx, 0, []uint64{playerID}, team,
+		teamv1.TeamUpdateReason_TEAM_UPDATE_REASON_MEMBER_JOINED, 0)
+
+	plog.With(ctx).Infow("msg", "team_created", "team_id", teamID, "captain_id", playerID)
+	return team, nil
+}
+
+// Invite 邀请目标玩家加入队伍。inviterID 必须在该队伍中。
+func (u *TeamUsecase) Invite(ctx context.Context, inviteID, teamID, inviterID, targetPlayerID uint64) (*data.TeamRecord, error) {
+	team, found, err := u.repo.Get(ctx, teamID)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, errcode.New(errcode.ErrTeamNotFound, "team %d not found", teamID)
+	}
+	if team.State == stateDisbanded {
+		return nil, errcode.New(errcode.ErrTeamWrongState, "team %d disbanded", teamID)
+	}
+	if !hasMember(team, inviterID) {
+		return nil, errcode.New(errcode.ErrTeamNotFound, "player %d not in team %d", inviterID, teamID)
+	}
+	if len(team.Members) >= int(team.MaxSize) {
+		return nil, errcode.New(errcode.ErrTeamFull, "team %d is full (%d/%d)", teamID, len(team.Members), team.MaxSize)
+	}
+
+	// 存储邀请令牌
+	if err := u.repo.SetInvite(ctx, inviteID, teamID, targetPlayerID, u.cfg.InviteTTL.Std()); err != nil {
+		return nil, err
+	}
+
+	// push INVITE_SENT 给 target(不发给 inviter — 原则 2)
+	u.pushUpdate(ctx, inviterID, []uint64{targetPlayerID}, team,
+		teamv1.TeamUpdateReason_TEAM_UPDATE_REASON_INVITE_SENT, inviteID)
+
+	plog.With(ctx).Infow("msg", "team_invite_sent",
+		"team_id", teamID, "inviter_id", inviterID,
+		"target_player_id", targetPlayerID, "invite_id", inviteID)
+	return team, nil
+}
+
+// AcceptInvite 目标玩家接受邀请加入队伍。
+func (u *TeamUsecase) AcceptInvite(ctx context.Context, inviteID, teamID, playerID uint64) (*data.TeamRecord, error) {
+	// 1. 若提供 inviteID,校验令牌
+	if inviteID != 0 {
+		inv, found, err := u.repo.GetInvite(ctx, inviteID)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			return nil, errcode.New(errcode.ErrTeamInviteExpired, "invite %d expired or not found", inviteID)
+		}
+		if inv.TargetPlayerID != playerID {
+			return nil, errcode.New(errcode.ErrTeamInviteExpired, "invite %d target mismatch", inviteID)
+		}
+		if inv.TeamID != teamID {
+			return nil, errcode.New(errcode.ErrTeamInviteExpired, "invite %d team mismatch", inviteID)
+		}
+	}
+
+	// 2. 原子声明 playerID 归属(SETNX),保证不变量 §1:一人只能在一个队。
+	//    必须在改成员列表前声明,杜绝两个并发 AcceptInvite 把同一玩家加进两个队的 TOCTOU。
+	ttl := u.activeTTL()
+	if existTeamID, claimed, err := u.repo.ClaimPlayer(ctx, playerID, teamID, ttl); err != nil {
+		return nil, err
+	} else if !claimed {
+		return nil, errcode.New(errcode.ErrTeamAlreadyInTeam, "player %d already in team %d", playerID, existTeamID)
+	}
+
+	var result *data.TeamRecord
+
+	if err := u.repo.UpdateWithLock(ctx, teamID, u.cfg.OptimisticRetry, func(team *data.TeamRecord) error {
+		if team.State == stateDisbanded {
+			return errcode.New(errcode.ErrTeamWrongState, "team %d disbanded", teamID)
+		}
+		if len(team.Members) >= int(team.MaxSize) {
+			return errcode.New(errcode.ErrTeamFull, "team %d full", teamID)
+		}
+		if hasMember(team, playerID) {
+			return errcode.New(errcode.ErrTeamAlreadyInTeam, "player %d already in team %d", playerID, teamID)
+		}
+
+		team.Members = append(team.Members, data.MemberRecord{PlayerID: playerID})
+		team.UpdatedAtMs = time.Now().UnixMilli()
+
+		// 全员 ready → READY
+		if team.State == stateForming && allReady(team.Members) {
+			team.State = stateReady
+		}
+		result = cloneTeam(team)
+		return nil
+	}, ttl); err != nil {
+		// 入队失败(满员/解散/冲突),回滚 claim 释放玩家
+		_ = u.repo.DeletePlayerIndex(ctx, playerID)
+		return nil, err
+	}
+
+	// player index 已由 ClaimPlayer 在锁前原子写入,此处无需再写。
+
+	// 删 invite 令牌
+	if inviteID != 0 {
+		_ = u.repo.DeleteInvite(ctx, inviteID)
+	}
+
+	// push MEMBER_JOINED 给所有成员(不发给 playerID — 原则 2)
+	u.pushUpdate(ctx, playerID, memberIDs(result), result,
+		teamv1.TeamUpdateReason_TEAM_UPDATE_REASON_MEMBER_JOINED, 0)
+
+	plog.With(ctx).Infow("msg", "team_accept_invite", "team_id", teamID, "player_id", playerID)
+	return result, nil
+}
+
+// LeaveTeam 玩家主动离队。
+//
+// TODO(W3 ⑧ matchmaker): 当前 MATCHING/IN_BATTLE 状态下也允许离队,离队后状态不回退,
+// 可能留下"匹配中但人数不足"的不一致。matchmaker 上线后需定义"匹配中离队 → 取消匹配"语义。
+func (u *TeamUsecase) LeaveTeam(ctx context.Context, teamID, playerID uint64) (*data.TeamRecord, error) {
+	ttl := u.activeTTL()
+	disbandedTTL := u.cfg.DisbandedRetention.Std()
+	var result *data.TeamRecord
+
+	if err := u.repo.UpdateWithLock(ctx, teamID, u.cfg.OptimisticRetry, func(team *data.TeamRecord) error {
+		if team.State == stateDisbanded {
+			return errcode.New(errcode.ErrTeamWrongState, "team %d disbanded", teamID)
+		}
+		if !hasMember(team, playerID) {
+			return errcode.New(errcode.ErrTeamNotFound, "player %d not in team %d", playerID, teamID)
+		}
+
+		team.Members = removeMember(team.Members, playerID)
+		team.UpdatedAtMs = time.Now().UnixMilli()
+
+		if len(team.Members) == 0 {
+			// 队伍空 → 解散
+			team.State = stateDisbanded
+		} else {
+			// 队长离队 → 转移给第一个成员
+			if team.CaptainID == playerID {
+				team.CaptainID = team.Members[0].PlayerID
+			}
+			// READY 状态下有人离开 → 回 FORMING
+			if team.State == stateReady {
+				team.State = stateForming
+			}
+		}
+		result = cloneTeam(team)
+		return nil
+	}, ttl); err != nil {
+		return nil, err
+	}
+
+	// 删 player index
+	if err := u.repo.DeletePlayerIndex(ctx, playerID); err != nil {
+		plog.With(ctx).Warnw("msg", "team_leave_delete_player_index_failed", "player_id", playerID, "err", err)
+	}
+
+	// 解散时用短 TTL 刷新 key
+	if result.State == stateDisbanded {
+		u.refreshDisbandedTTL(ctx, teamID, disbandedTTL)
+		u.pushUpdate(ctx, playerID, memberIDs(result), result,
+			teamv1.TeamUpdateReason_TEAM_UPDATE_REASON_DISBANDED, 0)
+	} else {
+		u.pushUpdate(ctx, playerID, memberIDs(result), result,
+			teamv1.TeamUpdateReason_TEAM_UPDATE_REASON_MEMBER_LEFT, 0)
+	}
+
+	plog.With(ctx).Infow("msg", "team_leave", "team_id", teamID, "player_id", playerID,
+		"new_state", result.State)
+	return result, nil
+}
+
+// Kick 队长踢人。
+//
+// TODO(W3 ⑧ matchmaker): 同 LeaveTeam,MATCHING/IN_BATTLE 状态下踢人不回退状态,
+// matchmaker 上线后需明确匹配中踢人的语义。
+func (u *TeamUsecase) Kick(ctx context.Context, teamID, captainID, targetPlayerID uint64) (*data.TeamRecord, error) {
+	ttl := u.activeTTL()
+	var result *data.TeamRecord
+
+	if err := u.repo.UpdateWithLock(ctx, teamID, u.cfg.OptimisticRetry, func(team *data.TeamRecord) error {
+		if team.State == stateDisbanded {
+			return errcode.New(errcode.ErrTeamWrongState, "team %d disbanded", teamID)
+		}
+		if team.CaptainID != captainID {
+			return errcode.New(errcode.ErrTeamNotCaptain, "player %d is not captain of team %d", captainID, teamID)
+		}
+		if captainID == targetPlayerID {
+			return errcode.New(errcode.ErrInvalidArg, "captain cannot kick themselves")
+		}
+		if !hasMember(team, targetPlayerID) {
+			return errcode.New(errcode.ErrTeamNotFound, "player %d not in team %d", targetPlayerID, teamID)
+		}
+
+		team.Members = removeMember(team.Members, targetPlayerID)
+		team.UpdatedAtMs = time.Now().UnixMilli()
+
+		// READY 状态下踢人 → 回 FORMING
+		if team.State == stateReady {
+			team.State = stateForming
+		}
+		result = cloneTeam(team)
+		return nil
+	}, ttl); err != nil {
+		return nil, err
+	}
+
+	// 删 target player index
+	if err := u.repo.DeletePlayerIndex(ctx, targetPlayerID); err != nil {
+		plog.With(ctx).Warnw("msg", "team_kick_delete_player_index_failed", "player_id", targetPlayerID, "err", err)
+	}
+
+	// push 给剩余成员 + 被踢者(不发给 captain — 原则 2)
+	recipients := append(memberIDs(result), targetPlayerID)
+	u.pushUpdate(ctx, captainID, recipients, result,
+		teamv1.TeamUpdateReason_TEAM_UPDATE_REASON_MEMBER_KICKED, 0)
+
+	plog.With(ctx).Infow("msg", "team_kick", "team_id", teamID, "captain_id", captainID,
+		"target_player_id", targetPlayerID)
+	return result, nil
+}
+
+// SetReady 设置玩家 ready 状态,并可选更换英雄。
+func (u *TeamUsecase) SetReady(ctx context.Context, teamID, playerID uint64, ready bool, heroID uint32) (*data.TeamRecord, error) {
+	ttl := u.activeTTL()
+	var result *data.TeamRecord
+
+	if err := u.repo.UpdateWithLock(ctx, teamID, u.cfg.OptimisticRetry, func(team *data.TeamRecord) error {
+		if team.State == stateDisbanded {
+			return errcode.New(errcode.ErrTeamWrongState, "team %d disbanded", teamID)
+		}
+		if team.State != stateForming && team.State != stateReady {
+			return errcode.New(errcode.ErrTeamWrongState, "team %d state %d not allows set_ready", teamID, team.State)
+		}
+
+		idx := memberIndex(team.Members, playerID)
+		if idx < 0 {
+			return errcode.New(errcode.ErrTeamNotFound, "player %d not in team %d", playerID, teamID)
+		}
+
+		team.Members[idx].Ready = ready
+		if heroID > 0 {
+			team.Members[idx].HeroID = heroID
+		}
+		team.UpdatedAtMs = time.Now().UnixMilli()
+
+		// 全员 ready → 切 READY
+		if ready && allReady(team.Members) {
+			team.State = stateReady
+		} else if !ready && team.State == stateReady {
+			// 任一成员取消 ready → 回 FORMING
+			team.State = stateForming
+		}
+
+		result = cloneTeam(team)
+		return nil
+	}, ttl); err != nil {
+		return nil, err
+	}
+
+	reason := teamv1.TeamUpdateReason_TEAM_UPDATE_REASON_MEMBER_READY
+	if heroID > 0 {
+		reason = teamv1.TeamUpdateReason_TEAM_UPDATE_REASON_HERO_CHANGED
+	}
+	// push 给其他成员(不发给自己 — 原则 2)
+	u.pushUpdate(ctx, playerID, memberIDs(result), result, reason, 0)
+
+	plog.With(ctx).Infow("msg", "team_set_ready", "team_id", teamID, "player_id", playerID,
+		"ready", ready, "new_state", result.State)
+	return result, nil
+}
+
+// GetTeam 读取队伍快照(只读,不走 WATCH)。
+func (u *TeamUsecase) GetTeam(ctx context.Context, teamID uint64) (*data.TeamRecord, error) {
+	team, found, err := u.repo.Get(ctx, teamID)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, errcode.New(errcode.ErrTeamNotFound, "team %d not found", teamID)
+	}
+	return team, nil
+}
+
+// ── push 辅助 ─────────────────────────────────────────────────────────────────
+
+// pushUpdate 把 TeamUpdateEvent marshal 后调 pusher.PushTeamUpdate。
+// pusher 为 nil 时(Phase 2 骨架阶段)直接跳过。
+//
+// 每个接收方单独序列化一条 TeamUpdateEvent,使 to_player_id 字段精确标识接收方。
+// kafka key = player_id(不变量 §9)由 PushToPlayers 内部保证;
+// PushToPlayers 内部同时排除 callerPlayerID(原则 2)。
+func (u *TeamUsecase) pushUpdate(
+	ctx context.Context,
+	callerPlayerID uint64,
+	toPlayerIDs []uint64,
+	team *data.TeamRecord,
+	reason teamv1.TeamUpdateReason,
+	inviteID uint64,
+) {
+	if u.pusher == nil || len(toPlayerIDs) == 0 {
+		return
+	}
+
+	now := time.Now().UnixMilli()
+	protoTeam := recordToProto(team)
+
+	for _, pid := range toPlayerIDs {
+		event := &teamv1.TeamUpdateEvent{
+			Team:       protoTeam,
+			ByPlayerId: callerPlayerID,
+			ToPlayerId: pid, // 每条消息精确标识接收方,客户端可直接读取
+			TsMs:       now,
+			Reason:     reason,
+			InviteId:   inviteID,
+		}
+		payload, err := proto.Marshal(event)
+		if err != nil {
+			plog.With(ctx).Warnw("msg", "team_push_marshal_failed", "err", err, "to_player_id", pid)
+			continue
+		}
+		// PushToPlayers 内部跳过 callerPlayerID == pid 的情况(原则 2)
+		if _, err := u.pusher.PushTeamUpdate(ctx, callerPlayerID, []uint64{pid}, payload); err != nil {
+			plog.With(ctx).Warnw("msg", "team_push_failed", "to_player_id", pid, "err", err)
+		}
+	}
+}
+
+// refreshDisbandedTTL 用短 TTL 刷新已解散队伍的 key。
+// 单条 EXPIRE 即可,无需再走一轮 WATCH/MULTI/EXEC 空写。
+func (u *TeamUsecase) refreshDisbandedTTL(ctx context.Context, teamID uint64, ttl time.Duration) {
+	if err := u.repo.ExpireTeam(ctx, teamID, ttl); err != nil {
+		plog.With(ctx).Warnw("msg", "team_refresh_disbanded_ttl_failed", "team_id", teamID, "err", err)
+	}
+}
+
+// ── 类型转换 ──────────────────────────────────────────────────────────────────
+
+// recordToProto 把 data.TeamRecord 转成 proto Team。
+func recordToProto(r *data.TeamRecord) *teamv1.Team {
+	if r == nil {
+		return nil
+	}
+	members := make([]*teamv1.TeamMember, 0, len(r.Members))
+	for _, m := range r.Members {
+		members = append(members, &teamv1.TeamMember{
+			PlayerId: m.PlayerID,
+			Nickname: m.Nickname,
+			Mmr:      m.MMR,
+			Ready:    m.Ready,
+			HeroId:   m.HeroID,
+		})
+	}
+	return &teamv1.Team{
+		TeamId:      r.TeamID,
+		CaptainId:   r.CaptainID,
+		Members:     members,
+		State:       teamv1.TeamState(r.State),
+		CreatedAtMs: r.CreatedAtMs,
+		MaxSize:     r.MaxSize,
+	}
+}
+
+// RecordToProto 导出供 service 层使用。
+func RecordToProto(r *data.TeamRecord) *teamv1.Team {
+	return recordToProto(r)
+}
+
+// ── 成员辅助函数 ──────────────────────────────────────────────────────────────
+
+func hasMember(team *data.TeamRecord, playerID uint64) bool {
+	for _, m := range team.Members {
+		if m.PlayerID == playerID {
+			return true
+		}
+	}
+	return false
+}
+
+func memberIndex(members []data.MemberRecord, playerID uint64) int {
+	for i, m := range members {
+		if m.PlayerID == playerID {
+			return i
+		}
+	}
+	return -1
+}
+
+func removeMember(members []data.MemberRecord, playerID uint64) []data.MemberRecord {
+	out := make([]data.MemberRecord, 0, len(members))
+	for _, m := range members {
+		if m.PlayerID != playerID {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func allReady(members []data.MemberRecord) bool {
+	if len(members) == 0 {
+		return false
+	}
+	for _, m := range members {
+		if !m.Ready {
+			return false
+		}
+	}
+	return true
+}
+
+func memberIDs(team *data.TeamRecord) []uint64 {
+	ids := make([]uint64, 0, len(team.Members))
+	for _, m := range team.Members {
+		ids = append(ids, m.PlayerID)
+	}
+	return ids
+}
+
+func cloneTeam(team *data.TeamRecord) *data.TeamRecord {
+	members := make([]data.MemberRecord, len(team.Members))
+	copy(members, team.Members)
+	c := *team
+	c.Members = members
+	return &c
+}

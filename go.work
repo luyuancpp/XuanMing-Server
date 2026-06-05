@@ -31,6 +31,8 @@ use ./services/runtime/push
 
 use ./services/runtime/player_locator
 
+use ./services/matchmaking/team
+
 // ⚠️ 构建验证:仓库根没有 go.mod,不能在根目录跑 go build ./...
 // 正确做法:按 use 列表构建,例如 go build ./pkg/...
 // W2+ 每新增一个 use,同步追加到 CLAUDE.md §4.1 的验证命令中
@@ -44,7 +46,7 @@ use ./services/runtime/player_locator
 // use ./services/social/friend
 // use ./services/social/chat
 // use ./services/social/dialogue
-// use ./services/matchmaking/team
+// use ./services/matchmaking/team          ← W3 ⑦ 已启用(见 line 34)
 // use ./services/matchmaking/matchmaker
 // use ./services/battle/ds_allocator
 // use ./services/battle/hub_allocator

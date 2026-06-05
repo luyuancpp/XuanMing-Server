@@ -1,0 +1,50 @@
+# Pandora team 服务开发期配置(W3 ⑦,2026-06-05)。
+#
+# - gRPC :50010 / HTTP :51010(仅 /metrics)
+# - Redis 强依赖(队伍状态 WATCH/MULTI/EXEC 乐观锁)
+# - Kafka 用于发布 pandora.team.update 事件(push 服务订阅)
+# - W3 ⑦ 起 duration 字段用 pkg/config.Duration,yaml 可直接写 "60s"
+# - dev: enable_reflection=true 便于 grpcurl 联调
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50010"
+    enable_reflection: true     # dev 开;prod 关(零值=false)
+  http:
+    network: tcp
+    addr: ":51010"
+
+node:
+  zone_id: 1
+  redis_client:
+    host: "127.0.0.1:6380"
+    db: 0
+    dial_timeout: "2s"
+    read_timeout: "1s"
+    write_timeout: "1s"
+
+# kafka producer 配置(发布 pandora.team.update,push 服务订阅消费)
+# brokers 9093 = Pandora 端口规划(与 vanilla 9092 区分)
+kafka:
+  brokers: ["127.0.0.1:9093"]
+  dial_timeout: "2s"
+  write_timeout: "5s"
+  idempotent: true
+
+snowflake:
+  epoch: 1773446400
+  node_bits: 17
+  step_bits: 15
+
+team:
+  # invite_ttl: 邀请令牌有效期(R6 AcceptInvite 时校验)
+  invite_ttl: "60s"
+  # disbanded_retention: 解散队伍的 Redis key 保留时长(客户端可查询最终状态)
+  disbanded_retention: "5m"
+  # active_ttl: 活跃队伍 Redis key 生命周期(无写操作超时即过期,防僵尸队伍)
+  active_ttl: "60m"
+  # max_members: MOBA 5v5,一队最多 5 人
+  max_members: 5
+  # optimistic_retry: WATCH/MULTI/EXEC 冲突时最大重试次数
+  optimistic_retry: 3
