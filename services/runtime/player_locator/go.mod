@@ -1,24 +1,19 @@
-module github.com/luyuancpp/pandora/services/account/login
+module github.com/luyuancpp/pandora/services/runtime/player_locator
 
 go 1.25.0
 
-// W2 ③ login 服务(Pandora 第一个 Kratos 业务服)。
+// W3 ⑤ player_locator 服务(Pandora 第 3 个 Kratos 业务服)。
+//
+// 职责(docs/design/go-services.md §2.6):
+//   维护 player_id → Location 映射,实现不变量 §1 "玩家只能在一个 DS"。
 //
 // 依赖来源:
-//   - pkg/ (公共框架,go.work use)
-//   - proto/gen/go/pandora/login/v1 (LoginService 协议生成)
-//   - proto/gen/go/pandora/common/v1 (错误码)
+//   - pkg/        (公共框架,go.work use)
+//   - proto/      (locator/v1 + common/v1)
 //   - Kratos v2.9.2 / sarama 1.43.1 / zap 等(由 pkg 间接拉)
-//
-// W2 mock 范围:
-//   - Login / Logout 走 mock(账号 test / password_hash abc 通过,其它拒)
-//   - IssueDSTicket / VerifyDSTicket 返回 ErrUnknown(W3 接 JWT 再实现)
-//   - 不接 MySQL / 不接 Redis(BaseContext 只起 Redis 客户端,失败也不致命)
-//   - 不接 Kafka
 
 require (
 	github.com/go-kratos/kratos/v2 v2.9.2
-	github.com/google/uuid v1.6.0
 	github.com/luyuancpp/pandora/pkg v0.0.0-00010101000000-000000000000
 	github.com/luyuancpp/pandora/proto v0.0.0-00010101000000-000000000000
 	github.com/redis/go-redis/v9 v9.16.0
@@ -26,7 +21,6 @@ require (
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
-	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/IBM/sarama v1.43.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -38,9 +32,8 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-kratos/aegis v0.2.0 // indirect
 	github.com/go-playground/form/v4 v4.2.0 // indirect
-	github.com/go-sql-driver/mysql v1.8.1 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
@@ -73,8 +66,6 @@ require (
 )
 
 // 本地 workspace 内的模块通过 replace 指向源码目录。
-// 这样 `go mod tidy` 不会去 vcs 抓远端版本(远端目前没 tag),
-// 同时 `go build`(在 go.work 下)也能正常解析。
 replace (
 	github.com/luyuancpp/pandora/pkg => ../../../pkg
 	github.com/luyuancpp/pandora/proto => ../../../proto

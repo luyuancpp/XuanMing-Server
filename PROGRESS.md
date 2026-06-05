@@ -1112,3 +1112,298 @@ W2 收官,W3 真正开始接外部存储 + 鉴权 + 第 3 个业务服。建议 
 5. **W3 ⑤** 第 3 个业务服:`player_locator`(在线管理,locator.update topic,login 登录时调 SetLocation)
 6. **W3 ⑥** Kratos config Duration 包装类型(同时实现 UnmarshalJSON / UnmarshalYAML),解决 yaml 不能写 `"5s"` 这个限制
 7. **W3 ⑦** UE 客户端首版:FHttpModule + 自研 grpc-web 解析(参考 `gateway-decision.md` §7)
+
+
+---
+
+## W3 ① — JWT 真实化 + Envoy jwt_authn 落地(2026-06-05)
+
+### 背景
+
+W2 ⑦ 收尾后,push / login 全 mock(uuid token、未实现 ds 票据)。按 PROGRESS.md 末尾 W3 路线第 ① 项,落地 SessionToken / DSTicket 的真实 JWT,Envoy 接 jwt_authn filter 强制校验。
+
+### 完成内容
+
+#### 1. `pkg/auth` 新包(JWT signer / verifier)
+
+- `pkg/auth/jwt.go` — HS256 实现,公开 API:
+  - `Signer.SignSession(playerID, jti) → (token, expMs, err)` — 24h
+  - `Signer.SignDSTicket(playerID, dsType, matchID, jti) → (token, expMs, err)` — 5min(不变量 §3)
+  - `Verifier.VerifySession(token) → *SessionClaims`
+  - `Verifier.VerifyDSTicket(token) → *DSTicketClaims`
+  - `JWKSInlineHS256(secret, kid)` — 给 envoy.yaml `local_jwks.inline_string` 算 JWKS
+- `pkg/auth/jwt_test.go` — 6 个用例覆盖签 / 验 / 过期 / iss 不对 / 弱 secret 拒绝 / battle 票据缺 match_id
+- `pkg/go.mod` 加 `github.com/golang-jwt/jwt/v5 v5.2.1`
+- 错误码映射:复用 `errcode.ErrLoginTicketExpired` / `ErrLoginTicketInvalid`,不新增
+
+#### 2. login 服务接入
+
+- `internal/conf/conf.go` — `LoginConf` 加 `JWT JWTConf` 子结构(issuer / audience / secret / session_ttl / ds_ticket_ttl),`Defaults()` 填默认
+- `internal/biz/login.go` — `LoginUsecase` 持 `*auth.Signer`;`Login()` 用 `SignSession` 签 session_token,`SignDSTicket(DSTypeHub)` 签 hub_ticket(原来的 uuid + 固定字符串两路全替换)
+- `internal/biz/ticket.go` — 新增 `TicketUsecase`,实现 `IssueDSTicket` / `VerifyDSTicket` 业务逻辑
+- `internal/service/login.go` — 注入 `TicketUsecase`;`IssueDSTicket` 从 ctx 取 player_id(由 middleware 从 `x-pandora-player-id` 注入)→ 签票;`VerifyDSTicket` 验签 → 翻译成 proto `DSTicket` message
+- `cmd/login/main.go` — 装配 `auth.NewSigner / NewVerifier`,失败 `os.Exit(1)`;`service_ready` 日志加 `jwt_issuer` / `jwt_audience` / `jwt_session_ttl` / `jwt_ds_ticket_ttl`
+- `etc/login-dev.yaml` — 加 `login.jwt: { issuer, audience, secret }`;⚠️ session_ttl / ds_ticket_ttl 不写 yaml(坑 1 复用)
+
+#### 3. Envoy 配置
+
+- `deploy/envoy/envoy.yaml` — 在 `cors` 后 `router` 前插 `envoy.filters.http.jwt_authn`:
+  - `providers.pandora_session`:issuer=pandora-login, audiences=[pandora-client], local_jwks inline HS256 + secret base64url(`cGFuZG9yYS1kZXYtand0LXNlY3JldC1jaGFuZ2UtbWUtMzIh`)
+  - `forward_payload_header: x-pandora-jwt-payload`(payload base64url 转发给上游,业务侧暂不用)
+  - `claim_to_headers: [{ header_name: x-pandora-player-id, claim_name: sub }]`(上游 pkg/middleware 读这个头注入 ctx)
+  - `rules`:
+    - `path=/pandora.login.v1.LoginService/Logout` → 必须带 JWT
+    - `path=/pandora.login.v1.LoginService/IssueDSTicket` → 必须带 JWT
+    - `prefix=/pandora.push.v1.PushService/` → 必须带 JWT
+    - 其它(Login 自身 / VerifyDSTicket 内网调 / grpc reflection)默认放行
+- 共享 secret 同步:envoy.yaml 内联 JWKS 的 `k` 字段 = base64url(login-dev.yaml 的 `login.jwt.secret`),改一个要改另一个
+
+#### 4. push 服务接入
+
+- `internal/server/grpc.go` — `MustNewServer` 加 `pmw.AuthOptional()` 中间件;Envoy 转发的 `x-pandora-player-id` 头由该中间件解到 `ctx.Value(plog.CtxKeyPlayerID)`
+- `internal/service/push.go` — 注释更新(`extractPlayerID` 行为已统一从 ctx 读,不再 W2 兜底直接拿 header)
+
+### 验证(2026-06-05,Claude)
+
+```
+go build ./pkg/... ./proto/... ./services/account/login/... ./services/runtime/push/...   exit=0
+go vet   ./pkg/... ./proto/... ./services/account/login/... ./services/runtime/push/...   exit=0
+go test  ./pkg/auth/...                                                                   ok (6 tests)
+
+# Login HTTP 冒烟
+POST /v1/login {account:test,password_hash:abc,device_id:d1}
+  → code=OK
+  → sessionToken=<HS256 JWT>(3 段 dot 分隔,header={alg:HS256,typ:JWT},
+     payload 含 iss=pandora-login / aud=pandora-client / sub=30890... / exp=now+24h / jti=uuid)
+  → hubTicket=<HS256 JWT>(同上 + ds_type=hub,exp=now+5min)
+```
+
+> Envoy 容器重启 + grpcurl -H "authorization: bearer <token>" 端到端验证按 AGENTS.md §11.1 交给 Codex 做(Claude 不重启 docker 容器)。
+
+### 踩到的坑(无新坑)
+
+W3 ① 没踩新坑:
+- Kratos config 不解 duration(坑 1):JWTConf 的 session_ttl / ds_ticket_ttl 直接 `Defaults()` 填,yaml 不写
+- jwt_authn `claim_to_headers`:`sub` 是顶层 RegisteredClaim,直接 `claim_name: sub` 就行,不需要 jsonpointer
+- HS256 JWKS:Envoy 接受 `kty=oct, alg=HS256, k=base64url(secret)` 的 inline_string,跟 RFC 7517 一致
+
+### 待 Codex 执行(W3 ① 收尾)
+
+按 `AGENTS.md §11.1`,以下交 Codex:
+
+```powershell
+# 1. 重启 envoy 让新 yaml 生效(jwt_authn 是 listener 级,SIGHUP 不够,要 restart)
+cd E:\work\Pandora
+docker compose -f deploy/docker-compose.dev.yml restart envoy
+docker logs --tail 80 pandora-envoy 2>&1 | Select-String -Pattern 'jwt_authn|provider|error|warn'
+
+# 2. 起 login + push,端到端验证 Envoy + JWT
+$loginP = Start-Process -FilePath go -ArgumentList 'run','./services/account/login/cmd/login','-conf','services/account/login/etc/login-dev.yaml' -RedirectStandardOutput .\.tmp-login.log -RedirectStandardError .\.tmp-login.err -PassThru -NoNewWindow
+$pushP  = Start-Process -FilePath go -ArgumentList 'run','./services/runtime/push/cmd/push','-conf','services/runtime/push/etc/push-dev.yaml'   -RedirectStandardOutput .\.tmp-push.log  -RedirectStandardError .\.tmp-push.err  -PassThru -NoNewWindow
+Start-Sleep 4
+
+# Phase A: Login 经 Envoy 8443(Login 路由不需要 JWT)
+$resp = grpcurl -insecure -d '{\"account\":\"test\",\"password_hash\":\"abc\",\"device_id\":\"d1\"}' localhost:8443 pandora.login.v1.LoginService/Login | ConvertFrom-Json
+$tok = $resp.sessionToken
+Write-Output "sessionToken=$tok"
+
+# Phase B: Subscribe 不带 token → 期望 401(jwt_authn 直接拒,不到 push)
+grpcurl -insecure -d '{\"session_token\":\"\",\"last_seen_ms\":0}' -max-time 5 localhost:8443 pandora.push.v1.PushService/Subscribe
+
+# Phase C: Subscribe 带 token → 期望 12s 收 3 帧
+grpcurl -insecure -H "authorization: bearer $tok" -d "{\"session_token\":\"$tok\",\"last_seen_ms\":0}" -max-time 12 localhost:8443 pandora.push.v1.PushService/Subscribe
+
+# Phase D: IssueDSTicket 带 token → 期望 OK + 返 hub ticket
+grpcurl -insecure -H "authorization: bearer $tok" -d '{\"ds_type\":\"hub\",\"target_id\":\"\"}' localhost:8443 pandora.login.v1.LoginService/IssueDSTicket
+
+# 清理
+Stop-Process -Id $loginP.Id -Force; Stop-Process -Id $pushP.Id -Force
+Remove-Item .\.tmp-login.log,.\.tmp-login.err,.\.tmp-push.log,.\.tmp-push.err -ErrorAction SilentlyContinue
+```
+
+预期:
+- Phase A:返 sessionToken / hubTicket(两段 HS256 JWT)
+- Phase B:gRPC code 16(UNAUTHENTICATED)— Envoy jwt_authn 直接拒,不到 push
+- Phase C:收 3 帧 PushFrame(每 5s 一帧),push 日志含 `player_id` 不为 0
+- Phase D:返 ds 票据(5min 短期)
+
+### 待 commit 的改动(待 Codex 输出 git status / diff --stat / commit message 建议)
+
+```
+?? pkg/auth/jwt.go                                          (新)
+?? pkg/auth/jwt_test.go                                     (新)
+?? services/account/login/internal/biz/ticket.go            (新)
+M  pkg/go.mod / pkg/go.sum                                  (加 golang-jwt/jwt/v5)
+M  services/account/login/internal/conf/conf.go             (加 JWTConf)
+M  services/account/login/internal/biz/login.go             (接 Signer)
+M  services/account/login/internal/service/login.go         (接 TicketUsecase + 真实 Issue/Verify)
+M  services/account/login/cmd/login/main.go                 (装配 Signer/Verifier)
+M  services/account/login/etc/login-dev.yaml                (加 login.jwt 配置)
+M  services/account/login/go.mod / go.sum                   (拉 jwt 间接依赖)
+M  services/runtime/push/internal/server/grpc.go            (加 pmw.AuthOptional)
+M  services/runtime/push/internal/service/push.go           (注释更新)
+M  services/runtime/push/go.mod / go.sum                    (拉 jwt 间接依赖)
+M  deploy/envoy/envoy.yaml                                  (加 jwt_authn filter + rules)
+M  CLAUDE.md                                                (§7 W3 ① 决策行)
+M  PROGRESS.md                                              (本段)
+```
+
+建议 commit message:
+
+```
+feat(auth,login,push,envoy): W3 ① JWT 真实化 + Envoy jwt_authn 落地
+
+新增 pkg/auth(HS256 SessionToken 24h + DSTicket 5min,golang-jwt/jwt/v5)
+- Signer.SignSession / SignDSTicket;Verifier.VerifySession / VerifyDSTicket
+- 错误码映射 errcode.ErrLoginTicketExpired / ErrLoginTicketInvalid
+- 6 个单元测试(签/验/过期/iss 拒/弱 secret 拒/battle 缺 match_id)
+- JWKSInlineHS256 工具(给 envoy.yaml 同步密钥)
+
+login 服务真 JWT 化
+- LoginConf 加 JWT 子结构(issuer/audience/secret + 默认 24h/5min)
+- Login() 签 session JWT(sub=player_id, exp=24h)+ hub_ticket(ds_type=hub, exp=5min)
+- IssueDSTicket / VerifyDSTicket 接 pkg/auth 真实化(原 W2 返 ErrUnknown)
+- main.go 装配 Signer/Verifier;etc/login-dev.yaml 加 login.jwt 节
+
+Envoy jwt_authn 落地
+- provider pandora_session(HS256 local_jwks inline,issuer=pandora-login, aud=pandora-client)
+- claim_to_headers: sub → x-pandora-player-id(上游业务服直接读)
+- rules: push.Subscribe / login.Logout / login.IssueDSTicket 必须带 JWT;
+  login.Login / login.VerifyDSTicket / grpc reflection 放行
+
+push 服务接 Envoy 注入的 player_id
+- 加 pmw.AuthOptional() 中间件,Subscribe.extractPlayerID 从 ctx 拿 player_id
+
+验证:
+- go build / go vet / go test ./pkg/auth/...  全绿
+- POST /v1/login → sessionToken / hubTicket 都是合法 HS256 JWT
+
+Envoy 容器重启 + 端到端 grpcurl 验证由 Codex 执行(AGENTS.md §11.1)。
+接 commit <W2 ⑦ commit>(W3 起点)。
+```
+
+### 下一步(W3 ②)
+
+W3 ① 收尾后,按 PROGRESS.md 末尾 W3 路线第 ② 项做 **login 接 mysql/redis**:
+
+- `services/account/login/internal/data/account_mysql.go` 替换 MockAccountRepo
+- `services/account/login/internal/data/session_redis.go` 写 `pandora:sess:<player_id>` hash + jti 黑名单
+- Logout() 真实化(DEL session)
+- IssueDSTicket() 加 jti SETNX EX 5min 防重放
+- `deploy/mysql-init/` 加 `02-account-table.sql`(accounts / account_devices / account_bans)
+
+之后是 W3 ⑤ player_locator(第 3 个 Kratos 业务服)。
+
+---
+
+## W3 ② ✅ login 接 MySQL + Redis 真实化(2026-06-05)
+
+**目标**:把 W2 MockAccountRepo / mock session / mock jti 全部换成 MySQL + Redis 真实实现,
+满足不变量 §3(DS 票据短时效)+ §10(锁 TTL ≤ 30s)+ §1 配套(后续 W3 ⑤ 接 locator)。
+
+### 成果
+
+**pkg 复用层(新增,跨服务用)**
+- `pkg/mysqlx/mysqlx.go` —— `database/sql + mysql-driver` 工厂,`MustNewClient(c MySQLConf)` 3s PingContext,默认 MaxOpenConns=32 / MaxIdleConns=8 / ConnMaxLifetime=30m
+- `pkg/passwd/passwd.go` + `passwd_test.go` —— bcrypt 封装,`Hash(clientDigest, cost)` / `Verify(stored, clientDigest)` `ErrMismatch`,cost 越界自动 clamp 到 DevCost(4),4 个单测全绿
+- `pkg/config/config.go` 加 `MySQLConf{DSN, MaxOpenConns, MaxIdleConns, ConnMaxLifetime, PingTimeout}` 和 `NodeConfig.MySQLClient`(注意 duration 字段不写 yaml,留给 Defaults())
+- `pkg/auth/jwt.go` 加 accessor:`Signer.SessionTTL()` / `Signer.DSTicketTTL()` / `Verifier.DSTicketTTL()`(让 redis TTL 和 JWT exp 对齐)
+
+**deploy / 基础设施**
+- `deploy/mysql-init/02-account-tables.sql` —— `pandora_account` 库 3 表:
+  - `accounts(player_id BIGINT UNSIGNED PK, account VARCHAR(64) UK, password_hash VARCHAR(80), status TINYINT, created_at, updated_at)`
+  - `account_devices(id AUTO_INCREMENT, player_id, device_id, last_login_at, last_login_ip, UK(player_id,device_id))`
+  - `account_bans(id, player_id NULL, device_id NULL, reason, banned_at, expires_at NULL=永久)`
+
+**login data 层重写**
+- `services/account/login/internal/data/account.go` —— `AccountRepo` interface(FindByAccount / CreateAccount / CheckBanned / TouchDevice)+ `MockAccountRepo` fallback + `MySQLAccountRepo` 真实实现(`isDupErr` 用字符串匹配 `1062` / `Duplicate entry`,不强依赖 mysql driver type)
+- `SessionRepo` interface + `RedisSessionRepo` —— key `pandora:sess:<player_id>`,**TxPipeline 顶号语义**(Del + HSet 字段 token/jti/device_id/exp_ms + Expire),跟 push.ConnectionManager 一致
+- `TicketJTIRepo` interface + `RedisTicketJTIRepo` —— key `pandora:ticket:<jti>`,**SETNX EX** 防 replay,冲突返 `ErrLoginTicketReplayed`
+- `SeedAccount(ctx, db, account, bcryptHash, fallbackPlayerID)` —— dev 期自动注册 mock_account(`(id, created, err)` 返回值)
+
+**login biz / service**
+- `biz/login.go::LoginUsecase` 字段加 `sessions data.SessionRepo` + `verifier *auth.Verifier`;`Login` 用 `passwd.Verify` 替代字符串比较,`sessions.Set(ctx, playerID, token, jti, deviceID, signer.SessionTTL())`,`repo.TouchDevice` 失败仅 Warn 不阻断
+- `biz/login.go::Logout` 真实化:`verifier.VerifySession(token)` → `sessions.Delete(playerID)`;签名失败也返 OK(允许 fire-and-forget logout)
+- `biz/ticket.go::TicketUsecase` 加 `jtiRepo data.TicketJTIRepo`(可空);`VerifyDSTicket` 在签名 OK 后调 `jtiRepo.MarkUsed(ctx, claims.ID, verifier.DSTicketTTL())`
+
+**login main / etc**
+- `cmd/login/main.go` 拆出 `mustBuildAccountRepo(cfg, helper, sf) → (repo, mode, db)`(mysql DSN 非空 → 接 mysql + SeedAccount,否则 mock)和 `mustBuildRedisRepos(cfg, helper) → (sessionRepo, jtiRepo, rdb)`(redis 强依赖,Ping 失败 exit)
+- `kratosHelper` interface 包 `*klog.Helper`,`maskDSN()` 把 user:pass 段脱敏后再上日志
+- `etc/login-dev.yaml` 加 `node.mysql_client.{dsn, max_open_conns, max_idle_conns}`(**duration 字段不写**,Kratos JSON 不解时长)
+
+### 验证
+
+- `go build ./pkg/... ./proto/... ./services/account/login/... ./services/runtime/push/...` exit=0
+- `go vet ./pkg/... ./services/account/login/...` exit=0
+- `go test ./pkg/...` 全绿(`passwd` 4 用例 + 旧 `auth` `snowflake`)
+
+### Codex 需要做的(W3 ② 收尾)
+
+1. `docker compose -f deploy/docker-compose.dev.yml up -d mysql redis` —— 启基础设施
+2. 进 mysql 容器:`docker exec -it pandora-mysql mysql -upandora -ppandora_dev_pwd pandora_account -e "SHOW TABLES;"` 应见 3 张表
+3. 启 login:`Push-Location services/account/login; go run ./cmd/login -conf etc/login-dev.yaml; Pop-Location`
+4. 预期日志:`service_ready ... account_repo=mysql session_repo=redis jti_repo=redis ...`
+5. grpcurl 联调 `LoginService/Login` `{account:"test", password:"abc"}` 应返 `session_token` / `hub_ticket`(都是 HS256 JWT)
+6. `redis-cli -p 6380 HGETALL pandora:sess:<player_id>` 应见 token/jti/exp_ms 字段
+7. 提 commit:`feat(login): W3 ② MySQL+Redis 接入,passwd bcrypt 验证 + session 顶号 + ticket jti 防 replay`
+
+---
+
+## W3 ⑤ ✅ player_locator 服务上线(2026-06-05)
+
+**目标**:落地不变量 §1"玩家只能在一个 Location"。Redis hash `pandora:locator:<player_id>` 30s TTL,
+SetLocation 用 **TxPipeline(Del+HSet+Expire)** 写,避免切状态时旧字段残留(MATCHING→HUB 时 match_id 还在)。
+
+### 成果
+
+**proto 复用** —— `proto/pandora/locator/v1/locator.proto`(W1 时已 gen go pb,本次直接复用)
+
+**player_locator 全骨架(第 3 个 Kratos 业务服)**
+- `services/runtime/player_locator/go.mod` —— module `github.com/luyuancpp/pandora/services/runtime/player_locator`,replaces pkg/proto
+- `services/runtime/player_locator/etc/locator-dev.yaml` —— gRPC :50006 / HTTP :51006,redis_client `127.0.0.1:6380`,**duration 字段不写**(Kratos JSON 不解 duration)
+- `internal/conf/conf.go` —— `LocatorConf.LocationTTL` 默认 30s(由 `Defaults()` 提供)
+- `internal/data/location.go` —— `LocationRecord{State, HubPod, ShardID, MatchID, BattlePod, UpdatedAtMs}`,`LocationRepo` interface,`RedisLocationRepo` key 模板 `pandora:locator:%d`,Set = TxPipeline(Del+HSet+Expire),Get = HGetAll + strconv 反解,Delete = Unlink
+- `internal/biz/locator.go` —— 状态常量 0-5(对齐 proto enum),`LocatorUsecase{repo, ttl}`,SetLocation 按状态分支校验(HUB→hub_pod,MATCHING→match_id,BATTLE→match_id+battle_pod),GetLocation miss 返 `{State: LocationStateOffline=1}`,ClearLocation Delete
+- `internal/biz/locator_test.go` —— 7 个用例覆盖输入校验各分支 / Set→Get 闭环 / miss=OFFLINE / Clear 后 Get=OFFLINE / 默认 TTL fallback,**全绿**
+- `internal/service/locator.go` —— 实现 `PlayerLocatorServiceServer`,Location ↔ biz 翻译,`toProtoCode` 跟 login 同 pattern
+- `internal/server/grpc.go` —— `grpcserver.MustNewServer(cfg.Server)`,**无 AuthRequired**(内部 RPC,W3+ Envoy ext_authz 限制外部调用)
+- `internal/server/http.go` —— 只 `/metrics`
+- `cmd/locator/main.go` —— Redis 强依赖(Ping 失败 exit),LocatorUsecase ttl 从 `cfg.Locator.LocationTTL`
+
+**login → locator 集成(不变量 §1 入口)**
+- `pkg/grpcclient` 已有 `MustDialInsecure` 直接复用
+- `services/account/login/internal/data/locator_client.go` 新建 —— `LocationNotifier` interface(只暴露 `NotifyLoginPending(ctx, playerID, deviceID)`,biz 不依赖 grpc / proto)+ `GrpcLocationNotifier` 用 `*grpc.ClientConn` 包 `PlayerLocatorServiceClient`,调 SetLocation(state=LOGIN_PENDING)
+- `biz/login.go::LoginUsecase` 加 `notifier data.LocationNotifier` 字段;Login 在 sessions.Set 之后调 `notifier.NotifyLoginPending(ctx, playerID, deviceID)`,**失败仅 Warn 不阻断**(locator 不可用不能影响登录)
+- `conf/conf.go::LoginConf` 加 `Locator LocatorClientConf{Addr}`;`cmd/login/main.go::mustBuildLocatorNotifier` 拨号失败 panic(grpcclient.MustDialInsecure 内部 panic),addr 空 → 返回 nil(biz 检查跳过)
+- `etc/login-dev.yaml` 加 `login.locator.addr: "127.0.0.1:50006"`(可改空禁用)
+
+**go.work + 文档**
+- `go.work` 加 `use ./services/runtime/player_locator`,注释段更新启用标记
+- `CLAUDE.md §4.1` 验证命令追加 `./services/runtime/player_locator/...`
+- `CLAUDE.md §7` 加 W3 ②/⑤ 决策行
+
+### 验证
+
+- `go build ./pkg/... ./proto/... ./services/account/login/... ./services/runtime/push/... ./services/runtime/player_locator/...` exit=0
+- `go vet` 同上四组 exit=0
+- `go test` 同上四组 exit=0(locator biz 7 用例 + 旧测试全绿)
+
+### Codex 需要做的(W3 ⑤ 收尾)
+
+1. 确保 W3 ② 的 redis 已启(`docker compose up -d redis`)
+2. 启 locator:`Push-Location services/runtime/player_locator; go run ./cmd/locator -conf etc/locator-dev.yaml; Pop-Location`
+3. 预期日志:`service_ready ... grpc=:50006 http=:51006 redis_addr=127.0.0.1:6380`
+4. grpcurl 联调:
+   ```powershell
+   grpcurl -plaintext -d '{\"player_id\":\"42\",\"location\":{\"state\":\"LOCATION_STATE_HUB\",\"hub_pod\":\"hub-pod-7\"}}' 127.0.0.1:50006 pandora.locator.v1.PlayerLocatorService/SetLocation
+   grpcurl -plaintext -d '{\"player_id\":\"42\"}' 127.0.0.1:50006 pandora.locator.v1.PlayerLocatorService/GetLocation
+   ```
+5. `redis-cli -p 6380 HGETALL pandora:locator:42` 应见 state=3 / hub_pod=hub-pod-7 / updated_at_ms
+6. 验联动:再启 login,grpcurl Login 后 `redis-cli HGETALL pandora:locator:<player_id>` 应见 state=2(LOGIN_PENDING)
+7. 提 commit:`feat(player_locator): W3 ⑤ 第 3 个 Kratos 业务服上线,redis 30s TTL,login 集成 LOGIN_PENDING 上报`
+
+### 下一步(W3 路线剩余)
+
+- **W3 ③** trade 服务骨架(经济链路第 1 服)
+- **W3 ④** kafka 异步事件骨架(player.login event → push.broadcast)
+- **W3 ⑥** Envoy ext_authz 把 player_locator / 内部 RPC 拒外

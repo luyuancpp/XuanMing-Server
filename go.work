@@ -1,6 +1,4 @@
-go 1.24.0
-
-toolchain go1.24.5
+go 1.26.4
 
 // Pandora Go workspace
 //
@@ -18,13 +16,20 @@ toolchain go1.24.5
 //
 // Go module 路径示例:github.com/luyuancpp/pandora/services/account/login
 //
-// 注:Go 版本由 go mod tidy 拉来的依赖(Kratos v2.9.2 / sarama 1.43.1 等)
-// 自动要求 1.24.0,虽然 PROGRESS.md 写的目标版本是 1.23,但 1.24 兼容,接受升级。
+// Go 版本:跟 HANDOFF.md "Go 版本 go1.26.4" 锁定一致。
+// 历史背景:W1 PROGRESS.md 写目标 1.23,W2 依赖(Kratos v2.9.2 / sarama 1.43.1 等)
+// 自动要求 1.24.0;W3 ① 升 1.25(jwt/v5、go-redis/v9 链路);W3 ⑥(2026-06-05 Codex 审查)
+// 统一到本机 toolchain 1.26.4,避免文档与工程冲突。再升级须同步 HANDOFF.md。
 
 use ./pkg
+
 use ./proto
+
 use ./services/account/login
+
 use ./services/runtime/push
+
+use ./services/runtime/player_locator
 
 // ⚠️ 构建验证:仓库根没有 go.mod,不能在根目录跑 go build ./...
 // 正确做法:按 use 列表构建,例如 go build ./pkg/...
@@ -34,6 +39,7 @@ use ./services/runtime/push
 //
 // use ./services/account/login          ← W2 ③ 已启用
 // use ./services/runtime/push           ← W2 ⑤ 已启用(Kratos transport/grpc server stream)
+// use ./services/runtime/player_locator ← W3 ⑤ 已启用(Kratos unary,Redis 强依赖)
 // use ./services/account/player
 // use ./services/social/friend
 // use ./services/social/chat
@@ -45,4 +51,3 @@ use ./services/runtime/push
 // use ./services/battle/battle_result
 // use ./services/economy/trade
 // use ./services/data/data_service
-// use ./services/runtime/player_locator

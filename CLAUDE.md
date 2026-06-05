@@ -27,7 +27,7 @@ F:/work/Pandora-Client/         # UE 客户端 + DS(待定名,独立仓库)
 
 1. 不准在没有跑通 **所有已启用 module 的构建** 的情况下 commit
    - 本项目采用 `go.work` 多 module 模式,仓库根没有 `go.mod`,**不能**在根目录跑 `go build ./...`
-   - 当前阶段（W2 ⑤ 后）：验证命令为 `go build ./pkg/... ./proto/... ./services/account/login/... ./services/runtime/push/...`
+   - 当前阶段（W3 ⑤ 后）：验证命令为 `go build ./pkg/... ./proto/... ./services/account/login/... ./services/runtime/push/... ./services/runtime/player_locator/...`
    - W2+ 每个服务 module 启用后,追加对应路径
    - 完整命令参考 `go.work` 文件中的 `use` 列表
 2. commit message 格式:`<type>(<scope>): <subject>`
@@ -63,6 +63,10 @@ F:/work/Pandora-Client/         # UE 客户端 + DS(待定名,独立仓库)
 | W2 ④ | 2026-06-05 | **Envoy v1.38.0 边缘网关本地 docker 落地**(listener :8443 TLS + grpc_web/cors/router,login_cluster unary 5s + push_cluster server stream timeout 0s,`dns_lookup_family: V4_ONLY` 修 Windows host.docker.internal IPv6 坑) |
 | W2 ⑤ | 2026-06-05 | **push 服务骨架完成**(Pandora 首个 server stream Kratos 服,5s mock tick,ConnectionManager 顶号语义,gRPC :50014 / HTTP :51014) |
 | W2 ⑥ | 2026-06-05 | **客户端连接铁律第 2 条全链路打通**(经 Envoy :8443 LoginService/Login unary + PushService/Subscribe server stream 12s 收 3 帧,reflection list 6 services) |
+| W3 ① | 2026-06-05 | **JWT 真实化 + Envoy jwt_authn 落地**(pkg/auth HS256 SessionToken 24h + DSTicket 5min,login.Login/IssueDSTicket/VerifyDSTicket 全部接 pkg/auth.Signer/Verifier,Envoy jwt_authn provider pandora_session 用 local_jwks inline 共享 secret,`claim_to_headers: sub → x-pandora-player-id`,push 加 `pmw.AuthOptional()` 中间件读 header) |
+| W3 ② | 2026-06-05 | **login 接 MySQL + Redis 真实化**(pkg/mysqlx 标准 database/sql 工厂 + pkg/passwd bcrypt 封装,`pandora_account` 库 3 张表 accounts/account_devices/account_bans,MySQLAccountRepo+SeedAccount 自动种 dev 账号,RedisSessionRepo `pandora:sess:<player_id>` 顶号 TxPipeline,RedisTicketJTIRepo `pandora:ticket:<jti>` SETNX 防 replay,Logout 真验 session.Delete,Kratos config JSON 不解 duration 所以 yaml 不写时长字段) |
+| W3 ⑤ | 2026-06-05 | **player_locator 服务上线**(Kratos unary,gRPC :50006 / HTTP :51006,Redis hash `pandora:locator:<player_id>` 30s TTL,SetLocation TxPipeline(Del+HSet+Expire) 防字段残留,不变量 §1 入口落地,login.Login 成功后调 SetLocation(state=LOGIN_PENDING) 失败仅 Warn,locator biz 单测 7 用例覆盖输入校验 / OFFLINE 占位 / 默认 TTL) |
+| AI 协作 | 2026-06-05 | **Claude 模型分工固化**:Opus 4.7 负责出 Plan / 审 Plan / 难题攻关 / 最终把关;Sonnet 4.6 按审过的 Plan 写代码 / 补测试 / 跑项目内验证;ChatGPT / Codex 继续负责环境执行和 git 收尾 |
 
 后续每轮压测 / 大决策追加一行,**永不删旧行**。
 
@@ -103,6 +107,7 @@ F:/work/Pandora-Client/         # UE 客户端 + DS(待定名,独立仓库)
 4. **AI 不擅自删除文件**,删除请求必须人确认
 5. **AI 写代码必须遵循本项目规范**(端口 / 命名 / 不变量 / 中文注释)
 6. **跨 AI 分工硬规则**:Claude 系模型(Copilot Claude / Claude Code / Cursor Claude 等)负责深度分析 / plan / 改代码 / 项目内验证;遇到外部环境需求时,Claude 只输出环境配置方案 / 命令 / 风险 / 验收标准。ChatGPT / Codex 负责按该方案安装工具 / 改本机环境 / 生成证书 / 拉 Docker 镜像 / 启停本地环境 / 环境确认 / git status / diff --stat / commit message 建议 / 用户明确授权后的 commit。环境配好后,Claude 再用项目命令复查确认。Claude 系模型不安装工具、不改系统环境、不做 git 收尾。
+7. **Claude 模型分工**:Claude Opus 4.7 负责出 Plan / 审 Plan / 难题攻关 / 最终把关,包括深读文档和代码、列文件清单 / 动作 / 风险 / 工期、复杂架构评审、跨服务一致性、核心战斗 / 匹配 / 交易逻辑 review、安全漏洞分析、疑难 bug 定位、大范围重构方案审核。Claude Sonnet 4.6 按 Opus 4.7 审过的 Plan 写常规代码 / proto / yaml / 脚本 / 文档、补测试、修普通 bug、跑项目内 build / test / lint 验证,不得擅自扩大 Plan 范围。
 
 ## 11. UE 工程约束(写给 UE 仓库的开发者参考)
 

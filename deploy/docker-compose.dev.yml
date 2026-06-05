@@ -21,7 +21,6 @@ services:
       MYSQL_USER: ${MYSQL_USER:-pandora}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-pandora_dev_pwd}
     command:
-      - --default-authentication-plugin=caching_sha2_password
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
       - --max_connections=500

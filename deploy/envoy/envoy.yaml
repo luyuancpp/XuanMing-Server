@@ -1,19 +1,24 @@
-# Pandora Envoy 边缘网关本地开发期配置(W2 ④,2026-06-05)。
+# Pandora Envoy 边缘网关本地开发期配置(W2 ④ + W3 ①,2026-06-05)。
 #
 # 职责(详见 docs/design/gateway-decision.md §5):
 #   1. TLS 终止(:8443):客户端 HTTPS / gRPC-Web → Envoy 内部明文 gRPC
 #   2. gRPC-Web → 标准 gRPC 协议转换(envoy.filters.http.grpc_web)
 #   3. CORS(联调用,浏览器联调备用;UE FHttpModule 不强需)
 #   4. 路由:按 gRPC 全路径 /pandora.<X>.v1.<Y>Service/ 分发到 login / push 两个 cluster
+#   5. W3 ①(2026-06-05):envoy.filters.http.jwt_authn 校验 SessionToken
+#      - HS256 + 共享 secret(dev 用,生产期切 RS256 + remote_jwks)
+#      - issuer=pandora-login / audience=pandora-client,要跟 login 服务 etc/login-dev.yaml 一致
+#      - 把 sub claim 提到 x-pandora-player-id 头,业务服 pmw.AuthOptional/Required 直接读
+#      - 只对 /pandora.push.v1.PushService/ 强制要 JWT;login / reflection / VerifyDSTicket bypass
 #
 # ⚠️ 协议铁律(详见 docs/design/protocol-ordering-rules.md):
 #   - push.PushService/Subscribe 是 server stream,timeout 必须为 0(永不超时)
 #   - cluster 端 idle_timeout 也设为 0(防上游被回收)
 #
-# W2 不启用的特性(W3+ 加):
-#   - envoy.filters.http.jwt_authn(login 还没发 JWT,加了 100% 拒)
+# W3+ 不启用的特性:
 #   - envoy.filters.http.ext_authz / rate_limit
 #   - mTLS 上行(W3 业务服规模化后再加)
+#   - jti 黑名单(由 login.VerifyDSTicket / Logout 业务侧维护)
 #
 # 上游协议:**业务服默认明文 HTTP/2(h2c)**,本配置必须显式声明 http2_protocol_options,
 # 否则 Envoy 会用 HTTP/1.1 调后端,gRPC 415 Unsupported Media Type。
@@ -73,7 +78,52 @@ static_resources:
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
 
-          # TODO W3:在 router 之前插 envoy.filters.http.jwt_authn 做鉴权
+          # ⭐ W3 ①:JWT 鉴权(HS256 + local_jwks)
+          # provider pandora_session 用 login 服务签发的 SessionToken,issuer / audience
+          # 必须跟 login etc/login-dev.yaml 的 login.jwt 完全一致。
+          #
+          # rules 列表只列"要鉴权的 path";没列到的 path(login / reflection / DS 票据 verify)
+          # 默认放行。bypass 列表用空 requirement 走 allow_missing 语义。
+          #
+          # claim_to_headers 把 sub claim 写到 x-pandora-player-id 头,业务服 pkg/middleware
+          # 读这个头注入 ctx。原始 Authorization 不 forward 给上游(forward=false),
+          # 但 sub / exp 等通过 x-pandora-jwt-payload(base64url JSON)向上游透传。
+          - name: envoy.filters.http.jwt_authn
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
+              providers:
+                pandora_session:
+                  issuer: "pandora-login"
+                  audiences: [ "pandora-client" ]
+                  forward: false
+                  forward_payload_header: "x-pandora-jwt-payload"
+                  claim_to_headers:
+                  - header_name: "x-pandora-player-id"
+                    claim_name: "sub"
+                  local_jwks:
+                    # ⚠️ HS256 共享 secret 的 JWKS 形式:kty=oct, alg=HS256, k=base64url(secret)
+                    #    base64url("pandora-dev-jwt-secret-change-me-32!") = cGFuZG9yYS1kZXYtand0LXNlY3JldC1jaGFuZ2UtbWUtMzIh
+                    #    secret 跟 services/account/login/etc/login-dev.yaml 的 login.jwt.secret 必须保持一致。
+                    inline_string: |
+                      {"keys":[{"kty":"oct","alg":"HS256","kid":"pandora-dev","k":"cGFuZG9yYS1kZXYtand0LXNlY3JldC1jaGFuZ2UtbWUtMzIh"}]}
+              rules:
+              # login.Logout / IssueDSTicket 需要 SessionToken(player_id 从 sub claim 来)
+              - match:
+                  path: "/pandora.login.v1.LoginService/Logout"
+                requires:
+                  provider_name: "pandora_session"
+              - match:
+                  path: "/pandora.login.v1.LoginService/IssueDSTicket"
+                requires:
+                  provider_name: "pandora_session"
+              # push.Subscribe 必须带 SessionToken(玩家长连接订阅,W3 ④ kafka 路由依赖 player_id)
+              - match:
+                  prefix: "/pandora.push.v1.PushService/"
+                requires:
+                  provider_name: "pandora_session"
+              # 没列到的 path(login.Login / login.VerifyDSTicket / grpc reflection)默认放行。
+              # VerifyDSTicket 是 DS → login 的内部调用,不带玩家 JWT;靠 ext_authz 限内网(W3+)。
+
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router

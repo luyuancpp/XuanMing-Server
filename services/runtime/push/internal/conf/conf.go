@@ -19,10 +19,10 @@ import (
 // Config 是 push 服务的完整配置。
 type Config struct {
 	// Base 公共字段(Server/Node/Snowflake/Locker/Registry/Timeouts/Kafka)。
-	config.Base `yaml:",inline"`
+	config.Base `yaml:",inline" mapstructure:",squash"`
 
 	// Push 业务字段。
-	Push PushConf `yaml:"push"`
+	Push PushConf `yaml:"push" json:"push"`
 }
 
 // PushConf 是 push 服务私有配置。
@@ -31,18 +31,18 @@ type PushConf struct {
 	// ⚠️ 跟 LoginConf 同样的约束:Kratos config 走 JSON 不解 duration 字符串,
 	//   所以 etc/push-dev.yaml 里不写本字段,统一由 Defaults() 填默认值(5s)。
 	//   W3+ ops 想调时,可在 pkg/config 加 Duration 包装类型同步实现 UnmarshalJSON/YAML。
-	MockTickInterval time.Duration `yaml:"mock_tick_interval,omitempty"`
+	MockTickInterval time.Duration `yaml:"mock_tick_interval,omitempty" json:"mock_tick_interval,omitempty"`
 
 	// MockTopic W2 mock 推送的 PushFrame.topic 字段。
 	// 默认 "pandora.system.notify"(infra.md §4 推送 topic 之一)。
-	MockTopic string `yaml:"mock_topic,omitempty"`
+	MockTopic string `yaml:"mock_topic,omitempty" json:"mock_topic,omitempty"`
 
 	// MockPayload W2 mock 推送的 PushFrame.payload 字段(原样转字节)。
 	// 默认 "hello"。W3 接 kafka 后,payload 是业务 Event message 的 protobuf 序列化字节。
-	MockPayload string `yaml:"mock_payload,omitempty"`
+	MockPayload string `yaml:"mock_payload,omitempty" json:"mock_payload,omitempty"`
 
 	// OfflineCacheTTL 离线消息缓存 redis ZSET 的 TTL(W2 不用,W3 真实化时启用)。
-	OfflineCacheTTL time.Duration `yaml:"offline_cache_ttl,omitempty"`
+	OfflineCacheTTL time.Duration `yaml:"offline_cache_ttl,omitempty" json:"offline_cache_ttl,omitempty"`
 }
 
 // Defaults 把零值填成 Pandora 标准默认值(W2 mock 阶段用)。

@@ -1,8 +1,6 @@
 module github.com/luyuancpp/pandora/pkg
 
-go 1.24.0
-
-toolchain go1.24.5
+go 1.25.0
 
 // Pandora 公共框架依赖
 //
@@ -10,11 +8,13 @@ toolchain go1.24.5
 // 升级策略:patch 月度 / minor 季度 / major 年度评估(详见 docs/design/dependency-management.md)
 
 require (
-
 	// Kafka 客户端
 	github.com/IBM/sarama v1.43.1
 	// 核心框架
 	github.com/go-kratos/kratos/v2 v2.9.2
+
+	// JWT(W3 ①:login 真 JWT + Envoy jwt_authn)
+	github.com/golang-jwt/jwt/v5 v5.2.2
 
 	// 通用工具
 	github.com/google/uuid v1.6.0
@@ -34,6 +34,12 @@ require (
 )
 
 require (
+	github.com/go-sql-driver/mysql v1.8.1
+	golang.org/x/crypto v0.52.0
+)
+
+require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -61,10 +67,9 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/crypto v0.46.0 // indirect
-	golang.org/x/net v0.48.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/net v0.54.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

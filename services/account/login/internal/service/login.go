@@ -24,20 +24,24 @@ import (
 // LoginService 实现 loginv1.LoginServiceServer。
 //
 // 内嵌 UnimplementedLoginServiceServer 以满足 grpc 向前兼容约束。
+//
+// W3 ①(2026-06-05):IssueDSTicket / VerifyDSTicket 接 pkg/auth 真实化。
+// Login() 返回的 session_token / hub_ticket 也都是 HS256 JWT(由 LoginUsecase 内部签)。
 type LoginService struct {
 	loginv1.UnimplementedLoginServiceServer
 
-	uc *biz.LoginUsecase
+	loginUC  *biz.LoginUsecase
+	ticketUC *biz.TicketUsecase
 }
 
-// NewLoginService 注入 LoginUsecase。
-func NewLoginService(uc *biz.LoginUsecase) *LoginService {
-	return &LoginService{uc: uc}
+// NewLoginService 注入 LoginUsecase + TicketUsecase。
+func NewLoginService(loginUC *biz.LoginUsecase, ticketUC *biz.TicketUsecase) *LoginService {
+	return &LoginService{loginUC: loginUC, ticketUC: ticketUC}
 }
 
 // Login 立即完成型(参考 proto/pandora/login/v1/login.proto 注释)。
 func (s *LoginService) Login(ctx context.Context, req *loginv1.LoginRequest) (*loginv1.LoginResponse, error) {
-	res, err := s.uc.Login(ctx, req.GetAccount(), req.GetPasswordHash(), req.GetDeviceId())
+	res, err := s.loginUC.Login(ctx, req.GetAccount(), req.GetPasswordHash(), req.GetDeviceId())
 	if err != nil {
 		return &loginv1.LoginResponse{
 			Code: toProtoCode(err),
@@ -54,27 +58,56 @@ func (s *LoginService) Login(ctx context.Context, req *loginv1.LoginRequest) (*l
 
 // Logout 立即完成型。
 func (s *LoginService) Logout(ctx context.Context, req *loginv1.LogoutRequest) (*loginv1.LogoutResponse, error) {
-	if err := s.uc.Logout(ctx, req.GetSessionToken()); err != nil {
+	if err := s.loginUC.Logout(ctx, req.GetSessionToken()); err != nil {
 		return &loginv1.LogoutResponse{Code: toProtoCode(err)}, nil
 	}
 	return &loginv1.LogoutResponse{Code: commonv1.ErrCode_OK}, nil
 }
 
-// IssueDSTicket W2 阶段未实现(W3 接 JWT + hub_allocator)。
+// IssueDSTicket 立即完成型,W3 ① 真实化:
+//   - 校验 req.SessionToken(委托给 TicketUsecase 内部走 verifier;此处直接信任 Envoy 已校验)
+//   - 用 Signer 签 ds 票据,exp 默认 5min
 //
-// 设计上不返 grpc error,而是 code 字段返 ErrUnknown,客户端可识别"未实现"语义。
+// W2 阶段调用方传 session_token,W3 ① 暂不二次解 session(Envoy jwt_authn 已校验过),
+// player_id 直接从 ctx 的 player_id(由 middleware/auth 从 x-pandora-player-id 头注入)读。
+//
+// W3 ②:加 jti SETNX EX 5min 防重放,加 session 在线检查。
 func (s *LoginService) IssueDSTicket(ctx context.Context, req *loginv1.IssueDSTicketRequest) (*loginv1.IssueDSTicketResponse, error) {
-	plog.With(ctx).Warnw("msg", "ds_ticket_issue_not_implemented_w2")
+	playerID, _ := ctx.Value(plog.CtxKeyPlayerID).(int64)
+	if playerID <= 0 {
+		plog.With(ctx).Warnw("msg", "ds_ticket_issue_no_player_id")
+		return &loginv1.IssueDSTicketResponse{Code: commonv1.ErrCode_ERR_UNAUTHORIZED}, nil
+	}
+
+	res, err := s.ticketUC.IssueDSTicket(ctx, playerID, req.GetDsType(), req.GetTargetId())
+	if err != nil {
+		return &loginv1.IssueDSTicketResponse{Code: toProtoCode(err)}, nil
+	}
 	return &loginv1.IssueDSTicketResponse{
-		Code: commonv1.ErrCode_ERR_UNKNOWN,
+		Code:   commonv1.ErrCode_OK,
+		Ticket: res.Ticket,
 	}, nil
 }
 
-// VerifyDSTicket W2 阶段未实现(W3 接 JWT 验证 + jti 黑名单)。
+// VerifyDSTicket 立即完成型,W3 ① 真实化(验签 + exp + iss + aud)。
+//
+// ⚠️ Envoy 应该用 ext_authz / route 限制本 path 只允许内网(DS 调,不暴露给玩家客户端)。
+// 不变量 §3:本方法返回的 claims.exp 必须严格短时效。
 func (s *LoginService) VerifyDSTicket(ctx context.Context, req *loginv1.VerifyDSTicketRequest) (*loginv1.VerifyDSTicketResponse, error) {
-	plog.With(ctx).Warnw("msg", "ds_ticket_verify_not_implemented_w2")
+	claims, err := s.ticketUC.VerifyDSTicket(ctx, req.GetTicket(), req.GetDsPodName())
+	if err != nil {
+		return &loginv1.VerifyDSTicketResponse{Code: toProtoCode(err)}, nil
+	}
 	return &loginv1.VerifyDSTicketResponse{
-		Code: commonv1.ErrCode_ERR_UNKNOWN,
+		Code: commonv1.ErrCode_OK,
+		Claims: &loginv1.DSTicket{
+			PlayerId:    claims.PlayerID,
+			MatchId:     claims.MatchID,
+			IssuedAtMs:  claims.IssuedAtMs,
+			ExpiresAtMs: claims.ExpiresAtMs,
+			DsType:      claims.DSType,
+			Jti:         claims.JTI,
+		},
 	}, nil
 }
 

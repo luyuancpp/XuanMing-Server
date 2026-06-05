@@ -1,0 +1,31 @@
+# Pandora player_locator 服务开发期配置(W3 ⑤)。
+#
+# ⚠️ Kratos config JSON 不解 "30s" 这种 duration 字符串,所以本文件不写 duration 字段,
+#    所有超时 / TTL 由 conf.Defaults() 提供。
+#
+# - gRPC :50006 / HTTP :51006(仅 /metrics)
+# - 强 Redis 依赖(redis 连不上 → 启动失败,本服务是 Pandora "玩家在哪" 唯一真源)
+# - 不接 MySQL / Kafka(W3 ⑤ 范围)
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50006"
+  http:
+    network: tcp
+    addr: ":51006"
+
+node:
+  zone_id: 1
+  redis_client:
+    host: "127.0.0.1:6380"
+    db: 0
+
+snowflake:
+  epoch: 1773446400
+  node_bits: 17
+  step_bits: 15
+
+locator:
+  # 默认 TTL 30s(infra.md §3.2 表)。SetLocation 每次刷 TTL,30s 不刷 → 视为离线,GetLocation 返 OFFLINE。
+  # 在 conf.Defaults() 里填,本 yaml 不写,避免 Kratos JSON 不解 duration 坑。

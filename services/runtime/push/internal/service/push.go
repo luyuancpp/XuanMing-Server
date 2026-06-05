@@ -34,14 +34,16 @@ func NewPushService(uc *biz.PushUsecase) *PushService {
 
 // Subscribe 处理客户端长连接订阅(server stream)。
 //
-// W2 mock 流程:
-//  1. 从 metadata x-player-id 取 player_id(联调便利;W3 走 Envoy jwt_authn 把 sub 透到 metadata)
-//  2. 注册 stream 到 ConnectionManager(顶号语义:旧 stream 会被 close)
-//  3. defer 反注册
-//  4. 跑 mock 推送循环(RunMockStream)直到 ctx.Done 或 stream 失败
+// W3 ① 流程(2026-06-05):
+//  1. Envoy jwt_authn filter 已校验 JWT 并把 sub 提到 x-pandora-player-id 头
+//  2. pmw.AuthOptional() 中间件把 header 中 player_id 注入到 ctx
+//  3. 本方法从 ctx 取 player_id;0 表示匿名(直连 :50014 联调时正常)
+//  4. 注册 stream 到 ConnectionManager(顶号语义:旧 stream 会被 close)
+//  5. defer 反注册
+//  6. 跑 mock 推送循环(RunMockStream)直到 ctx.Done 或 stream 失败
 //
-// W3 真实化:
-//   - 校验 req.SessionToken(JWT 解析 + 黑名单)
+// W3 ④ 真实化:
+//   - 校验 req.SessionToken(已被 Envoy 校验,业务侧无需重复;DSTicket 由 login.VerifyDSTicket 二次验)
 //   - 按 req.LastSeenMs 从 redis ZSET pandora:push:offline:<player_id> 补推离线消息
 //   - 不再调 RunMockStream,改阻塞等 ctx.Done(实际推送由 kafka consumer 调 Conns().SendTo)
 func (s *PushService) Subscribe(req *pushv1.SubscribeRequest, stream pushv1.PushService_SubscribeServer) error {

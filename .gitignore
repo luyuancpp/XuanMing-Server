@@ -27,6 +27,7 @@ logs/
 tmp/
 temp/
 *.tmp
+.tmp-*
 *.bak
 *.swp
 *.swo
