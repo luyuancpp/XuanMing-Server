@@ -34,6 +34,9 @@ scrape_configs:
         labels: { service: chat }
       - targets: ['host.docker.internal:51006']
         labels: { service: player_locator }
+      # 推送（W2 ⑤ 新增，server stream + /metrics）
+      - targets: ['host.docker.internal:51014']
+        labels: { service: push }
       # 队伍 / 匹配 / 交易
       - targets: ['host.docker.internal:51010']
         labels: { service: team }

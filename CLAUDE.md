@@ -31,7 +31,7 @@ F:/work/mmorpg/                 # ⚠️ 封存项目,只读参考,严禁修改
 
 1. 不准在没有跑通 **所有已启用 module 的构建** 的情况下 commit
    - 本项目采用 `go.work` 多 module 模式,仓库根没有 `go.mod`,**不能**在根目录跑 `go build ./...`
-   - 当前阶段(W2 ③ 后):验证命令为 `go build ./pkg/... ./proto/... ./services/account/login/...`
+   - 当前阶段（W2 ⑤ 后）：验证命令为 `go build ./pkg/... ./proto/... ./services/account/login/... ./services/runtime/push/...`
    - W2+ 每个服务 module 启用后,追加对应路径
    - 完整命令参考 `go.work` 文件中的 `use` 列表
 2. commit message 格式:`<type>(<scope>): <subject>`

@@ -24,6 +24,7 @@ toolchain go1.24.5
 use ./pkg
 use ./proto
 use ./services/account/login
+use ./services/runtime/push
 
 // ⚠️ 构建验证:仓库根没有 go.mod,不能在根目录跑 go build ./...
 // 正确做法:按 use 列表构建,例如 go build ./pkg/...
@@ -31,7 +32,8 @@ use ./services/account/login
 //
 // W2+ 启用以下 use 行(每个服务在 cmd/main.go + go.mod 创建后启用):
 //
-// use ./services/account/login  ← W2 ③ 已启用
+// use ./services/account/login          ← W2 ③ 已启用
+// use ./services/runtime/push           ← W2 ⑤ 已启用(Kratos transport/grpc server stream)
 // use ./services/account/player
 // use ./services/social/friend
 // use ./services/social/chat
@@ -44,4 +46,3 @@ use ./services/account/login
 // use ./services/economy/trade
 // use ./services/data/data_service
 // use ./services/runtime/player_locator
-// use ./services/runtime/push          ⭐ Kratos transport/grpc server stream

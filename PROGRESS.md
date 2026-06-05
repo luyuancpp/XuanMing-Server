@@ -677,3 +677,113 @@ feat(login): W2 ③ login 服务骨架(Pandora 第一个 Kratos 业务服)
 - 改 proto import(`pandora/<X>/v1`)
 - yaml **不写 duration 字段**(坑 1)
 
+
+---
+
+## W2 ⑤ — push 服务骨架(2026-06-05)
+
+### 背景
+
+W2 ③ login 服务模板已稳(commit 待用户手动)。按 `HANDOFF.md §3 Step 4` 用 login 模板复制 push 服务(Pandora 第二个 Kratos 业务服,首个 server stream 服务)。
+
+### 完成内容
+
+#### 1. 目录结构(完全镜像 login,差异仅 server stream + 无 RESTful)
+
+```
+services/runtime/push/
+├── cmd/push/main.go                   入口:加载 yaml + 装配三层 + 起 Kratos App
+├── etc/push-dev.yaml                  dev 配置(⚠️ 不写 duration,沿用 login 经验)
+├── go.mod / go.sum                    module + replace pkg/proto 到本地
+├── README.md                          职责/铁律/端口/W3 路线
+└── internal/
+    ├── conf/conf.go                   嵌入 pkg/config.Base + PushConf
+    ├── biz/
+    │   ├── connection.go              ConnectionManager:player_id → stream 内存索引(顶号)
+    │   └── push.go                    PushUsecase + RunMockStream(5s ticker)
+    ├── service/push.go                实现 pushv1.PushServiceServer.Subscribe
+    └── server/
+        ├── grpc.go                    grpcserver.MustNewServer + RegisterPushServiceServer
+        └── http.go                    phttp.MustNewServer + /metrics(无 RESTful handler)
+```
+
+> data/ 暂未建,等 W3 接 redis ZSET 离线缓存时再加(login 的 data/ 是给 mysql/redis 准备的)。
+
+#### 2. W2 mock 行为(可联调)
+
+- `Subscribe(SubscribeRequest{session_token, last_seen_ms})` server stream
+  - 校验 session_token:**W2 跳过**(W3 走 Envoy jwt_authn + 冗余校验)
+  - 注册 stream 到 ConnectionManager(顶号语义已实现:同 player_id 旧 stream 自动 cancel)
+  - 首帧立发,之后每 5s 推一帧 `PushFrame{topic="pandora.system.notify", payload="hello", ts_ms=now, trace_id=ctx}`
+  - ctx.Done(client 断 / server stop / 顶号 cancel)→ 自动反注册退出
+- ConnectionManager 已实现 `Register / Unregister / SendTo / Broadcast / Size`,W3 kafka consumer 接入只改 `biz/push.go` + 新增 `biz/consumer.go`
+
+#### 3. 端口
+
+| 协议 | 端口 | 用途 |
+|---|---|---|
+| gRPC | 50014 | server stream(客户端经 Envoy gRPC-Web 来) |
+| HTTP | 51014 | 仅 `/metrics`(`push.proto` 无 `google.api.http` 注解,无 RESTful 入口) |
+
+#### 4. 调整的现有文件
+
+- `go.work`:启用 `use ./services/runtime/push`
+- `CLAUDE.md §4.1`:验证命令追加 `./services/runtime/push/...`
+- `deploy/prometheus/prometheus.yml`:加 `host.docker.internal:51014 service=push` 抓取目标
+- `services/runtime/push/go.mod`:照搬 login 的 `replace pandora/pkg` 和 `pandora/proto` 模式(`../../../`)
+
+#### 5. 验证(2026-06-05)
+
+```
+go build ./pkg/... ./proto/... ./services/account/login/... ./services/runtime/push/...  ✅ exit=0
+go vet   ./pkg/... ./proto/... ./services/account/login/... ./services/runtime/push/...  ✅ vet_exit=0
+
+go run ./services/runtime/push/cmd/push -conf services/runtime/push/etc/push-dev.yaml
+  → service_ready  grpc=:50014  http=:51014  mock_tick=5s  mock_topic=pandora.system.notify
+  → [gRPC] server listening on: [::]:50014
+  → [HTTP] server listening on: [::]:51014
+```
+
+> grpcurl Subscribe 流式验证待 W2 ④ Envoy 起来 + W2 ⑥ 端到端测试时一起做(也可现在直连 :50014 测,只是没经 Envoy)。
+
+### 踩到的坑(无新坑)
+
+login 三个坑全部复用方案,push 没踩新坑:
+- 坑 1(yaml 不写 duration):etc/push-dev.yaml 完全不写 `mock_tick_interval` 等 duration,靠 `Defaults()` 给 5s
+- 坑 3(go.mod replace):直接照抄 login 的 `../../../` 写法
+
+### 待 commit 的改动(用户手动)
+
+```
+M  go.work                                                (加 use ./services/runtime/push)
+M  CLAUDE.md                                              (§4.1 验证命令追加 push)
+M  deploy/prometheus/prometheus.yml                       (加 51014 push 抓取目标)
+M  PROGRESS.md                                            (本段)
+D  services/runtime/push/.gitkeep
+?? services/runtime/push/README.md
+?? services/runtime/push/cmd/push/main.go
+?? services/runtime/push/etc/push-dev.yaml
+?? services/runtime/push/go.mod / go.sum
+?? services/runtime/push/internal/{conf,biz,service,server}/*.go
+```
+
+建议 commit:
+```
+feat(push): W2 ⑤ push 服务骨架(Pandora 首个 server stream Kratos 业务服)
+
+- 镜像 login 目录:cmd/etc/internal/{conf,biz,service,server}
+- W2 mock:Subscribe 每 5s 推 PushFrame(topic=pandora.system.notify, payload=hello)
+- ConnectionManager 已实现顶号 / SendTo / Broadcast / Size(W3 kafka 消费者直接复用)
+- gRPC :50014(server stream),HTTP :51014(仅 /metrics,push.proto 无 google.api.http)
+- prometheus 抓取目标 + CLAUDE.md §4.1 验证命令同步更新
+
+接 W2 ③ login(待 commit)。
+```
+
+### 下一步(W2 ④ / ⑥ / ⑦)
+
+按 `HANDOFF.md §3`:
+- **Step 3 (W2 ④)** Envoy v1.38.0 本地 docker:加 `deploy/envoy/envoy.yaml` + `cert.pem/key.pem`(mkcert 生成,不入库)+ docker-compose envoy service。此时可同时配 login + push 两个 cluster
+- **Step 5 (W2 ⑥)** 端到端 hello world:经 Envoy grpc-web 测 `LoginService/Login` + `PushService/Subscribe`
+- **Step 6 (W2 ⑦)** 收尾:同步 `go-services.md` + `pkg-copy-from-mmorpg.md §5.3` + 用户 commit/push
+
