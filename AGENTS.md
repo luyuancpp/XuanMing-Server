@@ -46,8 +46,8 @@
 2. 给人审
 3. 审过(ExitPlanMode 被 approve)批量执行
 4. 执行完跑 `go build` / `go test` / `lint` 验证
-5. 跑 `git status` / `git diff --stat` 给人看
-6. 等人 commit
+5. 把项目内验证结果交给 ChatGPT / Codex,由 ChatGPT / Codex 输出 `git status` / `diff --stat` / commit message 建议
+6. 等人确认是否由 ChatGPT / Codex commit
 
 **不要**直接动手,**不要**改超出 plan 范围的文件。
 
