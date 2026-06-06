@@ -1,0 +1,61 @@
+# Pandora matchmaker 服务开发期配置(W4 ①,2026-06-06)。
+#
+# - gRPC :50011 / HTTP :51011(仅 /metrics)
+# - Redis 强依赖(排队 ZSET + match 状态 WATCH/MULTI/EXEC 乐观锁)
+# - Kafka 用于发布 pandora.match.progress 事件(push 服务订阅)
+# - team_addr 直连 team 服务拉队伍快照(留空则跳过 team 校验)
+# - duration 字段用 pkg/config.Duration,yaml 可直接写 "15s"
+# - dev: enable_reflection=true 便于 grpcurl 联调
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50011"
+    enable_reflection: true     # dev 开;prod 关(零值=false)
+  http:
+    network: tcp
+    addr: ":51011"
+
+node:
+  zone_id: 1
+  redis_client:
+    host: "127.0.0.1:6380"
+    db: 0
+    dial_timeout: "2s"
+    read_timeout: "1s"
+    write_timeout: "1s"
+
+# kafka producer 配置(发布 pandora.match.progress,push 服务订阅消费)
+# brokers 9093 = Pandora 端口规划(与 vanilla 9092 区分)
+kafka:
+  brokers: ["127.0.0.1:9093"]
+  dial_timeout: "2s"
+  write_timeout: "5s"
+  idempotent: true
+
+snowflake:
+  epoch: 1773446400
+  node_bits: 17
+  step_bits: 15
+
+match:
+  # team_addr: team 服务 gRPC 直连地址(StartMatch 拉队伍校验 READY);留空跳过校验
+  team_addr: "127.0.0.1:50010"
+  # confirm_timeout: 凑齐 10 人后的确认期时长
+  confirm_timeout: "15s"
+  # match_interval: 后台撮合循环扫描间隔
+  match_interval: "2s"
+  # ticket_ttl: 排队票据 Redis key TTL(防僵尸票据)
+  ticket_ttl: "30m"
+  # match_ttl: 已撮合 match Redis key TTL
+  match_ttl: "30m"
+  # team_size: MOBA 5v5,一方 5 人
+  team_size: 5
+  # mmr_base_window: 初始 MMR 撮合窗口半宽
+  mmr_base_window: 200
+  # mmr_widen_per_sec: 每等待 1 秒窗口放宽的 MMR
+  mmr_widen_per_sec: 20
+  # mmr_max_window: MMR 窗口放宽上限
+  mmr_max_window: 2000
+  # optimistic_retry: WATCH/MULTI/EXEC 冲突时最大重试次数
+  optimistic_retry: 3

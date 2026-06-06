@@ -99,3 +99,62 @@ message MatchProgressEvent {
   // 4-9 reserved
   reserved 4 to 9;
 }
+
+// ===== 服务端存储快照(Redis value,protobuf bytes)=====
+//
+// CLAUDE.md §5.8/§5.10:存储快照用 <Domain>StorageRecord,与客户端可见结构
+// (MatchProgress)分开,禁止值拷贝 proto message(克隆用 proto.Clone)。
+//
+// Redis key 模板(uint64 用 %d):
+//   pandora:match:queue          → ZSET(score=avg_mmr,member=ticket_id),撮合池
+//   pandora:match:ticket:%d      → MatchTicketStorageRecord proto bytes
+//   pandora:match:{%d}           → MatchStorageRecord proto bytes(hashtag 锁 cluster slot)
+//   pandora:match:player:%d      → ticket_id(string,SETNX,落"一人只在一个队列")
+//   pandora:match:active         → ZSET(score=confirm_deadline_ms,member=match_id),确认期超时扫描
+
+// MatchConfirmStatus 是确认期内单个玩家的确认状态。
+enum MatchConfirmStatus {
+  MATCH_CONFIRM_STATUS_UNSPECIFIED = 0;
+  MATCH_CONFIRM_STATUS_PENDING     = 1;  // 等待玩家确认
+  MATCH_CONFIRM_STATUS_ACCEPTED    = 2;  // 已接受
+  MATCH_CONFIRM_STATUS_REJECTED    = 3;  // 已拒绝
+}
+
+// MatchMemberStorageRecord 是 match 内单个玩家的存储快照。
+message MatchMemberStorageRecord {
+  uint64             player_id = 1;
+  uint64             team_id   = 2;  // 玩家所属 team(整队进出,不可拆)
+  int32              mmr       = 3;
+  uint32             hero_id   = 4;
+  int32              side      = 5;  // 0 = team_a;1 = team_b
+  MatchConfirmStatus confirm   = 6;  // 确认期状态
+  // 7-9 reserved
+  reserved 7 to 9;
+}
+
+// MatchTicketStorageRecord 是排队票据(一个 team = 一张票)。
+message MatchTicketStorageRecord {
+  uint64                            ticket_id     = 1;
+  uint64                            team_id       = 2;
+  uint64                            captain_id    = 3;
+  repeated MatchMemberStorageRecord members       = 4;
+  int32                             avg_mmr       = 5;  // 队伍平均 MMR(ZSET score)
+  int64                             enqueued_at_ms = 6;  // 进队列时间(放宽窗口 + 退回保留排队时长用)
+  uint64                            match_id      = 7;  // 被撮合进的 match;未撮合时为 0
+  // 8-9 reserved
+  reserved 8 to 9;
+}
+
+// MatchStorageRecord 是一场已撮合 match 的存储快照。
+message MatchStorageRecord {
+  uint64                            match_id            = 1;
+  MatchStage                        stage               = 2;
+  repeated MatchMemberStorageRecord members             = 3;  // 10 人(team_a 5 + team_b 5)
+  repeated uint64                   ticket_ids          = 4;  // 组成本 match 的 ticket(失败退回用)
+  int64                             created_at_ms       = 5;
+  int64                             confirm_deadline_ms = 6;  // 确认期截止(active ZSET score)
+  string                            battle_ds_addr      = 7;  // ALLOCATING/READY 时填
+  string                            battle_ticket       = 8;  // 同上
+  // 9 reserved
+  reserved 9;
+}

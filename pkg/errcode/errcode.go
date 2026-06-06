@@ -83,6 +83,7 @@ const (
 	ErrMatchConfirmTimeout  Code = 4003
 	ErrMatchDeclined        Code = 4004
 	ErrMatchTeamNotReady    Code = 4005
+	ErrMatchConcurrent      Code = 4006 // WATCH/MULTI/EXEC 乐观锁重试耗尽
 )
 
 // ds_allocator / hub_allocator(5000-5999)

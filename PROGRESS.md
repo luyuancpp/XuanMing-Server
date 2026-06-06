@@ -1685,3 +1685,89 @@ Pandora 第 4 个 Kratos 业务服(login / push / player_locator 之后),首个"
 ### 后续路线(W4)
 
 `hub_allocator`(补不变量 §1:玩家分配 hub 实例)/ `matchmaker` 骨架 / UE 客户端首版,均为 W3 路线图末尾"可选下一步",顺延 W4,由 Opus 4.8 出 Plan。
+
+- TODO: 后续评估接入 ntfy,用于本地压测、构建失败、服务异常等开发/运维通知;仅作旁路通知,不进入核心业务链路。
+
+---
+
+## W4 ① matchmaker 服务(2026-06-06,Claude Opus）
+
+Pandora 第 5 个 Kratos 业务服,撮合 5v5。gRPC :50011 / HTTP :51011(仅 /metrics)。
+4 个 RPC 全"已受理型"(协议原则 3):客户端 UI 状态机由 `pandora.match.progress` push 驱动。
+
+### 撮合流水线
+
+`StartMatch(team)` → 写排队票据(avg_mmr 入 ZSET)→ 后台 `RunMatchLoop`(MatchInterval 2s)
+`matchOnce` 撮合 + `expireOnce` 确认期超时扫描:
+
+```
+QUEUEING → FOUND → CONFIRM → ALLOCATING → READY
+                      └─ 任一拒绝 / 超时 ─→ FAILED(其余票据退回队列)
+```
+
+- `matchOnce`:`RangeQueueTickets` 按 avg_mmr 升序 → 贪心累积进组,组内 MMR 跨度在
+  **动态窗口**(base 200 / +20 每等待秒 / max 2000)内,凑齐 2×TeamSize=10 人 →
+  `binPack` largest-first 装箱拆成 5+5 → `formMatch`(写 match record + `ReserveTicket`
+  预留票据移出队列写 match_id + 推 FOUND/CONFIRM)
+- `expireOnce`:扫 `pandora:match:active` ZSET,`confirm_deadline_ms ≤ now` 的 match
+  标记 FAILED,票据退回队列(rejecterID=0,无明确拒绝者全部退回)
+
+### 4 RPC
+
+| RPC | 语义 | 进度推送 |
+|---|---|---|
+| `StartMatch` | 队伍入队(captain_id 以 JWT ctx 为准) | QUEUEING(全体含发起方) |
+| `CancelMatch` | 排队中→删票据释放归属;已撮合→等价拒绝确认 | FAILED(若已撮合) |
+| `ConfirmMatch` | 全员 accept→READY;任一 reject→FAILED | CONFIRM/READY/FAILED |
+| `GetMatchProgress` | 只读(match_id 或 ticket_id 句柄) | 无 |
+
+### Redis key 设计
+
+- `pandora:match:queue` = ZSET(score=avg_mmr,member=ticket_id),撮合池
+- `pandora:match:ticket:%d` = `MatchTicketStorageRecord` proto bytes,TTL=TicketTTL(30min)
+- `pandora:match:{%d}` = `MatchStorageRecord` proto bytes(hashtag `{}` 锁 cluster slot)
+- `pandora:match:player:%d` = ticket_id string,`ClaimPlayer` 用 **SETNX** 落不变量 §1
+  一人只在一个队列;StartMatch 任一成员冲突则回滚已声明的
+- `pandora:match:active` = ZSET(score=confirm_deadline_ms,member=match_id),确认期超时扫描
+
+### 并发与状态机
+
+- match 写路径统一走 `UpdateMatchWithLock`:WATCH/MULTI/EXEC 乐观锁,CAS 失败重试至
+  `OptimisticRetry` 次,耗尽返 `ERR_MATCH_CONCURRENT=4006`(新增 errcode)
+- 确认失败:其余票据 `RequeueTicket` 退回队列**保留 `enqueued_at_ms`**(排队时长不丢失),
+  拒绝者整队 `DeleteTicket` + 释放成员归属
+- 全员确认 → `DSAllocator.AllocateBattle`(W4 ① 打桩 `StubDSAllocator` 返回固定 ds_addr +
+  每玩家 mock 票据;W4 ② 接 ds_allocator gRPC)→ 写 READY 带 ds_addr,每玩家单独推
+  专属 `battle_ticket`
+- `MatchStorageRecord` / `MatchTicketStorageRecord` proto 直接当存储 record,克隆一律
+  `proto.Clone`,禁止值拷贝
+
+### proto 改动 [proto]
+
+新增(match/v1):`MatchTicketStorageRecord` / `MatchStorageRecord` / `MatchMemberStorageRecord`
+/ `MatchConfirmStatus` 枚举;common/v1 新增 `ERR_MATCH_CONCURRENT=4006`。已 regen go + cpp pb。
+
+### 解耦接口(biz 不依赖 grpc/kafka 具体实现)
+
+- `TeamReader`(弱依赖 team gRPC,team_addr 空则跳过队伍校验退化为单人票据兜底)
+- `MatchEventPusher`(kafka `pandora.match.progress`,原则 3 例外 callerID=0 发全体含发起方)
+- `DSAllocator`(W4 ① StubDSAllocator 打桩)
+- `IDGenerator`(snowflake.Node 生成 match_id)
+
+### 验证(2026-06-06,Claude)
+
+7-module build / vet / test 全 PASS(新增 `./services/matchmaking/matchmaker/...`):
+
+```pwsh
+go build ./pkg/... ./proto/... ./services/account/login/... ./services/runtime/push/... ./services/runtime/player_locator/... ./services/matchmaking/team/... ./services/matchmaking/matchmaker/...
+```
+
+- biz 单测 4 用例:撮合成型(10 单人票→5+5 CONFIRM)/ 全确认 READY 带 ds_addr /
+  拒绝退回(拒绝者票据删、对方退回)/ 确认期超时失败
+- data 单测 4 用例:票据往返 + 队列 avg_mmr 升序 / ClaimPlayer SETNX 冲突 /
+  UpdateMatchWithLock 持久化 + 错误透传不写回 / active ZSET 超时扫描 + ExpireMatch 保留 record
+
+### 后续路线(W4 ②)
+
+ds_allocator 服务上线 → 替换 `StubDSAllocator` 为真实 Agones GameServerAllocation;
+确认期票据归属保留至战斗结束的补偿(不变量 §4 DS 崩溃补偿)。

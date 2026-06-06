@@ -27,7 +27,7 @@ F:/work/Pandora-Client/         # UE 客户端 + DS(待定名,独立仓库)
 
 1. 不准在没有跑通 **所有已启用 module 的构建** 的情况下 commit
    - 本项目采用 `go.work` 多 module 模式,仓库根没有 `go.mod`,**不能**在根目录跑 `go build ./...`
-   - 当前阶段（W3 ⑦ 后）：验证命令为 `go build ./pkg/... ./proto/... ./services/account/login/... ./services/runtime/push/... ./services/runtime/player_locator/... ./services/matchmaking/team/...`
+   - 当前阶段（W4 ① 后）：验证命令为 `go build ./pkg/... ./proto/... ./services/account/login/... ./services/runtime/push/... ./services/runtime/player_locator/... ./services/matchmaking/team/... ./services/matchmaking/matchmaker/...`
    - W2+ 每个服务 module 启用后,追加对应路径
    - 完整命令参考 `go.work` 文件中的 `use` 列表
 2. commit message 格式:`<type>(<scope>): <subject>`
@@ -88,6 +88,7 @@ F:/work/Pandora-Client/         # UE 客户端 + DS(待定名,独立仓库)
 | W3 ⑦ | 2026-06-05 | **team 服务上线**(第 4 个 Kratos 业务服,gRPC :50010 / HTTP :51010 仅 /metrics;7 RPC `CreateTeam`/`Invite`/`AcceptInvite`/`LeaveTeam`/`Kick`/`SetReady`/`GetTeam` 全"立即完成型"(`GetTeam` 只读快照);Redis WATCH/MULTI/EXEC 乐观锁,冲突重试 `OptimisticRetry` 次耗尽返 `ERR_TEAM_CONCURRENT=3007`;key `pandora:team:{<team_id>}`=`TeamStorageRecord` proto bytes(hashtag `{}` 锁 cluster slot)+ `pandora:team:player:<player_id>` `ClaimPlayer` SETNX 保不变量 §1 一人一队 + `pandora:team:invite:<invite_id>` hash InviteTTL 60s;状态机 FORMING/READY/MATCHING/IN_BATTLE/DISBANDED,DISBANDED 拒绝写;写路径发 `pandora.team.update` kafka `TeamUpdateEvent`(push 已订阅),协议原则 2 push 不发 caller;`TeamStorageRecord` proto 直接做存储 record,克隆用 `proto.Clone` 不值拷贝;duration 全 `config.Duration`(ActiveTTL 60min/InviteTTL 60s/DisbandedRetention 5min/MaxMembers 5);biz+data 单测覆盖) |
 | 协议硬规则 | 2026-06-05 | **Snowflake 业务 ID 一律 uint64**(`player_id` / `team_id` / `match_id` / `order_id` 等);**配置表 ID 默认 uint32**(`npc_id` / `hero_id` / `skill_id` / `item_config_id` / `map_id` 等);**proto enum / 状态常量保持生成 enum 类型或 int32 语义**,不按非负常量改 `uint32`;后续 proto / Go / SQL / Redis / Kafka key 不得新增有符号业务 ID |
 | AI 协作 | 2026-06-05 | **Claude 模型分工固化**:最高可用 Claude 模型(Opus 4.8 以上或更高)负责出 Plan / 审 Plan / 难题攻关 / 写代码 / 补测试 / 跑项目内验证 / 最终把关;不得把业务代码实现固定交给低一档模型;ChatGPT / Codex 继续负责环境执行和 git 收尾 |
+| W4 ① | 2026-06-06 | **matchmaker 服务上线**(第 5 个 Kratos 业务服,gRPC :50011 / HTTP :51011 仅 /metrics;4 RPC `StartMatch`/`CancelMatch`/`ConfirmMatch`/`GetMatchProgress` 全"已受理型",客户端状态机由 `pandora.match.progress` push 驱动;撮合流水线 QUEUEING→FOUND→CONFIRM→ALLOCATING→READY/FAILED;后台 `RunMatchLoop`(MatchInterval 2s):`matchOnce` 按 avg_mmr 升序 + 动态 MMR 窗口(base 200 / +20/s / max 2000)贪心凑 2×TeamSize → largest-first 装箱拆 5+5 → `formMatch`;`expireOnce` 扫 active ZSET 确认期(15s)超时 → FAILED;Redis key `pandora:match:queue` ZSET(score=avg_mmr)/`pandora:match:active` ZSET(score=confirm_deadline_ms)/`pandora:match:ticket:%d` `MatchTicketStorageRecord` proto bytes/`pandora:match:{%d}` `MatchStorageRecord`(hashtag 锁 slot)/`pandora:match:player:%d` SETNX 落不变量 §1 一人一队列;match 写用 WATCH/MULTI/EXEC 乐观锁,冲突重试耗尽返 `ERR_MATCH_CONCURRENT=4006`;确认失败其余票据退回队列保留 `enqueued_at_ms`,拒绝者整队删除;全员确认 → `DSAllocator.AllocateBattle`(W4 ① 打桩 `StubDSAllocator`,W4 ② 接 ds_allocator gRPC)→ READY 带 ds_addr + 每玩家 battle_ticket;新增 proto `MatchTicketStorageRecord`/`MatchStorageRecord`/`MatchMemberStorageRecord`/`MatchConfirmStatus`;`TeamReader` 弱依赖 team gRPC(team_addr 空则跳过队伍校验,单人票据兜底);push 原则 3 例外 callerID=0 发全体含发起方;biz+data 单测 8 用例(撮合成型/全确认 READY/拒绝退回/超时失败 + 票据往返/队列排序/SETNX/乐观锁/active 扫描)) |
 
 后续每轮压测 / 大决策追加一行,**永不删旧行**。
 
