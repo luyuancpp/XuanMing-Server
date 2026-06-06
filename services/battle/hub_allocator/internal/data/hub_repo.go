@@ -31,7 +31,7 @@ const (
 	activeKey    = "pandora:hub:active"
 )
 
-func shardKey(pod string) string      { return fmt.Sprintf("pandora:hub:shard:{%s}", pod) }
+func shardKey(pod string) string       { return fmt.Sprintf("pandora:hub:shard:{%s}", pod) }
 func assignKey(playerID uint64) string { return fmt.Sprintf("pandora:hub:player:%d", playerID) }
 func teamKey(teamID uint64) string     { return fmt.Sprintf("pandora:hub:team:%d", teamID) }
 

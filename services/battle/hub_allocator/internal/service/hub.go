@@ -69,9 +69,9 @@ func (s *HubService) TransferHub(ctx context.Context, req *hubv1.TransferHubRequ
 		return &hubv1.TransferHubResponse{Code: toProtoCode(err)}, nil
 	}
 	return &hubv1.TransferHubResponse{
-		Code:          commonv1.ErrCode_OK,
-		NewHubDsAddr:  res.NewHubDSAddr,
-		NewHubTicket:  res.NewHubTicket,
+		Code:         commonv1.ErrCode_OK,
+		NewHubDsAddr: res.NewHubDSAddr,
+		NewHubTicket: res.NewHubTicket,
 	}, nil
 }
 

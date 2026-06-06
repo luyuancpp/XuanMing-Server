@@ -252,7 +252,7 @@ func TestUpdateNickname_Validation(t *testing.T) {
 
 func TestBattleFlags(t *testing.T) {
 	cases := []struct {
-		reason             string
+		reason              string
 		wantBattle, wantWin bool
 	}{
 		{"win", true, true},
