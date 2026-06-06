@@ -1,0 +1,44 @@
+# Pandora player 服务开发期配置(W4 ④,2026-06-06)。
+#
+# - gRPC :50002 / HTTP :51002(仅 /metrics)
+# - MySQL 强依赖(pandora_player 库:players + player_heroes + mmr_history,幂等 UpdateMMR 不变量 §2)
+# - Kafka 强依赖(消费 pandora.player.update,battle_result 结算后发)
+# - duration 字段用 pkg/config.Duration,yaml 可直接写 "3s"
+# - dev: enable_reflection=true 便于 grpcurl 联调
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50002"
+    enable_reflection: true     # dev 开;prod 关(零值=false)
+  http:
+    network: tcp
+    addr: ":51002"
+
+node:
+  zone_id: 1
+  # MySQL:dev 连本机 docker mysql 的 pandora_player 库(强依赖,DSN 必填)。
+  mysql_client:
+    dsn: "pandora:pandora_dev_pwd@tcp(127.0.0.1:3307)/pandora_player?parseTime=true&loc=UTC&charset=utf8mb4&collation=utf8mb4_0900_ai_ci"
+    max_open_conns: 32
+    max_idle_conns: 8
+    conn_max_lifetime: "30m"
+    ping_timeout: "3s"
+
+kafka:
+  brokers: ["127.0.0.1:9093"]
+  group_id: "pandora-player"
+  partition_cnt: 4
+
+player:
+  # base_mmr: 新玩家缺省 MMR(与 battle_result base_mmr 对齐)
+  base_mmr: 1500
+  # mmr_floor: MMR 下限(UpdateMMR 后 clamp)
+  mmr_floor: 0
+  # default_nickname_prefix: 默认昵称前缀(EnsureProfile 建档 nickname=prefix+player_id)
+  default_nickname_prefix: "Player_"
+  # max_nickname_len: 昵称最大长度
+  max_nickname_len: 32
+  # consume_topics: 订阅 topic(留空走默认 [pandora.player.update])
+  consume_topics:
+    - "pandora.player.update"

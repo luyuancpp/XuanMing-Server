@@ -85,12 +85,17 @@ func main() {
 	defer func() { _ = db.Close() }()
 	helper.Infow("msg", "mysql_connected", "dsn", maskDSN(cfg.Node.MySQLClient.DSN))
 
-	// 4. MMR reader(W4 ③ player 未上线 → 静态 BaseMMR;PlayerAddr 留作 player 上线钩子)
-	var mmr biz.MMRReader = biz.NewStaticMMRReader(cfg.Battle.BaseMMR)
+	// 4. MMR reader(W4 ④ player 上线 → 接真实 player gRPC reader;PlayerAddr 空则静态 BaseMMR 兜底)
+	var mmr biz.MMRReader
 	if cfg.Battle.PlayerAddr != "" {
-		helper.Warnw("msg", "player_addr_set_but_static_reader",
-			"hint", "W4 ③ 暂用 StaticMMRReader;接 player gRPC reader 留后续",
-			"player_addr", cfg.Battle.PlayerAddr)
+		reader := data.NewGrpcMMRReader(cfg.Battle.PlayerAddr)
+		defer func() { _ = reader.Close() }()
+		mmr = reader
+		helper.Infow("msg", "mmr_reader_grpc", "player_addr", cfg.Battle.PlayerAddr)
+	} else {
+		mmr = biz.NewStaticMMRReader(cfg.Battle.BaseMMR)
+		helper.Infow("msg", "mmr_reader_static", "base_mmr", cfg.Battle.BaseMMR,
+			"hint", "player_addr 未配置 → StaticMMRReader 兜底")
 	}
 
 	// 5. player.update producer(弱依赖)

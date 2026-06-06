@@ -1,0 +1,60 @@
+-- Pandora 玩家库 W4 ④ 表结构(2026-06-06)
+--
+-- 装载方式:容器 entrypoint 自动扫 /docker-entrypoint-initdb.d/*.sql 顺序执行
+-- (01-create-databases.sql 先建库 + grant,本文件接着建表)。
+--
+-- 表清单(对齐 docs/design/infra.md §2.1 pandora_player):
+--   players       玩家档案(player_id PK,昵称 / 等级 / 段位 mmr / 战绩计数)
+--   player_heroes 英雄解锁记录(uk player_id+hero_id)
+--   mmr_history   MMR 变化历史 + 幂等键(uk player_id+idempotency_key,不变量 §2)
+--
+-- 约定:
+--   - player_id 由 login 服务用 snowflake 生成(BIGINT UNSIGNED),player 服务不生成
+--   - mmr 缺省 1500(与 battle_result base_mmr 对齐),floor 0 由应用层保证
+--   - UpdateMMR 幂等:idempotency_key 一般是 match_id;mmr_history uk 命中即视为已处理
+--   - 默认昵称 = 配置前缀 + player_id,保证 uk_nickname 不冲突
+
+USE `pandora_player`;
+
+CREATE TABLE IF NOT EXISTS `players` (
+    `player_id`     BIGINT UNSIGNED  NOT NULL,
+    `nickname`      VARCHAR(64)      NOT NULL COMMENT '玩家昵称,uk_nickname 唯一',
+    `level`         INT              NOT NULL DEFAULT 1,
+    `mmr`           INT              NOT NULL DEFAULT 1500 COMMENT '段位分,floor 0',
+    `avatar`        VARCHAR(255)     NOT NULL DEFAULT '',
+    `total_battles` INT              NOT NULL DEFAULT 0,
+    `total_wins`    INT              NOT NULL DEFAULT 0,
+    `created_at`    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `last_seen_at`  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`player_id`),
+    UNIQUE KEY `uk_nickname` (`nickname`),
+    KEY `idx_mmr` (`mmr`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  COMMENT='Pandora 玩家档案表';
+
+CREATE TABLE IF NOT EXISTS `player_heroes` (
+    `id`          BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    `player_id`   BIGINT UNSIGNED  NOT NULL,
+    `hero_id`     INT UNSIGNED     NOT NULL COMMENT '配置表英雄 ID(uint32)',
+    `source`      VARCHAR(32)      NOT NULL DEFAULT '' COMMENT 'purchase | reward | freebie',
+    `unlocked_at` DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_player_hero` (`player_id`, `hero_id`),
+    KEY `idx_player` (`player_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  COMMENT='Pandora 玩家英雄解锁记录';
+
+CREATE TABLE IF NOT EXISTS `mmr_history` (
+    `id`              BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    `player_id`       BIGINT UNSIGNED  NOT NULL,
+    `idempotency_key` VARCHAR(64)      NOT NULL COMMENT '幂等键,一般是 match_id',
+    `delta`           INT              NOT NULL COMMENT '本次 MMR 变化(可负)',
+    `reason`          VARCHAR(32)      NOT NULL DEFAULT '' COMMENT 'win | lose | draw | abandon | rollback',
+    `old_mmr`         INT              NOT NULL,
+    `new_mmr`         INT              NOT NULL,
+    `created_at`      DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_player_idem` (`player_id`, `idempotency_key`),
+    KEY `idx_player_created` (`player_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  COMMENT='Pandora 玩家 MMR 变化历史 + 幂等键(不变量 §2)';

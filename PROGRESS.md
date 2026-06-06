@@ -1944,3 +1944,59 @@ Pandora 第 7 个 Kratos 业务服。对局结算落库 + MMR 计算 + DS 崩溃
 - player 服务上线消费 `pandora.player.update` 做幂等 UpdateMMR,并把 battle_result 的 `StaticMMRReader` 换成真 player gRPC reader(填 `player_addr`)
 - ds_allocator 接真 Agones GameServerAllocation CRD(环境就绪步,交 Codex/人)
 - battle_result data 层 MySQL 集成测试(需真 DB 或 sqlmock,留后续)
+
+## W4 ④ — player 服务上线 + battle_result 接真实 player MMRReader(2026-06-06)
+
+Pandora 第 8 个 Kratos 业务服。闭合 MMR 写回(消费 player.update 幂等 UpdateMMR)
+与读取(battle_result 经 gRPC 读真实当前 MMR)链路。
+
+### 范围
+
+- **player 新服**:gRPC :50002 / HTTP :51002(仅 /metrics,player.proto 无 google.api.http)
+- **MySQL 强依赖**(`pandora_player` 库,无 Redis),新增 `deploy/mysql-init/04-player-tables.sql` 3 表:
+  - `players`(PK player_id,uk nickname,level/mmr/avatar/total_battles/total_wins,idx mmr)
+  - `player_heroes`(uk player_id+hero_id,英雄解锁池)
+  - `mmr_history`(uk player_id+idempotency_key 幂等键 + idx player_id,created_at)
+- **消费 `pandora.player.update`** → `UpdateMMR` 幂等(不变量 §2):
+  - idempotency_key = match_id 字符串;`mmr_history` uk 命中即视为已处理,读回已记录 new_mmr,不重复改 players
+  - 战绩计数:win → total_battles+1 / total_wins+1;lose / draw → total_battles+1;abandon / rollback → 不计
+  - `ApplyMMRChange` 事务:`SELECT mmr FOR UPDATE` 锁行 → INSERT mmr_history(dup 即幂等) → UPDATE players;MMR clamp floor 0
+- **6 RPC**:`GetProfile` / `UpdateNickname` / `ListHeroes` / `UnlockHero` / `GetMMR` / `UpdateMMR`
+  - GetProfile / 写操作懒创建档案:`EnsureProfile` INSERT IGNORE 默认昵称 `Player_<player_id>`(保 uk_nickname 唯一)
+  - `GetMMR` 未建档玩家返 base_mmr + OK(供 battle_result 当 reader,不为对手建行)
+  - `UpdateNickname` 命中 uk → `ERR_PLAYER_NICKNAME_TAKEN`;`UnlockHero` 已拥有 → `ERR_PLAYER_HERO_ALREADY_OWN`
+- **errcode**:复用既有 `ERR_PLAYER_NOT_FOUND=2001` / `ERR_PLAYER_NICKNAME_TAKEN=2003` / `ERR_PLAYER_HERO_ALREADY_OWN=2011`(无新增,无 proto regen)
+- **battle_result 接真实 reader**:`StaticMMRReader` → `GrpcMMRReader`
+  - 新增 `services/battle/battle_result/internal/data/mmr_reader.go`:经 `pkg/grpcclient.MustDialInsecure` 调 `player.GetMMR`
+  - `battle.player_addr` 非空时启用,否则仍用 `StaticMMRReader` 兜底
+  - 弱依赖:gRPC 懒连接(player 未起不阻塞启动),调用失败由 `biz.assignMMR` 回退 `BaseMMR`,不阻断落库
+  - `battle_result-dev.yaml` `player_addr: "127.0.0.1:50002"`
+
+### 验证
+
+实际跑过的命令与结果:
+
+- **build(9 module)PASS** `BUILD=0`:
+  ```pwsh
+  go build ./pkg/... ./proto/... ./services/account/login/... ./services/account/player/... ./services/runtime/push/... ./services/runtime/player_locator/... ./services/matchmaking/team/... ./services/matchmaking/matchmaker/... ./services/battle/ds_allocator/... ./services/battle/battle_result/...
+  ```
+- **vet(player)PASS** `VET=0`:`go vet ./services/account/player/...`
+- **test PASS** `TEST=0`:
+  - `go test ./services/account/player/...` biz 9 用例(delta 应用 / 幂等不双算 + 不双计场 / 缺 idempotency_key 拒 / floor clamp 到 0 / lose 计场不计胜 / abandon 不计场 / GetMMR 未建档返 base / UnlockHero 幂等返 AlreadyOwn / 昵称空与 player_id=0 校验 / battleFlags 表驱动)
+  - `go test ./services/battle/battle_result/...` 回归 8 用例仍全绿(接入 GrpcMMRReader 不破坏既有 biz)
+- go.work 加 `use ./services/account/player`
+- **未做**:9 module 全量 vet / `go test -race`(本机无 mingw gcc,-race 留 Codex/CI)/ 真 MySQL + Kafka 联调(环境启停交 Codex)
+
+### 交接 Codex(环境/收尾)
+
+- player 是新 module,建议在 `services/account/player` 跑 `go mod tidy` 复核 go.sum(本轮 go.sum 由 battle_result 复制而来,依赖集相同 build 已通过;tidy 用于固化直接/间接依赖,注意勿误删 test-only 直接依赖如 protobuf)
+- battle_result go.mod 因新增 `mmr_reader.go` 直接 import `google.golang.org/grpc`(原为 indirect)+ `player/v1`(已有);如 tidy 把 grpc 提为 direct require 属正常
+- 联调:需起 mysql(:3307,`pandora_player` 库执行 04 建表)+ kafka(:9093)+ player(:50002);player 消费 `pandora.player.update`,battle_result 结算后该 topic 应能驱动 player 改段位
+- 联调验证点:battle_result 落库 → 发 player.update → player 消费 UpdateMMR(幂等,重投不双算)→ GetProfile 看 mmr/total_battles 变化;battle_result GetMMR 经 GrpcMMRReader 读到 player 真实 MMR
+
+### 后续路线(W4 ⑤+)
+
+- player.update 弱依赖 + abandoned 补偿仍非可靠闭环(W4 ③ 已记阶段限制):可靠投递留 outbox / 待补偿扫描
+- ds_allocator 接真 Agones GameServerAllocation CRD(环境就绪交 Codex/人)
+- player / battle_result data 层 MySQL 集成测试(需真 DB 或 sqlmock)
+- login 创建账号后是否预建 player 档案(当前懒创建,首次 GetProfile/UpdateMMR 自动建)待产品决策

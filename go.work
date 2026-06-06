@@ -27,6 +27,8 @@ use ./proto
 
 use ./services/account/login
 
+use ./services/account/player
+
 use ./services/runtime/push
 
 use ./services/runtime/player_locator
