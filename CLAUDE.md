@@ -47,6 +47,20 @@ F:/work/Pandora-Client/         # UE 客户端 + DS(待定名,独立仓库)
 5. `player_id` / `team_id` / `match_id` / `order_id` / `message_id` / `dialogue_id` / `hub_id` / `invite_id` 等 Snowflake 业务 ID **一律用 `uint64`**;不准再用 `int64` / `string` 承载这类 ID。未知 / 空值用 `0`,需要表达 presence 时用 `optional uint64`
 6. 配置表 ID / 静态表 ID **默认用 `uint32`**(`npc_id` / `hero_id` / `skill_id` / `item_config_id` / `map_id` 等);如果字段名容易和运行时实体混淆,新协议优先命名为 `<entity>_config_id`
 7. 状态 / 类型 / 原因等 proto 枚举常量**不属于 ID 规则**;proto enum 底层是 `int32`,Go 代码优先使用生成的 enum 类型,必要时才用 `int32`,不因取值非负改成 `uint32`
+8. 新增业务数据结构**优先定义 proto message**,按下面四类各司其职,**不准手写与 proto 重复的并行 struct**:
+
+   | 类别 | 命名 | 用途 |
+   |---|---|---|
+   | RPC 请求/响应 | `<Verb><Domain>Request` / `<Verb><Domain>Response` | gRPC unary/stream 出入参 |
+   | 客户端可见结构 | `<Domain>` / `<Domain><Part>`(短名,如 `Team` / `TeamMember`) | RPC response、push payload 里给客户端看的字段 |
+   | 服务端存储快照 | `<Domain>StorageRecord` + 子结构 `<Domain><Part>StorageRecord` | Redis value、Kafka 快照、MySQL **blob 列**里序列化成 bytes 的整块状态 |
+   | 服务间事件 | `<Domain><Action>Event` | Kafka payload;可内嵌"客户端可见结构",但它本身是服务内部消息,不是存储快照 |
+
+9. 第 8 条的"存储快照用 proto bytes"**只针对快照/blob 场景**(Redis value、Kafka payload、MySQL blob 列):
+   - **关系型 MySQL 表(结构化列)不强制 proto 化**;列直接映射 proto 字段即可,不为每张表再造一个 proto bytes blob
+   - 临时小令牌(如 invite,2~3 个字段、短 TTL)允许继续用 redis hash,不必升级成 proto bytes
+   - 规则核心是"消灭与 proto 重复漂移的并行 struct",**不是"一切都序列化成 bytes"**
+10. proto message 直接当存储 record 时:**禁止值拷贝 proto message**(`a := *rec` 会复制内部 state/mu/sizeCache),克隆一律用 `proto.Clone`;存储字段命名以 `<Domain>StorageRecord` 为准,客户端结构与存储结构**分开两个 message**,存储侧独有字段(如 `updated_at_ms`)不外泄给客户端
 
 ## 6. 服务命名 / 端口规范
 

@@ -74,7 +74,7 @@ func (u *TeamUsecase) activeTTL() time.Duration {
 
 // CreateTeam 创建队伍,playerID 为队长。
 // 前置条件:playerID 不在任何队伍中。
-func (u *TeamUsecase) CreateTeam(ctx context.Context, teamID, playerID uint64) (*data.TeamRecord, error) {
+func (u *TeamUsecase) CreateTeam(ctx context.Context, teamID, playerID uint64) (*teamv1.TeamStorageRecord, error) {
 	ttl := u.activeTTL()
 
 	// 1. 原子声明玩家归属(SETNX),保证不变量 §1:一人只能在一个队
@@ -85,11 +85,11 @@ func (u *TeamUsecase) CreateTeam(ctx context.Context, teamID, playerID uint64) (
 	}
 
 	now := time.Now().UnixMilli()
-	team := &data.TeamRecord{
-		TeamID:      teamID,
-		CaptainID:   playerID,
+	team := &teamv1.TeamStorageRecord{
+		TeamId:      teamID,
+		CaptainId:   playerID,
 		State:       stateForming,
-		Members:     []data.MemberRecord{{PlayerID: playerID}},
+		Members:     []*teamv1.TeamMemberStorageRecord{{PlayerId: playerID}},
 		CreatedAtMs: now,
 		UpdatedAtMs: now,
 		MaxSize:     int32(u.cfg.MaxMembers),
@@ -110,7 +110,7 @@ func (u *TeamUsecase) CreateTeam(ctx context.Context, teamID, playerID uint64) (
 }
 
 // Invite 邀请目标玩家加入队伍。inviterID 必须在该队伍中。
-func (u *TeamUsecase) Invite(ctx context.Context, inviteID, teamID, inviterID, targetPlayerID uint64) (*data.TeamRecord, error) {
+func (u *TeamUsecase) Invite(ctx context.Context, inviteID, teamID, inviterID, targetPlayerID uint64) (*teamv1.TeamStorageRecord, error) {
 	team, found, err := u.repo.Get(ctx, teamID)
 	if err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func (u *TeamUsecase) Invite(ctx context.Context, inviteID, teamID, inviterID, t
 }
 
 // AcceptInvite 目标玩家接受邀请加入队伍。
-func (u *TeamUsecase) AcceptInvite(ctx context.Context, inviteID, teamID, playerID uint64) (*data.TeamRecord, error) {
+func (u *TeamUsecase) AcceptInvite(ctx context.Context, inviteID, teamID, playerID uint64) (*teamv1.TeamStorageRecord, error) {
 	// 1. 若提供 inviteID,校验令牌
 	if inviteID != 0 {
 		inv, found, err := u.repo.GetInvite(ctx, inviteID)
@@ -171,9 +171,9 @@ func (u *TeamUsecase) AcceptInvite(ctx context.Context, inviteID, teamID, player
 		return nil, errcode.New(errcode.ErrTeamAlreadyInTeam, "player %d already in team %d", playerID, existTeamID)
 	}
 
-	var result *data.TeamRecord
+	var result *teamv1.TeamStorageRecord
 
-	if err := u.repo.UpdateWithLock(ctx, teamID, u.cfg.OptimisticRetry, func(team *data.TeamRecord) error {
+	if err := u.repo.UpdateWithLock(ctx, teamID, u.cfg.OptimisticRetry, func(team *teamv1.TeamStorageRecord) error {
 		if team.State == stateDisbanded {
 			return errcode.New(errcode.ErrTeamWrongState, "team %d disbanded", teamID)
 		}
@@ -184,7 +184,7 @@ func (u *TeamUsecase) AcceptInvite(ctx context.Context, inviteID, teamID, player
 			return errcode.New(errcode.ErrTeamAlreadyInTeam, "player %d already in team %d", playerID, teamID)
 		}
 
-		team.Members = append(team.Members, data.MemberRecord{PlayerID: playerID})
+		team.Members = append(team.Members, &teamv1.TeamMemberStorageRecord{PlayerId: playerID})
 		team.UpdatedAtMs = time.Now().UnixMilli()
 
 		// 全员 ready → READY
@@ -218,12 +218,12 @@ func (u *TeamUsecase) AcceptInvite(ctx context.Context, inviteID, teamID, player
 //
 // TODO(W3 ⑧ matchmaker): 当前 MATCHING/IN_BATTLE 状态下也允许离队,离队后状态不回退,
 // 可能留下"匹配中但人数不足"的不一致。matchmaker 上线后需定义"匹配中离队 → 取消匹配"语义。
-func (u *TeamUsecase) LeaveTeam(ctx context.Context, teamID, playerID uint64) (*data.TeamRecord, error) {
+func (u *TeamUsecase) LeaveTeam(ctx context.Context, teamID, playerID uint64) (*teamv1.TeamStorageRecord, error) {
 	ttl := u.activeTTL()
 	disbandedTTL := u.cfg.DisbandedRetention.Std()
-	var result *data.TeamRecord
+	var result *teamv1.TeamStorageRecord
 
-	if err := u.repo.UpdateWithLock(ctx, teamID, u.cfg.OptimisticRetry, func(team *data.TeamRecord) error {
+	if err := u.repo.UpdateWithLock(ctx, teamID, u.cfg.OptimisticRetry, func(team *teamv1.TeamStorageRecord) error {
 		if team.State == stateDisbanded {
 			return errcode.New(errcode.ErrTeamWrongState, "team %d disbanded", teamID)
 		}
@@ -239,8 +239,8 @@ func (u *TeamUsecase) LeaveTeam(ctx context.Context, teamID, playerID uint64) (*
 			team.State = stateDisbanded
 		} else {
 			// 队长离队 → 转移给第一个成员
-			if team.CaptainID == playerID {
-				team.CaptainID = team.Members[0].PlayerID
+			if team.CaptainId == playerID {
+				team.CaptainId = team.Members[0].PlayerId
 			}
 			// READY 状态下有人离开 → 回 FORMING
 			if team.State == stateReady {
@@ -277,15 +277,15 @@ func (u *TeamUsecase) LeaveTeam(ctx context.Context, teamID, playerID uint64) (*
 //
 // TODO(W3 ⑧ matchmaker): 同 LeaveTeam,MATCHING/IN_BATTLE 状态下踢人不回退状态,
 // matchmaker 上线后需明确匹配中踢人的语义。
-func (u *TeamUsecase) Kick(ctx context.Context, teamID, captainID, targetPlayerID uint64) (*data.TeamRecord, error) {
+func (u *TeamUsecase) Kick(ctx context.Context, teamID, captainID, targetPlayerID uint64) (*teamv1.TeamStorageRecord, error) {
 	ttl := u.activeTTL()
-	var result *data.TeamRecord
+	var result *teamv1.TeamStorageRecord
 
-	if err := u.repo.UpdateWithLock(ctx, teamID, u.cfg.OptimisticRetry, func(team *data.TeamRecord) error {
+	if err := u.repo.UpdateWithLock(ctx, teamID, u.cfg.OptimisticRetry, func(team *teamv1.TeamStorageRecord) error {
 		if team.State == stateDisbanded {
 			return errcode.New(errcode.ErrTeamWrongState, "team %d disbanded", teamID)
 		}
-		if team.CaptainID != captainID {
+		if team.CaptainId != captainID {
 			return errcode.New(errcode.ErrTeamNotCaptain, "player %d is not captain of team %d", captainID, teamID)
 		}
 		if captainID == targetPlayerID {
@@ -324,11 +324,11 @@ func (u *TeamUsecase) Kick(ctx context.Context, teamID, captainID, targetPlayerI
 }
 
 // SetReady 设置玩家 ready 状态,并可选更换英雄。
-func (u *TeamUsecase) SetReady(ctx context.Context, teamID, playerID uint64, ready bool, heroID uint32) (*data.TeamRecord, error) {
+func (u *TeamUsecase) SetReady(ctx context.Context, teamID, playerID uint64, ready bool, heroID uint32) (*teamv1.TeamStorageRecord, error) {
 	ttl := u.activeTTL()
-	var result *data.TeamRecord
+	var result *teamv1.TeamStorageRecord
 
-	if err := u.repo.UpdateWithLock(ctx, teamID, u.cfg.OptimisticRetry, func(team *data.TeamRecord) error {
+	if err := u.repo.UpdateWithLock(ctx, teamID, u.cfg.OptimisticRetry, func(team *teamv1.TeamStorageRecord) error {
 		if team.State == stateDisbanded {
 			return errcode.New(errcode.ErrTeamWrongState, "team %d disbanded", teamID)
 		}
@@ -343,7 +343,7 @@ func (u *TeamUsecase) SetReady(ctx context.Context, teamID, playerID uint64, rea
 
 		team.Members[idx].Ready = ready
 		if heroID > 0 {
-			team.Members[idx].HeroID = heroID
+			team.Members[idx].HeroId = heroID
 		}
 		team.UpdatedAtMs = time.Now().UnixMilli()
 
@@ -374,7 +374,7 @@ func (u *TeamUsecase) SetReady(ctx context.Context, teamID, playerID uint64, rea
 }
 
 // GetTeam 读取队伍快照(只读,不走 WATCH)。
-func (u *TeamUsecase) GetTeam(ctx context.Context, teamID uint64) (*data.TeamRecord, error) {
+func (u *TeamUsecase) GetTeam(ctx context.Context, teamID uint64) (*teamv1.TeamStorageRecord, error) {
 	team, found, err := u.repo.Get(ctx, teamID)
 	if err != nil {
 		return nil, err
@@ -397,7 +397,7 @@ func (u *TeamUsecase) pushUpdate(
 	ctx context.Context,
 	callerPlayerID uint64,
 	toPlayerIDs []uint64,
-	team *data.TeamRecord,
+	team *teamv1.TeamStorageRecord,
 	reason teamv1.TeamUpdateReason,
 	inviteID uint64,
 ) {
@@ -439,24 +439,24 @@ func (u *TeamUsecase) refreshDisbandedTTL(ctx context.Context, teamID uint64, tt
 
 // ── 类型转换 ──────────────────────────────────────────────────────────────────
 
-// recordToProto 把 data.TeamRecord 转成 proto Team。
-func recordToProto(r *data.TeamRecord) *teamv1.Team {
+// recordToProto 把 teamv1.TeamStorageRecord 转成 proto Team。
+func recordToProto(r *teamv1.TeamStorageRecord) *teamv1.Team {
 	if r == nil {
 		return nil
 	}
 	members := make([]*teamv1.TeamMember, 0, len(r.Members))
 	for _, m := range r.Members {
 		members = append(members, &teamv1.TeamMember{
-			PlayerId: m.PlayerID,
+			PlayerId: m.PlayerId,
 			Nickname: m.Nickname,
-			Mmr:      m.MMR,
+			Mmr:      m.Mmr,
 			Ready:    m.Ready,
-			HeroId:   m.HeroID,
+			HeroId:   m.HeroId,
 		})
 	}
 	return &teamv1.Team{
-		TeamId:      r.TeamID,
-		CaptainId:   r.CaptainID,
+		TeamId:      r.TeamId,
+		CaptainId:   r.CaptainId,
 		Members:     members,
 		State:       r.State,
 		CreatedAtMs: r.CreatedAtMs,
@@ -465,41 +465,41 @@ func recordToProto(r *data.TeamRecord) *teamv1.Team {
 }
 
 // RecordToProto 导出供 service 层使用。
-func RecordToProto(r *data.TeamRecord) *teamv1.Team {
+func RecordToProto(r *teamv1.TeamStorageRecord) *teamv1.Team {
 	return recordToProto(r)
 }
 
 // ── 成员辅助函数 ──────────────────────────────────────────────────────────────
 
-func hasMember(team *data.TeamRecord, playerID uint64) bool {
+func hasMember(team *teamv1.TeamStorageRecord, playerID uint64) bool {
 	for _, m := range team.Members {
-		if m.PlayerID == playerID {
+		if m.PlayerId == playerID {
 			return true
 		}
 	}
 	return false
 }
 
-func memberIndex(members []data.MemberRecord, playerID uint64) int {
+func memberIndex(members []*teamv1.TeamMemberStorageRecord, playerID uint64) int {
 	for i, m := range members {
-		if m.PlayerID == playerID {
+		if m.PlayerId == playerID {
 			return i
 		}
 	}
 	return -1
 }
 
-func removeMember(members []data.MemberRecord, playerID uint64) []data.MemberRecord {
-	out := make([]data.MemberRecord, 0, len(members))
+func removeMember(members []*teamv1.TeamMemberStorageRecord, playerID uint64) []*teamv1.TeamMemberStorageRecord {
+	out := make([]*teamv1.TeamMemberStorageRecord, 0, len(members))
 	for _, m := range members {
-		if m.PlayerID != playerID {
+		if m.PlayerId != playerID {
 			out = append(out, m)
 		}
 	}
 	return out
 }
 
-func allReady(members []data.MemberRecord) bool {
+func allReady(members []*teamv1.TeamMemberStorageRecord) bool {
 	if len(members) == 0 {
 		return false
 	}
@@ -511,18 +511,14 @@ func allReady(members []data.MemberRecord) bool {
 	return true
 }
 
-func memberIDs(team *data.TeamRecord) []uint64 {
+func memberIDs(team *teamv1.TeamStorageRecord) []uint64 {
 	ids := make([]uint64, 0, len(team.Members))
 	for _, m := range team.Members {
-		ids = append(ids, m.PlayerID)
+		ids = append(ids, m.PlayerId)
 	}
 	return ids
 }
 
-func cloneTeam(team *data.TeamRecord) *data.TeamRecord {
-	members := make([]data.MemberRecord, len(team.Members))
-	copy(members, team.Members)
-	c := *team
-	c.Members = members
-	return &c
+func cloneTeam(team *teamv1.TeamStorageRecord) *teamv1.TeamStorageRecord {
+	return proto.Clone(team).(*teamv1.TeamStorageRecord)
 }

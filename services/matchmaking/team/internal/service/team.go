@@ -55,7 +55,7 @@ func (s *TeamService) CreateTeam(ctx context.Context, _ *teamv1.CreateTeamReques
 	}
 	return &teamv1.CreateTeamResponse{
 		Code:   commonv1.ErrCode_OK,
-		TeamId: rec.TeamID,
+		TeamId: rec.TeamId,
 		Team:   biz.RecordToProto(rec),
 	}, nil
 }

@@ -93,6 +93,9 @@ message DSTicket {              // JWT payload
 
 ### 3.2 team.proto
 
+队伍状态变更走 kafka topic `pandora.team.update`(key=player_id)→ push 服务 server stream,**不提供** `StreamTeamUpdates` RPC。
+队伍主体存 Redis value `pandora:team:{team_id}` = `proto.Marshal(TeamStorageRecord)`(非 hash);`pandora:team:player:<player_id>` 用 SETNX string 保一人一队;`pandora:team:invite:<invite_id>` 是短 TTL 小令牌,继续用 hash。
+
 ```proto
 service TeamService {
   rpc CreateTeam(CreateTeamRequest) returns (CreateTeamResponse);
@@ -101,7 +104,7 @@ service TeamService {
   rpc LeaveTeam(LeaveTeamRequest) returns (LeaveTeamResponse);
   rpc Kick(KickRequest) returns (KickResponse);
   rpc SetReady(SetReadyRequest) returns (SetReadyResponse);
-  rpc StreamTeamUpdates(StreamTeamUpdatesRequest) returns (stream TeamUpdate);
+  rpc GetTeam(GetTeamRequest) returns (GetTeamResponse);
 }
 
 enum TeamState {
@@ -113,6 +116,7 @@ enum TeamState {
   TEAM_STATE_DISBANDED = 5;
 }
 
+// 客户端可见结构(RPC response / push payload)
 message Team {
   uint64 team_id = 1;
   uint64 captain_id = 2;
@@ -127,7 +131,26 @@ message TeamMember {
   string nickname = 2;
   int32 mmr = 3;
   bool ready = 4;
-  int32 hero_id = 5;
+  uint32 hero_id = 5;
+}
+
+// 服务端存储快照(Redis value protobuf bytes;独有 updated_at_ms,不外泄客户端)
+message TeamStorageRecord {
+  uint64 team_id = 1;
+  uint64 captain_id = 2;
+  TeamState state = 3;
+  repeated TeamMemberStorageRecord members = 4;
+  int64 created_at_ms = 5;
+  int64 updated_at_ms = 6;
+  int32 max_size = 7;
+}
+
+message TeamMemberStorageRecord {
+  uint64 player_id = 1;
+  string nickname = 2;
+  int32 mmr = 3;
+  bool ready = 4;
+  uint32 hero_id = 5;
 }
 ```
 
@@ -307,6 +330,14 @@ pandora.dlq.<original_topic> 死信队列
 - 配置表 ID:`<entity>_id` 或 `<entity>_config_id`(`npc_id` / `hero_id` / `skill_id` / `item_config_id` / `map_id` 等默认用 `uint32`;容易和运行时实体混淆时优先用 `<entity>_config_id`)
 - UUID:只有外部系统已定义为 UUID 时才用 `string`
 - 枚举:`<TYPE>_<NAME>`(`TEAM_STATE_FORMING`),并以 `<TYPE>_UNSPECIFIED = 0` 兜底;状态 / 类型 / 原因等 enum value 和 Go mirror 常量保持生成 enum 类型或 `int32` 语义,不因取值非负改成 `uint32`
+- message 命名(四类各司其职,**不手写与 proto 重复的并行 struct**):
+  - RPC 请求/响应 → `<Verb><Domain>Request` / `<Verb><Domain>Response`
+  - 客户端可见结构 → `<Domain>` / `<Domain><Part>`(短名,如 `Team` / `TeamMember`)
+  - 服务端存储快照 → `<Domain>StorageRecord` + 子结构 `<Domain><Part>StorageRecord`(如 `TeamStorageRecord` / `TeamMemberStorageRecord`);存储结构一律以 `StorageRecord` 结尾
+  - 服务间事件 → `<Domain><Action>Event`(如 `TeamUpdateEvent`);可内嵌客户端可见结构,但它本身是服务内部消息,不是存储快照
+  - 不用"客户端 proto / 服务器 proto"这种叫法;统一说"客户端可见结构 / 存储快照结构"
+  - **proto bytes 只用于快照/blob**(Redis value、Kafka payload、MySQL blob 列);关系型 MySQL 表的结构化列直接映射 proto 字段,临时小令牌(如 invite)可继续用 redis hash,都不强制序列化成 bytes
+  - proto message 直接当存储 record 时禁止值拷贝(`a := *rec` 会复制内部 state/mu/sizeCache),克隆一律用 `proto.Clone`
 - 布尔:`is_<adj>` / `has_<noun>`(避免 `<name>_flag`)
 - 集合:复数(`player_ids` / `members`)
 

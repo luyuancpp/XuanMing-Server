@@ -27,13 +27,13 @@ func newTestRepo(t *testing.T) (*RedisTeamRepo, *miniredis.Miniredis) {
 	return NewRedisTeamRepo(rdb), mr
 }
 
-// sampleTeam 构造一个测试用 TeamRecord。
-func sampleTeam(teamID, captainID uint64) *TeamRecord {
-	return &TeamRecord{
-		TeamID:      teamID,
-		CaptainID:   captainID,
+// sampleTeam 构造一个测试用 teamv1.TeamStorageRecord。
+func sampleTeam(teamID, captainID uint64) *teamv1.TeamStorageRecord {
+	return &teamv1.TeamStorageRecord{
+		TeamId:      teamID,
+		CaptainId:   captainID,
 		State:       teamv1.TeamState_TEAM_STATE_FORMING,
-		Members:     []MemberRecord{{PlayerID: captainID, Nickname: "alice", MMR: 1000, Ready: false}},
+		Members:     []*teamv1.TeamMemberStorageRecord{{PlayerId: captainID, Nickname: "alice", Mmr: 1000, Ready: false}},
 		CreatedAtMs: 1_780_000_000_000,
 		UpdatedAtMs: 1_780_000_000_000,
 		MaxSize:     5,
@@ -54,7 +54,7 @@ func TestCreate(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("Get after Create: found=%v err=%v", found, err)
 	}
-	if got.CaptainID != 2001 || got.State != 1 || len(got.Members) != 1 {
+	if got.CaptainId != 2001 || got.State != teamv1.TeamState_TEAM_STATE_FORMING || len(got.Members) != 1 {
 		t.Errorf("unexpected team: %+v", got)
 	}
 }
@@ -84,8 +84,8 @@ func TestUpdateWithLock(t *testing.T) {
 	}
 
 	// 加一个成员并改状态
-	err := repo.UpdateWithLock(ctx, 2001, 3, func(rec *TeamRecord) error {
-		rec.Members = append(rec.Members, MemberRecord{PlayerID: 3002, Nickname: "bob", MMR: 900})
+	err := repo.UpdateWithLock(ctx, 2001, 3, func(rec *teamv1.TeamStorageRecord) error {
+		rec.Members = append(rec.Members, &teamv1.TeamMemberStorageRecord{PlayerId: 3002, Nickname: "bob", Mmr: 900})
 		rec.UpdatedAtMs = 1_780_000_001_000
 		return nil
 	}, 30*time.Second)
@@ -113,7 +113,7 @@ func TestUpdateWithLockFnError(t *testing.T) {
 	}
 
 	bizErr := errcode.New(errcode.ErrTeamWrongState, "cannot leave in MATCHING")
-	err := repo.UpdateWithLock(ctx, 3001, 3, func(rec *TeamRecord) error {
+	err := repo.UpdateWithLock(ctx, 3001, 3, func(rec *teamv1.TeamStorageRecord) error {
 		return bizErr
 	}, 30*time.Second)
 	if errcode.As(err) != errcode.ErrTeamWrongState {
@@ -126,7 +126,7 @@ func TestUpdateWithLockNotFound(t *testing.T) {
 	repo, _ := newTestRepo(t)
 	ctx := context.Background()
 
-	err := repo.UpdateWithLock(ctx, 9999, 3, func(rec *TeamRecord) error {
+	err := repo.UpdateWithLock(ctx, 9999, 3, func(rec *teamv1.TeamStorageRecord) error {
 		return nil
 	}, 30*time.Second)
 	if errcode.As(err) != errcode.ErrTeamNotFound {
@@ -238,7 +238,7 @@ func TestClaimPlayer(t *testing.T) {
 	}
 }
 
-// TestExpireTeam 验证 ExpireTeam 只改 TTL 不动 hash,且过期后 key 消失。
+// TestExpireTeam 验证 ExpireTeam 只改 TTL 不动 value,且过期后 key 消失。
 func TestExpireTeam(t *testing.T) {
 	repo, mr := newTestRepo(t)
 	ctx := context.Background()

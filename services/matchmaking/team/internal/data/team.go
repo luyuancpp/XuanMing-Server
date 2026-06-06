@@ -2,27 +2,27 @@
 //
 // Redis key 模板(所有业务 ID 用 uint64,%d 格式化):
 //
-//	pandora:team:{%d}        → hash(state/captain_id/members/created_at_ms/updated_at_ms/max_size)
+//	pandora:team:{%d}        → protobuf bytes(TeamStorageRecord)
 //	                           hashtag {} 确保同 team 的所有 key 落同一 redis cluster slot(兜底)
 //	pandora:team:player:%d   → string(team_id,uint64),TTL 跟随队伍生命周期
 //	pandora:team:invite:%d   → hash(team_id/target_player_id),TTL=InviteTTL(60s)
 //
 // 状态机写用 WATCH/MULTI/EXEC 乐观锁:
 //
-//	Read(HGETALL) → fn(modify) → MULTI/HSET+EXPIRE/EXEC
+//	GET(proto bytes) → fn(modify) → MULTI/SET/EXEC
 //	EXEC 返回 nil(key 被并发修改) → 重试至 maxRetry 次 → 返 ErrTeamConcurrent(3007)
 //
-// 成员列表序列化为 JSON 存入 hash field "members"(简单、可读、protobuf 无关)。
+// 队伍主体序列化为 protobuf bytes 存入 Redis value。
 package data
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	teamv1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/team/v1"
@@ -31,14 +31,6 @@ import (
 // ── 常量 ─────────────────────────────────────────────────────────────────────
 
 const (
-	// fieldState hash 字段名
-	fieldState       = "state"
-	fieldCaptainID   = "captain_id"
-	fieldMembers     = "members"
-	fieldCreatedAtMs = "created_at_ms"
-	fieldUpdatedAtMs = "updated_at_ms"
-	fieldMaxSize     = "max_size"
-
 	// fieldTeamID / fieldTargetPlayerID — invite hash 字段
 	fieldTeamID         = "team_id"
 	fieldTargetPlayerID = "target_player_id"
@@ -60,28 +52,14 @@ func inviteKey(inviteID uint64) string {
 }
 
 // ── 数据模型 ──────────────────────────────────────────────────────────────────
+//
+// 队伍主体直接使用 proto 存储类型 teamv1.TeamStorageRecord /
+// teamv1.TeamMemberStorageRecord，不再起本地别名，保证存储结构全局只有一个权威
+// 命名（CLAUDE.md §5.10：存储字段命名以 <Domain>StorageRecord 为准）。
 
-// MemberRecord 是队员的内存表示,序列化为 JSON 存入 Redis hash field "members"。
-type MemberRecord struct {
-	PlayerID uint64 `json:"player_id"`
-	Nickname string `json:"nickname"`
-	MMR      int32  `json:"mmr"`
-	Ready    bool   `json:"ready"`
-	HeroID   uint32 `json:"hero_id"`
-}
-
-// TeamRecord 是队伍的完整内存表示,对应 Redis hash pandora:team:{teamID}。
-type TeamRecord struct {
-	TeamID      uint64
-	CaptainID   uint64
-	State       teamv1.TeamState
-	Members     []MemberRecord
-	CreatedAtMs int64
-	UpdatedAtMs int64
-	MaxSize     int32
-}
-
-// InviteRecord 是邀请令牌的内存表示,对应 Redis hash pandora:team:invite:{inviteID}。
+// InviteRecord 是邀请令牌的内存表示，对应 Redis hash pandora:team:invite:{inviteID}。
+// 邀请是 2 字段短 TTL 小令牌，按 CLAUDE.md §5.9 保留 hash 不升级为 proto bytes，
+// 因此用本地 struct（它不是 proto 存储记录，不叫 StorageRecord）。
 type InviteRecord struct {
 	TeamID         uint64
 	TargetPlayerID uint64
@@ -92,19 +70,19 @@ type InviteRecord struct {
 // TeamRepo 是 team 数据层抽象。biz 层只依赖此接口,不依赖 redis。
 type TeamRepo interface {
 	// Get 读取队伍。not found 时返回 false(不报错)。
-	Get(ctx context.Context, teamID uint64) (*TeamRecord, bool, error)
+	Get(ctx context.Context, teamID uint64) (*teamv1.TeamStorageRecord, bool, error)
 
-	// Create 创建队伍:仅写 team hash + TTL=teamTTL。
-	// player 归属由上层 ClaimPlayer(SETNX) 独立保证(不变量 §1),不在此处写 player index。
-	Create(ctx context.Context, team *TeamRecord, teamTTL time.Duration) error
+	// Create 创建队伍：仅写 team protobuf value + TTL=teamTTL。
+	// player 归属由上层 ClaimPlayer(SETNX) 独立保证（不变量 §1），不在此处写 player index。
+	Create(ctx context.Context, team *teamv1.TeamStorageRecord, teamTTL time.Duration) error
 
-	// UpdateWithLock 使用 WATCH/MULTI/EXEC 读-改-写 team hash。
+	// UpdateWithLock 使用 WATCH/MULTI/EXEC 读-改-写 team protobuf value。
 	//   1. WATCH team key
-	//   2. HGETALL → 反序列化
-	//   3. 调 fn(team) — fn 可返错误,返错则 UNWATCH 并透传
-	//   4. MULTI → HSET+EXPIRE → EXEC
-	//   5. EXEC=nil(CAS 失败)→ 重试,耗尽返 ErrTeamConcurrent(3007)
-	UpdateWithLock(ctx context.Context, teamID uint64, maxRetry int, fn func(*TeamRecord) error, teamTTL time.Duration) error
+	//   2. GET → proto 反序列化
+	//   3. 调 fn(team) — fn 可返错误，返错则 UNWATCH 并透传
+	//   4. MULTI → SET(value+TTL) → EXEC
+	//   5. EXEC=nil（CAS 失败）→ 重试，耗尽返 ErrTeamConcurrent(3007)
+	UpdateWithLock(ctx context.Context, teamID uint64, maxRetry int, fn func(*teamv1.TeamStorageRecord) error, teamTTL time.Duration) error
 
 	// GetPlayerTeamID 查玩家当前所在队伍 ID。not found 返 (0, false, nil)。
 	GetPlayerTeamID(ctx context.Context, playerID uint64) (uint64, bool, error)
@@ -119,7 +97,7 @@ type TeamRepo interface {
 	// DeletePlayerIndex 删除 player→teamID 映射。
 	DeletePlayerIndex(ctx context.Context, playerID uint64) error
 
-	// ExpireTeam 单独刷新 team key 的 TTL(不读改写 hash),供解散后改短 TTL 用。
+	// ExpireTeam 单独刷新 team key 的 TTL(不读改写 value),供解散后改短 TTL 用。
 	ExpireTeam(ctx context.Context, teamID uint64, ttl time.Duration) error
 
 	// SetInvite 存储邀请令牌,TTL=inviteTTL。
@@ -146,15 +124,15 @@ func NewRedisTeamRepo(rdb *redis.Client) *RedisTeamRepo {
 
 // --- Get ---
 
-func (r *RedisTeamRepo) Get(ctx context.Context, teamID uint64) (*TeamRecord, bool, error) {
-	fields, err := r.rdb.HGetAll(ctx, teamKey(teamID)).Result()
+func (r *RedisTeamRepo) Get(ctx context.Context, teamID uint64) (*teamv1.TeamStorageRecord, bool, error) {
+	b, err := r.rdb.Get(ctx, teamKey(teamID)).Bytes()
+	if err == redis.Nil {
+		return nil, false, nil
+	}
 	if err != nil {
 		return nil, false, err
 	}
-	if len(fields) == 0 {
-		return nil, false, nil
-	}
-	rec, err := unmarshalTeam(teamID, fields)
+	rec, err := unmarshalTeam(teamID, b)
 	if err != nil {
 		return nil, false, err
 	}
@@ -163,28 +141,16 @@ func (r *RedisTeamRepo) Get(ctx context.Context, teamID uint64) (*TeamRecord, bo
 
 // --- Create ---
 
-func (r *RedisTeamRepo) Create(ctx context.Context, team *TeamRecord, teamTTL time.Duration) error {
-	membersJSON, err := json.Marshal(team.Members)
+func (r *RedisTeamRepo) Create(ctx context.Context, team *teamv1.TeamStorageRecord, teamTTL time.Duration) error {
+	payload, err := marshalTeam(team)
 	if err != nil {
 		return err
 	}
-	key := teamKey(team.TeamID)
+	key := teamKey(team.TeamId)
 
-	// 仅写 team hash + TTL。player 归属由上层 ClaimPlayer(SETNX) 独立保证(不变量 §1),
+	// 仅写 team protobuf value + TTL。player 归属由上层 ClaimPlayer(SETNX) 独立保证(不变量 §1),
 	// 不在此处写 player index,避免覆盖已声明的 claim。
-	_, err = r.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		pipe.HSet(ctx, key,
-			fieldState, strconv.FormatInt(int64(team.State), 10),
-			fieldCaptainID, strconv.FormatUint(team.CaptainID, 10),
-			fieldMembers, string(membersJSON),
-			fieldCreatedAtMs, strconv.FormatInt(team.CreatedAtMs, 10),
-			fieldUpdatedAtMs, strconv.FormatInt(team.UpdatedAtMs, 10),
-			fieldMaxSize, strconv.FormatInt(int64(team.MaxSize), 10),
-		)
-		pipe.Expire(ctx, key, teamTTL)
-		return nil
-	})
-	return err
+	return r.rdb.Set(ctx, key, payload, teamTTL).Err()
 }
 
 // --- UpdateWithLock ---
@@ -193,26 +159,26 @@ func (r *RedisTeamRepo) UpdateWithLock(
 	ctx context.Context,
 	teamID uint64,
 	maxRetry int,
-	fn func(*TeamRecord) error,
+	fn func(*teamv1.TeamStorageRecord) error,
 	teamTTL time.Duration,
 ) error {
 	key := teamKey(teamID)
 
 	for attempt := 0; attempt <= maxRetry; attempt++ {
-		var team *TeamRecord
+		var team *teamv1.TeamStorageRecord
 		var fnErr error
 
 		// TxPipelined with WATCH
 		txErr := r.rdb.Watch(ctx, func(tx *redis.Tx) error {
 			// 1. 读取当前 team
-			fields, err := tx.HGetAll(ctx, key).Result()
+			b, err := tx.Get(ctx, key).Bytes()
+			if err == redis.Nil {
+				return errcode.New(errcode.ErrTeamNotFound, "team %d not found", teamID)
+			}
 			if err != nil {
 				return err
 			}
-			if len(fields) == 0 {
-				return errcode.New(errcode.ErrTeamNotFound, "team %d not found", teamID)
-			}
-			team, err = unmarshalTeam(teamID, fields)
+			team, err = unmarshalTeam(teamID, b)
 			if err != nil {
 				return err
 			}
@@ -223,19 +189,12 @@ func (r *RedisTeamRepo) UpdateWithLock(
 			}
 
 			// 3. MULTI → 写回 → EXEC
-			membersJSON, err := json.Marshal(team.Members)
+			payload, err := marshalTeam(team)
 			if err != nil {
 				return err
 			}
 			_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-				pipe.HSet(ctx, key,
-					fieldState, strconv.FormatInt(int64(team.State), 10),
-					fieldCaptainID, strconv.FormatUint(team.CaptainID, 10),
-					fieldMembers, string(membersJSON),
-					fieldUpdatedAtMs, strconv.FormatInt(team.UpdatedAtMs, 10),
-					fieldMaxSize, strconv.FormatInt(int64(team.MaxSize), 10),
-				)
-				pipe.Expire(ctx, key, teamTTL)
+				pipe.Set(ctx, key, payload, teamTTL)
 				return nil
 			})
 			return err
@@ -313,7 +272,7 @@ func (r *RedisTeamRepo) DeletePlayerIndex(ctx context.Context, playerID uint64) 
 	return r.rdb.Del(ctx, playerKey(playerID)).Err()
 }
 
-// ExpireTeam 单独刷新 team key 的 TTL(单条 EXPIRE,不读改写 hash)。
+// ExpireTeam 单独刷新 team key 的 TTL(单条 EXPIRE,不读改写 value)。
 func (r *RedisTeamRepo) ExpireTeam(ctx context.Context, teamID uint64, ttl time.Duration) error {
 	return r.rdb.Expire(ctx, teamKey(teamID), ttl).Err()
 }
@@ -358,49 +317,24 @@ func (r *RedisTeamRepo) DeleteInvite(ctx context.Context, inviteID uint64) error
 
 // ── 序列化辅助 ────────────────────────────────────────────────────────────────
 
-// unmarshalTeam 从 HGETALL 结果反序列化成 TeamRecord。
-func unmarshalTeam(teamID uint64, fields map[string]string) (*TeamRecord, error) {
-	rec := &TeamRecord{TeamID: teamID}
+func marshalTeam(team *teamv1.TeamStorageRecord) ([]byte, error) {
+	if team == nil {
+		return nil, fmt.Errorf("nil team")
+	}
+	return proto.Marshal(team)
+}
 
-	if v, ok := fields[fieldState]; ok {
-		x, err := strconv.ParseInt(v, 10, 32)
-		if err != nil {
-			return nil, fmt.Errorf("team %d bad state: %w", teamID, err)
-		}
-		rec.State = teamv1.TeamState(x)
+// unmarshalTeam 从 Redis value 反序列化成 teamv1.TeamStorageRecord。
+func unmarshalTeam(teamID uint64, payload []byte) (*teamv1.TeamStorageRecord, error) {
+	rec := &teamv1.TeamStorageRecord{}
+	if err := proto.Unmarshal(payload, rec); err != nil {
+		return nil, fmt.Errorf("team %d bad proto: %w", teamID, err)
 	}
-	if v, ok := fields[fieldCaptainID]; ok {
-		x, err := strconv.ParseUint(v, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("team %d bad captain_id: %w", teamID, err)
-		}
-		rec.CaptainID = x
+	if rec.TeamId == 0 {
+		rec.TeamId = teamID
 	}
-	if v, ok := fields[fieldMembers]; ok && v != "" {
-		if err := json.Unmarshal([]byte(v), &rec.Members); err != nil {
-			return nil, fmt.Errorf("team %d bad members json: %w", teamID, err)
-		}
-	}
-	if v, ok := fields[fieldCreatedAtMs]; ok {
-		x, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("team %d bad created_at_ms: %w", teamID, err)
-		}
-		rec.CreatedAtMs = x
-	}
-	if v, ok := fields[fieldUpdatedAtMs]; ok {
-		x, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("team %d bad updated_at_ms: %w", teamID, err)
-		}
-		rec.UpdatedAtMs = x
-	}
-	if v, ok := fields[fieldMaxSize]; ok {
-		x, err := strconv.ParseInt(v, 10, 32)
-		if err != nil {
-			return nil, fmt.Errorf("team %d bad max_size: %w", teamID, err)
-		}
-		rec.MaxSize = int32(x)
+	if rec.TeamId != teamID {
+		return nil, fmt.Errorf("team %d id mismatch: %d", teamID, rec.TeamId)
 	}
 	return rec, nil
 }

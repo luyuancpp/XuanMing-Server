@@ -63,6 +63,10 @@
 
 proto 规则以 `CLAUDE.md §5` 为准,本文件不重复维护细则,避免双文档漂移。
 
+四类 message 各司其职(细节见 `CLAUDE.md §5.8`):RPC 用 `<Verb><Domain>Request/Response`;客户端可见结构用短名(`Team` / `TeamMember`);服务端存储快照用 `<Domain>StorageRecord` + 子结构 `<Domain><Part>StorageRecord`;服务间事件用 `<Domain><Action>Event`。
+
+核心是**不手写与 proto 重复的并行 struct**;proto bytes 只用于快照/blob(Redis value、Kafka payload、MySQL blob 列),关系型 MySQL 表和临时小令牌不强制 proto 化。
+
 ## 7. 跨 AI 协作冲突解决
 
 如果两次 AI 会话(或两个 AI)对同一件事意见不同:

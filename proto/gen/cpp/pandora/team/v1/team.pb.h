@@ -104,6 +104,12 @@ extern TeamDefaultTypeInternal _Team_default_instance_;
 class TeamMember;
 struct TeamMemberDefaultTypeInternal;
 extern TeamMemberDefaultTypeInternal _TeamMember_default_instance_;
+class TeamMemberStorageRecord;
+struct TeamMemberStorageRecordDefaultTypeInternal;
+extern TeamMemberStorageRecordDefaultTypeInternal _TeamMemberStorageRecord_default_instance_;
+class TeamStorageRecord;
+struct TeamStorageRecordDefaultTypeInternal;
+extern TeamStorageRecordDefaultTypeInternal _TeamStorageRecord_default_instance_;
 class TeamUpdateEvent;
 struct TeamUpdateEventDefaultTypeInternal;
 extern TeamUpdateEventDefaultTypeInternal _TeamUpdateEvent_default_instance_;
@@ -200,6 +206,250 @@ inline bool TeamUpdateReason_Parse(absl::string_view name, TeamUpdateReason* val
 // ===================================================================
 
 
+// -------------------------------------------------------------------
+
+class TeamMemberStorageRecord final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.team.v1.TeamMemberStorageRecord) */ {
+ public:
+  inline TeamMemberStorageRecord() : TeamMemberStorageRecord(nullptr) {}
+  ~TeamMemberStorageRecord() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(TeamMemberStorageRecord* msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(TeamMemberStorageRecord));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR TeamMemberStorageRecord(
+      ::google::protobuf::internal::ConstantInitialized);
+
+  inline TeamMemberStorageRecord(const TeamMemberStorageRecord& from) : TeamMemberStorageRecord(nullptr, from) {}
+  inline TeamMemberStorageRecord(TeamMemberStorageRecord&& from) noexcept
+      : TeamMemberStorageRecord(nullptr, std::move(from)) {}
+  inline TeamMemberStorageRecord& operator=(const TeamMemberStorageRecord& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline TeamMemberStorageRecord& operator=(TeamMemberStorageRecord&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const TeamMemberStorageRecord& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const TeamMemberStorageRecord* internal_default_instance() {
+    return reinterpret_cast<const TeamMemberStorageRecord*>(
+        &_TeamMemberStorageRecord_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 2;
+  friend void swap(TeamMemberStorageRecord& a, TeamMemberStorageRecord& b) { a.Swap(&b); }
+  inline void Swap(TeamMemberStorageRecord* other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(TeamMemberStorageRecord* other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  TeamMemberStorageRecord* New(::google::protobuf::Arena* arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<TeamMemberStorageRecord>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const TeamMemberStorageRecord& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const TeamMemberStorageRecord& from) { TeamMemberStorageRecord::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(
+      ::google::protobuf::MessageLite& to_msg,
+      const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* _InternalSerialize(
+      const MessageLite& msg, ::uint8_t* target,
+      ::google::protobuf::io::EpsCopyOutputStream* stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* _InternalSerialize(
+      ::uint8_t* target,
+      ::google::protobuf::io::EpsCopyOutputStream* stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* _InternalSerialize(
+      ::uint8_t* target,
+      ::google::protobuf::io::EpsCopyOutputStream* stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(TeamMemberStorageRecord* other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(
+      ::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.team.v1.TeamMemberStorageRecord"; }
+
+ protected:
+  explicit TeamMemberStorageRecord(::google::protobuf::Arena* arena);
+  TeamMemberStorageRecord(::google::protobuf::Arena* arena, const TeamMemberStorageRecord& from);
+  TeamMemberStorageRecord(::google::protobuf::Arena* arena, TeamMemberStorageRecord&& from) noexcept
+      : TeamMemberStorageRecord(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* GetClassData() const PROTOBUF_FINAL;
+  static void* PlacementNew_(const void*, void* mem,
+                             ::google::protobuf::Arena* arena);
+  static constexpr auto InternalNewImpl_();
+  static const ::google::protobuf::internal::ClassDataFull _class_data_;
+
+ public:
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kNicknameFieldNumber = 2,
+    kPlayerIdFieldNumber = 1,
+    kMmrFieldNumber = 3,
+    kReadyFieldNumber = 4,
+    kHeroIdFieldNumber = 5,
+  };
+  // string nickname = 2 [json_name = "nickname"];
+  void clear_nickname() ;
+  const std::string& nickname() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_nickname(Arg_&& arg, Args_... args);
+  std::string* mutable_nickname();
+  PROTOBUF_NODISCARD std::string* release_nickname();
+  void set_allocated_nickname(std::string* value);
+
+  private:
+  const std::string& _internal_nickname() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_nickname(
+      const std::string& value);
+  std::string* _internal_mutable_nickname();
+
+  public:
+  // uint64 player_id = 1 [json_name = "playerId"];
+  void clear_player_id() ;
+  ::uint64_t player_id() const;
+  void set_player_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_player_id() const;
+  void _internal_set_player_id(::uint64_t value);
+
+  public:
+  // int32 mmr = 3 [json_name = "mmr"];
+  void clear_mmr() ;
+  ::int32_t mmr() const;
+  void set_mmr(::int32_t value);
+
+  private:
+  ::int32_t _internal_mmr() const;
+  void _internal_set_mmr(::int32_t value);
+
+  public:
+  // bool ready = 4 [json_name = "ready"];
+  void clear_ready() ;
+  bool ready() const;
+  void set_ready(bool value);
+
+  private:
+  bool _internal_ready() const;
+  void _internal_set_ready(bool value);
+
+  public:
+  // uint32 hero_id = 5 [json_name = "heroId"];
+  void clear_hero_id() ;
+  ::uint32_t hero_id() const;
+  void set_hero_id(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_hero_id() const;
+  void _internal_set_hero_id(::uint32_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.team.v1.TeamMemberStorageRecord)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<
+      3, 5, 0,
+      56, 2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(
+        ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                          ::google::protobuf::Arena* arena);
+    inline explicit Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                          ::google::protobuf::Arena* arena, const Impl_& from,
+                          const TeamMemberStorageRecord& from_msg);
+    ::google::protobuf::internal::ArenaStringPtr nickname_;
+    ::uint64_t player_id_;
+    ::int32_t mmr_;
+    bool ready_;
+    ::uint32_t hero_id_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2fteam_2fv1_2fteam_2eproto;
+};
 // -------------------------------------------------------------------
 
 class TeamMember final : public ::google::protobuf::Message
@@ -505,7 +755,7 @@ class SetReadyRequest final : public ::google::protobuf::Message
     return reinterpret_cast<const SetReadyRequest*>(
         &_SetReadyRequest_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 12;
+  static constexpr int kIndexInFileMessages = 14;
   friend void swap(SetReadyRequest& a, SetReadyRequest& b) { a.Swap(&b); }
   inline void Swap(SetReadyRequest* other) {
     if (other == this) return;
@@ -731,7 +981,7 @@ class LeaveTeamRequest final : public ::google::protobuf::Message
     return reinterpret_cast<const LeaveTeamRequest*>(
         &_LeaveTeamRequest_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 8;
+  static constexpr int kIndexInFileMessages = 10;
   friend void swap(LeaveTeamRequest& a, LeaveTeamRequest& b) { a.Swap(&b); }
   inline void Swap(LeaveTeamRequest* other) {
     if (other == this) return;
@@ -933,7 +1183,7 @@ class KickRequest final : public ::google::protobuf::Message
     return reinterpret_cast<const KickRequest*>(
         &_KickRequest_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 10;
+  static constexpr int kIndexInFileMessages = 12;
   friend void swap(KickRequest& a, KickRequest& b) { a.Swap(&b); }
   inline void Swap(KickRequest* other) {
     if (other == this) return;
@@ -1147,7 +1397,7 @@ class InviteRequest final : public ::google::protobuf::Message
     return reinterpret_cast<const InviteRequest*>(
         &_InviteRequest_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 4;
+  static constexpr int kIndexInFileMessages = 6;
   friend void swap(InviteRequest& a, InviteRequest& b) { a.Swap(&b); }
   inline void Swap(InviteRequest* other) {
     if (other == this) return;
@@ -1361,7 +1611,7 @@ class GetTeamRequest final : public ::google::protobuf::Message
     return reinterpret_cast<const GetTeamRequest*>(
         &_GetTeamRequest_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 14;
+  static constexpr int kIndexInFileMessages = 16;
   friend void swap(GetTeamRequest& a, GetTeamRequest& b) { a.Swap(&b); }
   inline void Swap(GetTeamRequest* other) {
     if (other == this) return;
@@ -1551,7 +1801,7 @@ class CreateTeamRequest final : public ::google::protobuf::Message
     return reinterpret_cast<const CreateTeamRequest*>(
         &_CreateTeamRequest_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 2;
+  static constexpr int kIndexInFileMessages = 4;
   friend void swap(CreateTeamRequest& a, CreateTeamRequest& b) { a.Swap(&b); }
   inline void Swap(CreateTeamRequest* other) {
     if (other == this) return;
@@ -1741,7 +1991,7 @@ class AcceptInviteRequest final : public ::google::protobuf::Message
     return reinterpret_cast<const AcceptInviteRequest*>(
         &_AcceptInviteRequest_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 6;
+  static constexpr int kIndexInFileMessages = 8;
   friend void swap(AcceptInviteRequest& a, AcceptInviteRequest& b) { a.Swap(&b); }
   inline void Swap(AcceptInviteRequest* other) {
     if (other == this) return;
@@ -1888,6 +2138,275 @@ class AcceptInviteRequest final : public ::google::protobuf::Message
     ::uint64_t player_id_;
     ::uint64_t team_id_;
     ::uint64_t invite_id_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2fteam_2fv1_2fteam_2eproto;
+};
+// -------------------------------------------------------------------
+
+class TeamStorageRecord final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.team.v1.TeamStorageRecord) */ {
+ public:
+  inline TeamStorageRecord() : TeamStorageRecord(nullptr) {}
+  ~TeamStorageRecord() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(TeamStorageRecord* msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(TeamStorageRecord));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR TeamStorageRecord(
+      ::google::protobuf::internal::ConstantInitialized);
+
+  inline TeamStorageRecord(const TeamStorageRecord& from) : TeamStorageRecord(nullptr, from) {}
+  inline TeamStorageRecord(TeamStorageRecord&& from) noexcept
+      : TeamStorageRecord(nullptr, std::move(from)) {}
+  inline TeamStorageRecord& operator=(const TeamStorageRecord& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline TeamStorageRecord& operator=(TeamStorageRecord&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const TeamStorageRecord& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const TeamStorageRecord* internal_default_instance() {
+    return reinterpret_cast<const TeamStorageRecord*>(
+        &_TeamStorageRecord_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 3;
+  friend void swap(TeamStorageRecord& a, TeamStorageRecord& b) { a.Swap(&b); }
+  inline void Swap(TeamStorageRecord* other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(TeamStorageRecord* other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  TeamStorageRecord* New(::google::protobuf::Arena* arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<TeamStorageRecord>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const TeamStorageRecord& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const TeamStorageRecord& from) { TeamStorageRecord::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(
+      ::google::protobuf::MessageLite& to_msg,
+      const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* _InternalSerialize(
+      const MessageLite& msg, ::uint8_t* target,
+      ::google::protobuf::io::EpsCopyOutputStream* stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* _InternalSerialize(
+      ::uint8_t* target,
+      ::google::protobuf::io::EpsCopyOutputStream* stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* _InternalSerialize(
+      ::uint8_t* target,
+      ::google::protobuf::io::EpsCopyOutputStream* stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(TeamStorageRecord* other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(
+      ::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.team.v1.TeamStorageRecord"; }
+
+ protected:
+  explicit TeamStorageRecord(::google::protobuf::Arena* arena);
+  TeamStorageRecord(::google::protobuf::Arena* arena, const TeamStorageRecord& from);
+  TeamStorageRecord(::google::protobuf::Arena* arena, TeamStorageRecord&& from) noexcept
+      : TeamStorageRecord(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* GetClassData() const PROTOBUF_FINAL;
+  static void* PlacementNew_(const void*, void* mem,
+                             ::google::protobuf::Arena* arena);
+  static constexpr auto InternalNewImpl_();
+  static const ::google::protobuf::internal::ClassDataFull _class_data_;
+
+ public:
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kMembersFieldNumber = 4,
+    kTeamIdFieldNumber = 1,
+    kCaptainIdFieldNumber = 2,
+    kCreatedAtMsFieldNumber = 5,
+    kStateFieldNumber = 3,
+    kMaxSizeFieldNumber = 7,
+    kUpdatedAtMsFieldNumber = 6,
+  };
+  // repeated .pandora.team.v1.TeamMemberStorageRecord members = 4 [json_name = "members"];
+  int members_size() const;
+  private:
+  int _internal_members_size() const;
+
+  public:
+  void clear_members() ;
+  ::pandora::team::v1::TeamMemberStorageRecord* mutable_members(int index);
+  ::google::protobuf::RepeatedPtrField<::pandora::team::v1::TeamMemberStorageRecord>* mutable_members();
+
+  private:
+  const ::google::protobuf::RepeatedPtrField<::pandora::team::v1::TeamMemberStorageRecord>& _internal_members() const;
+  ::google::protobuf::RepeatedPtrField<::pandora::team::v1::TeamMemberStorageRecord>* _internal_mutable_members();
+  public:
+  const ::pandora::team::v1::TeamMemberStorageRecord& members(int index) const;
+  ::pandora::team::v1::TeamMemberStorageRecord* add_members();
+  const ::google::protobuf::RepeatedPtrField<::pandora::team::v1::TeamMemberStorageRecord>& members() const;
+  // uint64 team_id = 1 [json_name = "teamId"];
+  void clear_team_id() ;
+  ::uint64_t team_id() const;
+  void set_team_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_team_id() const;
+  void _internal_set_team_id(::uint64_t value);
+
+  public:
+  // uint64 captain_id = 2 [json_name = "captainId"];
+  void clear_captain_id() ;
+  ::uint64_t captain_id() const;
+  void set_captain_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_captain_id() const;
+  void _internal_set_captain_id(::uint64_t value);
+
+  public:
+  // int64 created_at_ms = 5 [json_name = "createdAtMs"];
+  void clear_created_at_ms() ;
+  ::int64_t created_at_ms() const;
+  void set_created_at_ms(::int64_t value);
+
+  private:
+  ::int64_t _internal_created_at_ms() const;
+  void _internal_set_created_at_ms(::int64_t value);
+
+  public:
+  // .pandora.team.v1.TeamState state = 3 [json_name = "state"];
+  void clear_state() ;
+  ::pandora::team::v1::TeamState state() const;
+  void set_state(::pandora::team::v1::TeamState value);
+
+  private:
+  ::pandora::team::v1::TeamState _internal_state() const;
+  void _internal_set_state(::pandora::team::v1::TeamState value);
+
+  public:
+  // int32 max_size = 7 [json_name = "maxSize"];
+  void clear_max_size() ;
+  ::int32_t max_size() const;
+  void set_max_size(::int32_t value);
+
+  private:
+  ::int32_t _internal_max_size() const;
+  void _internal_set_max_size(::int32_t value);
+
+  public:
+  // int64 updated_at_ms = 6 [json_name = "updatedAtMs"];
+  void clear_updated_at_ms() ;
+  ::int64_t updated_at_ms() const;
+  void set_updated_at_ms(::int64_t value);
+
+  private:
+  ::int64_t _internal_updated_at_ms() const;
+  void _internal_set_updated_at_ms(::int64_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.team.v1.TeamStorageRecord)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<
+      3, 7, 1,
+      0, 2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(
+        ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                          ::google::protobuf::Arena* arena);
+    inline explicit Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                          ::google::protobuf::Arena* arena, const Impl_& from,
+                          const TeamStorageRecord& from_msg);
+    ::google::protobuf::RepeatedPtrField< ::pandora::team::v1::TeamMemberStorageRecord > members_;
+    ::uint64_t team_id_;
+    ::uint64_t captain_id_;
+    ::int64_t created_at_ms_;
+    int state_;
+    ::int32_t max_size_;
+    ::int64_t updated_at_ms_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
@@ -2212,7 +2731,7 @@ class TeamUpdateEvent final : public ::google::protobuf::Message
     return reinterpret_cast<const TeamUpdateEvent*>(
         &_TeamUpdateEvent_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 16;
+  static constexpr int kIndexInFileMessages = 18;
   friend void swap(TeamUpdateEvent& a, TeamUpdateEvent& b) { a.Swap(&b); }
   inline void Swap(TeamUpdateEvent* other) {
     if (other == this) return;
@@ -2468,7 +2987,7 @@ class SetReadyResponse final : public ::google::protobuf::Message
     return reinterpret_cast<const SetReadyResponse*>(
         &_SetReadyResponse_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 13;
+  static constexpr int kIndexInFileMessages = 15;
   friend void swap(SetReadyResponse& a, SetReadyResponse& b) { a.Swap(&b); }
   inline void Swap(SetReadyResponse* other) {
     if (other == this) return;
@@ -2676,7 +3195,7 @@ class LeaveTeamResponse final : public ::google::protobuf::Message
     return reinterpret_cast<const LeaveTeamResponse*>(
         &_LeaveTeamResponse_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 9;
+  static constexpr int kIndexInFileMessages = 11;
   friend void swap(LeaveTeamResponse& a, LeaveTeamResponse& b) { a.Swap(&b); }
   inline void Swap(LeaveTeamResponse* other) {
     if (other == this) return;
@@ -2884,7 +3403,7 @@ class KickResponse final : public ::google::protobuf::Message
     return reinterpret_cast<const KickResponse*>(
         &_KickResponse_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 11;
+  static constexpr int kIndexInFileMessages = 13;
   friend void swap(KickResponse& a, KickResponse& b) { a.Swap(&b); }
   inline void Swap(KickResponse* other) {
     if (other == this) return;
@@ -3092,7 +3611,7 @@ class InviteResponse final : public ::google::protobuf::Message
     return reinterpret_cast<const InviteResponse*>(
         &_InviteResponse_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 5;
+  static constexpr int kIndexInFileMessages = 7;
   friend void swap(InviteResponse& a, InviteResponse& b) { a.Swap(&b); }
   inline void Swap(InviteResponse* other) {
     if (other == this) return;
@@ -3324,7 +3843,7 @@ class GetTeamResponse final : public ::google::protobuf::Message
     return reinterpret_cast<const GetTeamResponse*>(
         &_GetTeamResponse_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 15;
+  static constexpr int kIndexInFileMessages = 17;
   friend void swap(GetTeamResponse& a, GetTeamResponse& b) { a.Swap(&b); }
   inline void Swap(GetTeamResponse* other) {
     if (other == this) return;
@@ -3532,7 +4051,7 @@ class CreateTeamResponse final : public ::google::protobuf::Message
     return reinterpret_cast<const CreateTeamResponse*>(
         &_CreateTeamResponse_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 3;
+  static constexpr int kIndexInFileMessages = 5;
   friend void swap(CreateTeamResponse& a, CreateTeamResponse& b) { a.Swap(&b); }
   inline void Swap(CreateTeamResponse* other) {
     if (other == this) return;
@@ -3752,7 +4271,7 @@ class AcceptInviteResponse final : public ::google::protobuf::Message
     return reinterpret_cast<const AcceptInviteResponse*>(
         &_AcceptInviteResponse_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 7;
+  static constexpr int kIndexInFileMessages = 9;
   friend void swap(AcceptInviteResponse& a, AcceptInviteResponse& b) { a.Swap(&b); }
   inline void Swap(AcceptInviteResponse* other) {
     if (other == this) return;
@@ -4211,6 +4730,331 @@ inline ::int32_t Team::_internal_max_size() const {
   return _impl_.max_size_;
 }
 inline void Team::_internal_set_max_size(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.max_size_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// TeamMemberStorageRecord
+
+// uint64 player_id = 1 [json_name = "playerId"];
+inline void TeamMemberStorageRecord::clear_player_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = ::uint64_t{0u};
+}
+inline ::uint64_t TeamMemberStorageRecord::player_id() const {
+  // @@protoc_insertion_point(field_get:pandora.team.v1.TeamMemberStorageRecord.player_id)
+  return _internal_player_id();
+}
+inline void TeamMemberStorageRecord::set_player_id(::uint64_t value) {
+  _internal_set_player_id(value);
+  // @@protoc_insertion_point(field_set:pandora.team.v1.TeamMemberStorageRecord.player_id)
+}
+inline ::uint64_t TeamMemberStorageRecord::_internal_player_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.player_id_;
+}
+inline void TeamMemberStorageRecord::_internal_set_player_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = value;
+}
+
+// string nickname = 2 [json_name = "nickname"];
+inline void TeamMemberStorageRecord::clear_nickname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.nickname_.ClearToEmpty();
+}
+inline const std::string& TeamMemberStorageRecord::nickname() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:pandora.team.v1.TeamMemberStorageRecord.nickname)
+  return _internal_nickname();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void TeamMemberStorageRecord::set_nickname(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.nickname_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:pandora.team.v1.TeamMemberStorageRecord.nickname)
+}
+inline std::string* TeamMemberStorageRecord::mutable_nickname() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_nickname();
+  // @@protoc_insertion_point(field_mutable:pandora.team.v1.TeamMemberStorageRecord.nickname)
+  return _s;
+}
+inline const std::string& TeamMemberStorageRecord::_internal_nickname() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.nickname_.Get();
+}
+inline void TeamMemberStorageRecord::_internal_set_nickname(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.nickname_.Set(value, GetArena());
+}
+inline std::string* TeamMemberStorageRecord::_internal_mutable_nickname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.nickname_.Mutable( GetArena());
+}
+inline std::string* TeamMemberStorageRecord::release_nickname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:pandora.team.v1.TeamMemberStorageRecord.nickname)
+  return _impl_.nickname_.Release();
+}
+inline void TeamMemberStorageRecord::set_allocated_nickname(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.nickname_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.nickname_.IsDefault()) {
+    _impl_.nickname_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:pandora.team.v1.TeamMemberStorageRecord.nickname)
+}
+
+// int32 mmr = 3 [json_name = "mmr"];
+inline void TeamMemberStorageRecord::clear_mmr() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.mmr_ = 0;
+}
+inline ::int32_t TeamMemberStorageRecord::mmr() const {
+  // @@protoc_insertion_point(field_get:pandora.team.v1.TeamMemberStorageRecord.mmr)
+  return _internal_mmr();
+}
+inline void TeamMemberStorageRecord::set_mmr(::int32_t value) {
+  _internal_set_mmr(value);
+  // @@protoc_insertion_point(field_set:pandora.team.v1.TeamMemberStorageRecord.mmr)
+}
+inline ::int32_t TeamMemberStorageRecord::_internal_mmr() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.mmr_;
+}
+inline void TeamMemberStorageRecord::_internal_set_mmr(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.mmr_ = value;
+}
+
+// bool ready = 4 [json_name = "ready"];
+inline void TeamMemberStorageRecord::clear_ready() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ready_ = false;
+}
+inline bool TeamMemberStorageRecord::ready() const {
+  // @@protoc_insertion_point(field_get:pandora.team.v1.TeamMemberStorageRecord.ready)
+  return _internal_ready();
+}
+inline void TeamMemberStorageRecord::set_ready(bool value) {
+  _internal_set_ready(value);
+  // @@protoc_insertion_point(field_set:pandora.team.v1.TeamMemberStorageRecord.ready)
+}
+inline bool TeamMemberStorageRecord::_internal_ready() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.ready_;
+}
+inline void TeamMemberStorageRecord::_internal_set_ready(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ready_ = value;
+}
+
+// uint32 hero_id = 5 [json_name = "heroId"];
+inline void TeamMemberStorageRecord::clear_hero_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.hero_id_ = 0u;
+}
+inline ::uint32_t TeamMemberStorageRecord::hero_id() const {
+  // @@protoc_insertion_point(field_get:pandora.team.v1.TeamMemberStorageRecord.hero_id)
+  return _internal_hero_id();
+}
+inline void TeamMemberStorageRecord::set_hero_id(::uint32_t value) {
+  _internal_set_hero_id(value);
+  // @@protoc_insertion_point(field_set:pandora.team.v1.TeamMemberStorageRecord.hero_id)
+}
+inline ::uint32_t TeamMemberStorageRecord::_internal_hero_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.hero_id_;
+}
+inline void TeamMemberStorageRecord::_internal_set_hero_id(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.hero_id_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// TeamStorageRecord
+
+// uint64 team_id = 1 [json_name = "teamId"];
+inline void TeamStorageRecord::clear_team_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.team_id_ = ::uint64_t{0u};
+}
+inline ::uint64_t TeamStorageRecord::team_id() const {
+  // @@protoc_insertion_point(field_get:pandora.team.v1.TeamStorageRecord.team_id)
+  return _internal_team_id();
+}
+inline void TeamStorageRecord::set_team_id(::uint64_t value) {
+  _internal_set_team_id(value);
+  // @@protoc_insertion_point(field_set:pandora.team.v1.TeamStorageRecord.team_id)
+}
+inline ::uint64_t TeamStorageRecord::_internal_team_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.team_id_;
+}
+inline void TeamStorageRecord::_internal_set_team_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.team_id_ = value;
+}
+
+// uint64 captain_id = 2 [json_name = "captainId"];
+inline void TeamStorageRecord::clear_captain_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.captain_id_ = ::uint64_t{0u};
+}
+inline ::uint64_t TeamStorageRecord::captain_id() const {
+  // @@protoc_insertion_point(field_get:pandora.team.v1.TeamStorageRecord.captain_id)
+  return _internal_captain_id();
+}
+inline void TeamStorageRecord::set_captain_id(::uint64_t value) {
+  _internal_set_captain_id(value);
+  // @@protoc_insertion_point(field_set:pandora.team.v1.TeamStorageRecord.captain_id)
+}
+inline ::uint64_t TeamStorageRecord::_internal_captain_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.captain_id_;
+}
+inline void TeamStorageRecord::_internal_set_captain_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.captain_id_ = value;
+}
+
+// .pandora.team.v1.TeamState state = 3 [json_name = "state"];
+inline void TeamStorageRecord::clear_state() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.state_ = 0;
+}
+inline ::pandora::team::v1::TeamState TeamStorageRecord::state() const {
+  // @@protoc_insertion_point(field_get:pandora.team.v1.TeamStorageRecord.state)
+  return _internal_state();
+}
+inline void TeamStorageRecord::set_state(::pandora::team::v1::TeamState value) {
+  _internal_set_state(value);
+  // @@protoc_insertion_point(field_set:pandora.team.v1.TeamStorageRecord.state)
+}
+inline ::pandora::team::v1::TeamState TeamStorageRecord::_internal_state() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return static_cast<::pandora::team::v1::TeamState>(_impl_.state_);
+}
+inline void TeamStorageRecord::_internal_set_state(::pandora::team::v1::TeamState value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.state_ = value;
+}
+
+// repeated .pandora.team.v1.TeamMemberStorageRecord members = 4 [json_name = "members"];
+inline int TeamStorageRecord::_internal_members_size() const {
+  return _internal_members().size();
+}
+inline int TeamStorageRecord::members_size() const {
+  return _internal_members_size();
+}
+inline void TeamStorageRecord::clear_members() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.members_.Clear();
+}
+inline ::pandora::team::v1::TeamMemberStorageRecord* TeamStorageRecord::mutable_members(int index)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable:pandora.team.v1.TeamStorageRecord.members)
+  return _internal_mutable_members()->Mutable(index);
+}
+inline ::google::protobuf::RepeatedPtrField<::pandora::team::v1::TeamMemberStorageRecord>* TeamStorageRecord::mutable_members()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable_list:pandora.team.v1.TeamStorageRecord.members)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _internal_mutable_members();
+}
+inline const ::pandora::team::v1::TeamMemberStorageRecord& TeamStorageRecord::members(int index) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:pandora.team.v1.TeamStorageRecord.members)
+  return _internal_members().Get(index);
+}
+inline ::pandora::team::v1::TeamMemberStorageRecord* TeamStorageRecord::add_members() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::pandora::team::v1::TeamMemberStorageRecord* _add = _internal_mutable_members()->Add();
+  // @@protoc_insertion_point(field_add:pandora.team.v1.TeamStorageRecord.members)
+  return _add;
+}
+inline const ::google::protobuf::RepeatedPtrField<::pandora::team::v1::TeamMemberStorageRecord>& TeamStorageRecord::members() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_list:pandora.team.v1.TeamStorageRecord.members)
+  return _internal_members();
+}
+inline const ::google::protobuf::RepeatedPtrField<::pandora::team::v1::TeamMemberStorageRecord>&
+TeamStorageRecord::_internal_members() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.members_;
+}
+inline ::google::protobuf::RepeatedPtrField<::pandora::team::v1::TeamMemberStorageRecord>*
+TeamStorageRecord::_internal_mutable_members() {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return &_impl_.members_;
+}
+
+// int64 created_at_ms = 5 [json_name = "createdAtMs"];
+inline void TeamStorageRecord::clear_created_at_ms() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.created_at_ms_ = ::int64_t{0};
+}
+inline ::int64_t TeamStorageRecord::created_at_ms() const {
+  // @@protoc_insertion_point(field_get:pandora.team.v1.TeamStorageRecord.created_at_ms)
+  return _internal_created_at_ms();
+}
+inline void TeamStorageRecord::set_created_at_ms(::int64_t value) {
+  _internal_set_created_at_ms(value);
+  // @@protoc_insertion_point(field_set:pandora.team.v1.TeamStorageRecord.created_at_ms)
+}
+inline ::int64_t TeamStorageRecord::_internal_created_at_ms() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.created_at_ms_;
+}
+inline void TeamStorageRecord::_internal_set_created_at_ms(::int64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.created_at_ms_ = value;
+}
+
+// int64 updated_at_ms = 6 [json_name = "updatedAtMs"];
+inline void TeamStorageRecord::clear_updated_at_ms() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.updated_at_ms_ = ::int64_t{0};
+}
+inline ::int64_t TeamStorageRecord::updated_at_ms() const {
+  // @@protoc_insertion_point(field_get:pandora.team.v1.TeamStorageRecord.updated_at_ms)
+  return _internal_updated_at_ms();
+}
+inline void TeamStorageRecord::set_updated_at_ms(::int64_t value) {
+  _internal_set_updated_at_ms(value);
+  // @@protoc_insertion_point(field_set:pandora.team.v1.TeamStorageRecord.updated_at_ms)
+}
+inline ::int64_t TeamStorageRecord::_internal_updated_at_ms() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.updated_at_ms_;
+}
+inline void TeamStorageRecord::_internal_set_updated_at_ms(::int64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.updated_at_ms_ = value;
+}
+
+// int32 max_size = 7 [json_name = "maxSize"];
+inline void TeamStorageRecord::clear_max_size() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.max_size_ = 0;
+}
+inline ::int32_t TeamStorageRecord::max_size() const {
+  // @@protoc_insertion_point(field_get:pandora.team.v1.TeamStorageRecord.max_size)
+  return _internal_max_size();
+}
+inline void TeamStorageRecord::set_max_size(::int32_t value) {
+  _internal_set_max_size(value);
+  // @@protoc_insertion_point(field_set:pandora.team.v1.TeamStorageRecord.max_size)
+}
+inline ::int32_t TeamStorageRecord::_internal_max_size() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.max_size_;
+}
+inline void TeamStorageRecord::_internal_set_max_size(::int32_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.max_size_ = value;
 }

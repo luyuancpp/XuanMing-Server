@@ -85,10 +85,10 @@ func TestCreateTeamSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTeam: %v", err)
 	}
-	if team.TeamID != 1001 || team.CaptainID != 2001 || team.State != stateForming {
+	if team.TeamId != 1001 || team.CaptainId != 2001 || team.State != stateForming {
 		t.Errorf("unexpected team: %+v", team)
 	}
-	if len(team.Members) != 1 || team.Members[0].PlayerID != 2001 {
+	if len(team.Members) != 1 || team.Members[0].PlayerId != 2001 {
 		t.Errorf("unexpected members: %+v", team.Members)
 	}
 	// push 给创建者自身
@@ -273,7 +273,7 @@ func TestAcceptInviteAlreadyInTeam(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTeam B: %v", err)
 	}
-	if len(teamB.Members) != 1 || teamB.Members[0].PlayerID != 2002 {
+	if len(teamB.Members) != 1 || teamB.Members[0].PlayerId != 2002 {
 		t.Errorf("team B polluted: %+v", teamB.Members)
 	}
 }
@@ -300,8 +300,8 @@ func TestLeaveTeamCaptainTransfer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LeaveTeam: %v", err)
 	}
-	if result.CaptainID != 3001 {
-		t.Errorf("expected new captain=3001, got %d", result.CaptainID)
+	if result.CaptainId != 3001 {
+		t.Errorf("expected new captain=3001, got %d", result.CaptainId)
 	}
 }
 
