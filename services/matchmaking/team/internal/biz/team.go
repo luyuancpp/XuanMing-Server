@@ -39,11 +39,11 @@ type TeamEventPusher interface {
 // ── 常量 ─────────────────────────────────────────────────────────────────────
 
 const (
-	stateForming   int32 = 1
-	stateReady     int32 = 2
-	stateMatching  int32 = 3
-	stateInBattle  int32 = 4
-	stateDisbanded int32 = 5
+	stateForming   = teamv1.TeamState_TEAM_STATE_FORMING
+	stateReady     = teamv1.TeamState_TEAM_STATE_READY
+	stateMatching  = teamv1.TeamState_TEAM_STATE_MATCHING
+	stateInBattle  = teamv1.TeamState_TEAM_STATE_IN_BATTLE
+	stateDisbanded = teamv1.TeamState_TEAM_STATE_DISBANDED
 )
 
 // ── TeamUsecase ───────────────────────────────────────────────────────────────
@@ -458,7 +458,7 @@ func recordToProto(r *data.TeamRecord) *teamv1.Team {
 		TeamId:      r.TeamID,
 		CaptainId:   r.CaptainID,
 		Members:     members,
-		State:       teamv1.TeamState(r.State),
+		State:       r.State,
 		CreatedAtMs: r.CreatedAtMs,
 		MaxSize:     r.MaxSize,
 	}

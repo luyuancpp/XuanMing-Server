@@ -25,6 +25,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/luyuancpp/pandora/pkg/errcode"
+	teamv1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/team/v1"
 )
 
 // ── 常量 ─────────────────────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ type MemberRecord struct {
 type TeamRecord struct {
 	TeamID      uint64
 	CaptainID   uint64
-	State       int32 // TeamState enum 值(0=UNSPECIFIED,1=FORMING,...,5=DISBANDED)
+	State       teamv1.TeamState
 	Members     []MemberRecord
 	CreatedAtMs int64
 	UpdatedAtMs int64
@@ -366,7 +367,7 @@ func unmarshalTeam(teamID uint64, fields map[string]string) (*TeamRecord, error)
 		if err != nil {
 			return nil, fmt.Errorf("team %d bad state: %w", teamID, err)
 		}
-		rec.State = int32(x)
+		rec.State = teamv1.TeamState(x)
 	}
 	if v, ok := fields[fieldCaptainID]; ok {
 		x, err := strconv.ParseUint(v, 10, 64)

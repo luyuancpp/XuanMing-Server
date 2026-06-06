@@ -9,6 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/luyuancpp/pandora/pkg/errcode"
+	teamv1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/team/v1"
 )
 
 // newTestRepo 启动 miniredis 并返回 RedisTeamRepo + cleanup。
@@ -31,7 +32,7 @@ func sampleTeam(teamID, captainID uint64) *TeamRecord {
 	return &TeamRecord{
 		TeamID:      teamID,
 		CaptainID:   captainID,
-		State:       1, // FORMING
+		State:       teamv1.TeamState_TEAM_STATE_FORMING,
 		Members:     []MemberRecord{{PlayerID: captainID, Nickname: "alice", MMR: 1000, Ready: false}},
 		CreatedAtMs: 1_780_000_000_000,
 		UpdatedAtMs: 1_780_000_000_000,
@@ -263,4 +264,3 @@ func TestExpireTeam(t *testing.T) {
 		t.Error("team should be gone after TTL expired")
 	}
 }
-
