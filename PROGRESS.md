@@ -414,7 +414,7 @@ curl_easy_setopt(EasyHandle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
 
 ### D3 真正完成清单(2026-06-04)
 
-#### 文档落地(13 个动作,plan 块 1)
+#### 文档落地(13 个动作,任务块 1)
 
 - [x] `protocol-ordering-rules.md` 加 §3.1 设计 smell 详解(CreateTeam 案例 + 5 条 smell 表现)
 - [x] `gateway-decision.md` 大改:三连接 → 两连接 + Kratos + Envoy + 自研 grpc-web(W2 实现指南)
@@ -432,7 +432,7 @@ curl_easy_setopt(EasyHandle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
 - [x] 公共框架重写决策:标 go-zero 推翻 + 加 Kratos 决策 + W2 重写清单(~4.5 天)
 - [x] `PROGRESS.md` 加本节(D3 真正收尾)
 
-#### Proto 调整(plan 块 2)
+#### Proto 调整(任务块 2)
 
 - [ ] 新增 `proto/pandora/push/v1/push.proto`(PushService.Subscribe server stream)
 - [ ] 13 个业务 .proto 加 `google.api.http` 注解(W2 时一起加,本期不强制)
@@ -440,7 +440,7 @@ curl_easy_setopt(EasyHandle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
 
 ⚠️ Proto 调整本期**不全做**:加 google.api.http 注解涉及全部业务 proto,且需要 buf 实际跑通验证,留到 W2 装 buf 后一起做。本期只**新增 push.proto**(下面一步)。
 
-#### Pkg 重写(plan 块 3,留 W2 做)
+#### Pkg 重写(任务块 3,留 W2 做)
 
 - [ ] W2 第一周专注做 pkg 重写
 
@@ -1418,7 +1418,7 @@ Codex 在 W3 ②/⑤ commit 前审查发现 6 个阻塞项,Claude 按 AGENTS.md 
 |---|---|---|
 | 1 | `login/internal/server/grpc.go::NewGRPCServer` 没接 `pmw.AuthOptional()`,带 token 调 IssueDSTicket 返 `ERR_UNAUTHORIZED` | grpc.go 增加 `pmw.AuthOptional()` 中间件(跟 push 同 pattern),注释说明 Optional 而非 Required 的理由(Login 本身无 token、Envoy 已按 path 强制 JWT) |
 | 2 | `go.work` 是 `go 1.25.0`,与 HANDOFF.md `go1.26.4` 不符 | `go.work` 升 `go 1.26.4` 锁定一致,注释段补"再升级须同步 HANDOFF.md" |
-| 3 | 改动范围混 W3 ① / ② / ⑤ + AGENTS/CLAUDE 协作规则,跨度大 | 本轮 commit 仍单批(用户已批 plan),但通过 PROGRESS.md 拆段 + commit message 明确 scope = "W3 ②+⑤ + Codex 审查修复"。下次最高可用 Claude 模型按规则一段 plan 一次 commit |
+| 3 | 改动范围混 W3 ① / ② / ⑤ + AGENTS/CLAUDE 协作规则,跨度大 | 本轮 commit 仍单批(当时用户已授权),但通过 PROGRESS.md 拆段 + commit message 明确 scope = "W3 ②+⑤ + Codex 审查修复"。后续最高可用 Claude 模型按 Agent 直接执行规则推进,必要时拆小 commit |
 | 4 | `pkg/auth.Config.Validate` 注释写 ≥32 字节但实际只校验 ≥16 | Validate 改为 `< 32` 拒,错误消息 `need >=32 for HS256`(对齐 RFC 7518 §3.2);新增 `TestValidateRejects16And31ByteSecrets`(2 子用例)+ `TestValidateAccepts32ByteSecret` |
 | 5 | `VerifyDSTicket` 未对称 SignDSTicket 的 battle/match_id 防御 | VerifyDSTicket 新增 `dsType==battle && match_id==""` → `ErrLoginTicketInvalid`;新增 `TestVerifyDSTicketRejectsBattleWithoutMatchID`(用 raw jwt 库构造恶意 token 测对称防御) |
 | 6 | `.tmp-locator.err` Codex 联调时 redirect 的临时 906B 日志 | `.gitignore` 加 `.tmp-*` 兜底;经用户授权后 `Remove-Item` 删除文件(已不在 working tree) |
@@ -1503,7 +1503,7 @@ Pop-Location
 
 ### ��һ��
 
-�� PROGRESS.md ����·�߽��� **W3 �� hub_allocator / W3 �� token ����** �� **W3 �� Kafka ����**(�� Opus 4.8 �� Plan)��
+�� PROGRESS.md ����·�߽��� **W3 �� hub_allocator / W3 �� token ����** �� **W3 �� Kafka ����**(�� Opus 4.8 Agent 直接推进)��
 
 
 ---
@@ -1568,13 +1568,13 @@ W3 ④ 新增 12 个单测全 PASS:`kafkax` 4(PushToPlayers) + `push/internal/da
 
 ### 下一步
 
-按 PROGRESS.md 既有路线进入 **W3 ⑦ hub_allocator**(把 §1 不变量补全:玩家分配 hub 实例)、**W3 ⑧ matchmaker 骨架** 或 **W3 ⑨ team 服务**(由 Opus 4.8 出 Plan)。
+按 PROGRESS.md 既有路线进入 **W3 ⑦ hub_allocator**(把 §1 不变量补全:玩家分配 hub 实例)、**W3 ⑧ matchmaker 骨架** 或 **W3 ⑨ team 服务**(由 Opus 4.8 Agent 直接推进)。
 
 ---
 
 ## W3 ④ Opus 审查二次修复(2026-06-05)
 
-Codex 审过 W3 ④ 一次修复后,Opus 4.8 又审了一遍,最高可用 Claude 模型按 Plan 执行的二次修复。
+Codex 完成 W3 ④ 一次审查修复后,Opus 4.8 又复查了一遍,最高可用 Claude 模型直接执行的二次修复。
 
 ### 风险表
 
@@ -1584,7 +1584,7 @@ Codex 审过 W3 ④ 一次修复后,Opus 4.8 又审了一遍,最高可用 Claude
 | **MEDIUM R2** | `offline.Append` 失败时只 log、返 nil → kafka 仍 ack offset → 客户端按 `last_seen_ms` 重连也补不回 → **静默丢消息**。对称于 R1-轮 send-fail fallback 的另一半 | 新建 `services/runtime/push/internal/biz/metrics.go` 注册 `pandora_push_offline_append_failed_total{topic}` CounterVec;`handle` 失败时 `OfflineAppendFailed.WithLabelValues(msg.Topic).Inc()` + 返 `errcode.ErrPushOfflineCorrupted` (9301)。kafka 仍 ack(W3 ④ 不引入死信队列),改为可观测告警驱动 |
 | **LOW R4** | `RedisOfflineCacheRepo.Range` 写了 `if err != nil && !errors.Is(err, redis.Nil)` —— 但 `ZRangeByScoreWithScores` 对 missing key 返 `([], nil)`,不会返 redis.Nil,死代码 | 简化为 `if err != nil`,移除 `errors` import |
 | **LOW R5** | `errcode.ErrPushKafkaConsumerDown=9302` 没有 caller | 加注释说明"W4 push 健康检查 / consumer group rebalance handler 触发",W3 ④ 占位 |
-| LOW R3 | `encodeMember` seq 进程重启重置 | 不影响:seq 不同 → member 不同 → 不会被 ZSET 去重塌缩。原 Plan 已分析过,无代码改动 |
+| LOW R3 | `encodeMember` seq 进程重启重置 | 不影响:seq 不同 → member 不同 → 不会被 ZSET 去重塌缩。原分析已覆盖,无代码改动 |
 | LOW R6 | README PowerShell 命令含 bash JSON 转义 | 跳过:PowerShell 单引号字面量按字面传,Codex 联调实跑会发现再改 |
 
 ### 改动文件
@@ -1684,7 +1684,7 @@ Pandora 第 4 个 Kratos 业务服(login / push / player_locator 之后),首个"
 
 ### 后续路线(W4)
 
-`hub_allocator`(补不变量 §1:玩家分配 hub 实例)/ `matchmaker` 骨架 / UE 客户端首版,均为 W3 路线图末尾"可选下一步",顺延 W4,由 Opus 4.8 出 Plan。
+`hub_allocator`(补不变量 §1:玩家分配 hub 实例)/ `matchmaker` 骨架 / UE 客户端首版,均为 W3 路线图末尾"可选下一步",顺延 W4,由 Opus 4.8 Agent 直接推进。
 
 - TODO: 后续评估接入 ntfy,用于本地压测、构建失败、服务异常等开发/运维通知;仅作旁路通知,不进入核心业务链路。
 
