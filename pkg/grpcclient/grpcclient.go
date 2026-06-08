@@ -32,7 +32,7 @@ import (
 )
 
 // DefaultTimeout 是单次 RPC 默认超时(可被 ctx.WithTimeout 覆盖)。
-const DefaultTimeout = 5 * time.Second
+const DefaultTimeout = 15 * time.Second
 
 func init() {
 	// 设置全局默认负载均衡为加权轮询(WRR)
@@ -42,7 +42,7 @@ func init() {
 // MustDial 直连指定 endpoint(host:port),不走服务发现。
 // W2 简化版用,W3+ 切到 MustDialDiscovery。
 //
-// 默认挂载 Trace + Metrics middleware,默认 5s 超时。
+// 默认挂载 Trace + Metrics middleware,默认 15s 超时。
 func MustDial(endpoint string, customMW ...middleware.Middleware) *grpc.ClientConn {
 	return mustDial(false, endpoint, nil, customMW...)
 }

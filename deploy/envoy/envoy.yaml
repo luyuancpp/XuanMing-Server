@@ -56,7 +56,7 @@ static_resources:
           codec_type: AUTO
 
           # 全局 idle / request timeout 放开(server stream 长连接)
-          # 单 route 再按需收紧(login unary 5s)
+          # 单 route 再按需收紧(login/team unary demo 15s)
           stream_idle_timeout: 0s
           request_timeout: 0s
           common_http_protocol_options:
@@ -152,12 +152,12 @@ static_resources:
                   max_age: "600"
 
               routes:
-              # ----- login(unary,立即完成型,5s 超时)-----
+              # ----- login(unary,立即完成型,demo 15s 超时)-----
               - match:
                   prefix: "/pandora.login.v1.LoginService/"
                 route:
                   cluster: login_cluster
-                  timeout: 5s
+                  timeout: 15s
                   idle_timeout: 60s
 
               # ----- push(server stream,长连接必须 0 超时)-----
@@ -169,12 +169,12 @@ static_resources:
                   timeout: 0s
                   idle_timeout: 0s
 
-              # ----- team(unary,立即完成型,5s 超时)-----
+              # ----- team(unary,立即完成型,demo 15s 超时)-----
               - match:
                   prefix: "/pandora.team.v1.TeamService/"
                 route:
                   cluster: team_cluster
-                  timeout: 5s
+                  timeout: 15s
                   idle_timeout: 60s
 
               # ----- gRPC reflection(联调用,grpcurl list/describe)-----
@@ -245,7 +245,7 @@ static_resources:
                 address: host.docker.internal
                 port_value: 50014
 
-  # ===== team_cluster(unary,5s 超时)=====
+  # ===== team_cluster(unary,demo 15s 超时)=====
   - name: team_cluster
     type: STRICT_DNS
     dns_lookup_family: V4_ONLY
