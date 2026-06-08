@@ -37,6 +37,21 @@ PlayerLocatorService.ClearLocation(player_id)         → ok
 - `battle_pod`    BATTLE 时填
 - `updated_at_ms` 服务端记录的写入时刻
 
+### 状态机守卫(不变量 §1,CLAUDE.md §9.1)
+
+`SetLocation` 是 WATCH/MULTI/EXEC 原子读-判-写。按写入方权威分两类:
+
+- **控制面写**(`LOGIN_PENDING` 来自 login;`MATCHING` / `BATTLE` 来自 matchmaker)→ 一律顶号放行。
+- **数据面写**(`HUB` 来自 hub DS,可能 stale)→ 受守卫:
+  - 当前 `MATCHING`(撮合确认期)→ 拒 `ERR_LOCATOR_CONFLICT=9202`(W4 ⑩)。
+  - 当前 `BATTLE` → **BATTLE fence**(W4 ⑪):HUB 回流上报**必须携带 `match_id`**(玩家刚结束
+    那场战斗的 id,作 fence 令牌)。仅当 `match_id == 当前 BATTLE 的 match_id`(且 != 0)才放行,
+    否则拒 `ERR_LOCATOR_CONFLICT`,防 stale hub DS 把玩家从战斗 DS 顶回大厅。
+
+> **hub DS 上报契约**:玩家从战斗返回大厅时,hub DS 上报 `HUB` 须从其 battle DSTicket
+> 取出 `match_id` 一并带上;玩家全新进入大厅(刚登录、未打过战斗)时 `match_id` 留 0。
+> HUB 态的 `match_id` 仅作 fence 令牌,**不持久化**(进入 HUB 后玩家已无活跃对局)。
+
 ## W3 ⑤ 范围
 
 - Redis 单一真源(无 mysql)

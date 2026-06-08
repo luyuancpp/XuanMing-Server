@@ -13,6 +13,11 @@
 //	来自可信控制面(login / matchmaker),直接顶号。HUB 上报覆盖控制面 MATCHING 时
 //	返回 ErrLocatorConflict(玩家在确认期仍连 hub DS,hub DS 会持续上报 HUB,
 //	必须挡住以免顶掉 matchmaker 刚写的 MATCHING)。
+//	W4 ⑪(2026-06-06)BATTLE fence:补齐 W4 ⑩ 留下的 stale hub 顶掉 active BATTLE 缺口。
+//	HUB 报文复用 match_id 字段作为 fence 令牌(无需改 proto):hub DS 在玩家打完一场
+//	战斗、回到大厅时上报 HUB,须携带该玩家刚结束那场战斗的 match_id(从 battle DSTicket 取得)。
+//	守卫在 cur.State==BATTLE 时:仅当 HUB 报文 match_id == cur.MatchID(且 != 0)才放行
+//	(合法回流);match_id 不匹配 / 为 0 = 不知道 active BATTLE 的 stale hub DS,拒 ErrLocatorConflict。
 package biz
 
 import (
@@ -110,6 +115,12 @@ func (u *LocatorUsecase) SetLocation(ctx context.Context, in LocationInput) erro
 		BattlePod:   in.BattlePod,
 		UpdatedAtMs: time.Now().UnixMilli(),
 	}
+	// W4 ⑪:HUB 报文里的 match_id 仅作 BATTLE fence 令牌(供 guardTransition 判定),
+	// 玩家进入 HUB 后已无活跃对局,不持久化 match_id/battle_pod,免其它服务误读。
+	if in.State == LocationStateHub {
+		rec.MatchID = 0
+		rec.BattlePod = ""
+	}
 	if err := u.repo.SetGuarded(ctx, in.PlayerID, rec, u.ttl, optimisticRetry, guardTransition(in)); err != nil {
 		return err
 	}
@@ -128,17 +139,32 @@ func (u *LocatorUsecase) SetLocation(ctx context.Context, in LocationInput) erro
 //     若放行会把 matchmaker 刚写的 MATCHING 顶掉,使其他服务误判玩家仍在大厅闲逛。
 //
 // 控制面写(LOGIN_PENDING / MATCHING / BATTLE 来自 login / matchmaker)一律放行(顶号语义)。
-// BATTLE→HUB(战斗结束返回大厅)是合法回流,放行;stale hub DS 顶掉 BATTLE 的极端场景
-// 需要 fence/match_id 令牌区分,留待 hub DS(UE)落地后做。
+//
+// BATTLE fence(W4 ⑪):BATTLE→HUB 不再无条件放行。hub DS 回流上报须携带玩家刚结束
+// 那场战斗的 match_id(fence 令牌):
+//   - in.MatchID == cur.MatchID(且 != 0):该 hub DS 知道这局已结束 → 合法回流,放行。
+//   - in.MatchID 不匹配 / 为 0:不知道 active BATTLE 的 stale hub DS → 拒 ErrLocatorConflict,
+//     防它把玩家从战斗 DS 顶回大厅。
 func guardTransition(in LocationInput) func(cur data.LocationRecord, found bool) error {
 	return func(cur data.LocationRecord, found bool) error {
 		if !found {
 			return nil
 		}
-		if in.State == LocationStateHub && cur.State == LocationStateMatching {
+		// 只守卫 HUB 上报(数据面、可能 stale);控制面写一律顶号放行。
+		if in.State != LocationStateHub {
+			return nil
+		}
+		switch cur.State {
+		case LocationStateMatching:
 			return errcode.New(errcode.ErrLocatorConflict,
 				"player %d in MATCHING(match_id=%d), reject stale HUB report pod=%s",
 				in.PlayerID, cur.MatchID, in.HubPod)
+		case LocationStateBattle:
+			if in.MatchID == 0 || in.MatchID != cur.MatchID {
+				return errcode.New(errcode.ErrLocatorConflict,
+					"player %d in BATTLE(match_id=%d), reject stale HUB report pod=%s fence_match_id=%d",
+					in.PlayerID, cur.MatchID, in.HubPod, in.MatchID)
+			}
 		}
 		return nil
 	}

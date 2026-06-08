@@ -168,6 +168,8 @@ LOCATION_BATTLE { match_id, battle_pod }
 
 **关键不变量**:
 - 一个玩家**同一时刻只能在一个 Location**
+- `HUB` 上报来自 hub DS,可能 stale;当前为 `MATCHING` 时拒绝覆盖。
+- 当前为 `BATTLE` 时,`HUB` 回流上报必须携带刚结束战斗的 `match_id` 作 fence,且必须等于当前 `BATTLE.match_id`;通过后不持久化该 `match_id`。
 - 所有 DS 上线 5s 内必须上报,否则 ds_allocator 视为僵死回收
 
 ---

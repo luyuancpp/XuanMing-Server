@@ -2499,3 +2499,40 @@ fence / 已结束 match_id 令牌,留待 UE hub DS 落地后做。当前 `BATTLE
 - BATTLE fence(stale hub 顶 BATTLE 防御)+ locator HUB 上报方(UE hub DS)
 - 端到端 abandoned → 段位回滚联调
 - UE 主链路:登录 → 进大厅 → 匹配 → 进战斗 → 结算 → 回大厅
+
+
+## W4 ⑪ ✅ player_locator BATTLE fence(2026-06-06)
+
+补 W4 ⑩ 阶段限制:防 stale hub DS 把 active `BATTLE` 顶回 `HUB`。
+
+### 背景
+
+W4 ⑩ 已用 `WATCH/MULTI/EXEC + guardTransition` 挡住 `MATCHING` 被 stale `HUB`
+覆盖,但当玩家处于 `BATTLE` 时,仅凭 state 无法区分:
+
+- 合法回流:玩家战斗结束,重新进入 hub DS,hub DS 上报 `HUB`;
+- stale 覆盖:旧 hub DS 不知道玩家已进 battle DS,误报 `HUB`。
+
+### 设计
+
+不改 proto,复用 `Location.match_id` 作为 `HUB` 回流 fence 令牌:
+
+- hub DS 在玩家从 battle 返回大厅时,从 battle DSTicket 取刚结束战斗的 `match_id`,
+  上报 `HUB` 时一并带上。
+- locator 当前为 `BATTLE` 时,仅当 `in.match_id == cur.match_id && in.match_id != 0`
+  才允许 `BATTLE → HUB`。
+- `match_id=0` 或不匹配时拒 `ERR_LOCATOR_CONFLICT=9202`,避免 stale hub 顶掉 active battle。
+- `HUB` 报文里的 `match_id` 只作 fence,写入前清零,不持久化到 HUB 记录。
+
+### 改动文件
+
+- `services/runtime/player_locator/internal/biz/locator.go`:HUB 上报进入 `BATTLE` 守卫;
+  `HUB` 记录持久化前清零 `match_id/battle_pod`。
+- `services/runtime/player_locator/internal/biz/locator_test.go`:新增 3 个 fence 单测。
+- `services/runtime/player_locator/README.md`:记录 hub DS 上报契约。
+- `docs/design/go-services.md` / `CLAUDE.md`:补服务契约和决策行。
+
+### 验证
+
+- 10 module BUILD=0。
+- player_locator VET=0 / TEST=0。

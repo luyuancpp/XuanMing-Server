@@ -233,18 +233,18 @@ func TestGuard_ControlPlaneAlwaysWins(t *testing.T) {
 	}
 }
 
-// TestGuard_HubAllowedFromNonMatching:HUB 上报在 OFFLINE / LOGIN_PENDING / HUB / BATTLE 时放行。
+// TestGuard_HubAllowedFromNonMatching:HUB 上报在 OFFLINE / LOGIN_PENDING / HUB 时放行。
+// （BATTLE 回流受 W4 ⑪ fence 约束，另见 TestFence_* 用例。）
 func TestGuard_HubAllowedFromNonMatching(t *testing.T) {
 	ctx := context.Background()
 
 	cases := []struct {
 		name string
-		seed *LocationInput // nil = 不预置(OFFLINE)
+		seed *LocationInput // nil = 不预置（OFFLINE）
 	}{
 		{"from offline", nil},
 		{"from login_pending", &LocationInput{PlayerID: 1, State: LocationStateLoginPending}},
 		{"from hub", &LocationInput{PlayerID: 1, State: LocationStateHub, HubPod: "hub-a"}},
-		{"from battle (return to hub)", &LocationInput{PlayerID: 1, State: LocationStateBattle, MatchID: 5, BattlePod: "bp"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -261,5 +261,95 @@ func TestGuard_HubAllowedFromNonMatching(t *testing.T) {
 				t.Errorf("state should be HUB(hub-b), got state=%d pod=%s", out.State, out.HubPod)
 			}
 		})
+	}
+}
+
+// --- W4 ⑪ BATTLE fence（不变量 §1） ---
+
+// TestFence_HubReturnFromBattleWithToken:玩家在 BATTLE（match_id=5），hub DS 携带正确
+// match_id=5 的 HUB 回流上报 → 放行，切到 HUB，且不持久化 match_id/battle_pod。
+func TestFence_HubReturnFromBattleWithToken(t *testing.T) {
+	repo := newStubRepo()
+	uc := NewLocatorUsecase(repo, 30*time.Second)
+	ctx := context.Background()
+
+	if err := uc.SetLocation(ctx, LocationInput{
+		PlayerID: 200, State: LocationStateBattle, MatchID: 5, BattlePod: "bp-5",
+	}); err != nil {
+		t.Fatalf("set BATTLE failed: %v", err)
+	}
+
+	// hub DS 回流，携带刚结束那场战斗的 fence 令牌 match_id=5
+	if err := uc.SetLocation(ctx, LocationInput{
+		PlayerID: 200, State: LocationStateHub, HubPod: "hub-7", ShardID: 2, MatchID: 5,
+	}); err != nil {
+		t.Fatalf("HUB return with matching fence token should pass, got %v", err)
+	}
+
+	out, _ := uc.GetLocation(ctx, 200)
+	if out.State != LocationStateHub || out.HubPod != "hub-7" {
+		t.Errorf("state should be HUB(hub-7), got state=%d pod=%s", out.State, out.HubPod)
+	}
+	// fence 令牌不持久化：HUB 记录里 match_id/battle_pod 应被清零
+	if out.MatchID != 0 || out.BattlePod != "" {
+		t.Errorf("HUB record must not persist fence match_id/battle_pod, got match_id=%d battle_pod=%q", out.MatchID, out.BattlePod)
+	}
+}
+
+// TestFence_StaleHubRejectedDuringBattle:玩家在 BATTLE（match_id=5），stale hub DS 不知道
+// 该局，上报 HUB 携带 match_id=0 → 被拒，BATTLE 不被顶掉。
+func TestFence_StaleHubRejectedDuringBattle(t *testing.T) {
+	repo := newStubRepo()
+	uc := NewLocatorUsecase(repo, 30*time.Second)
+	ctx := context.Background()
+
+	if err := uc.SetLocation(ctx, LocationInput{
+		PlayerID: 201, State: LocationStateBattle, MatchID: 5, BattlePod: "bp-5",
+	}); err != nil {
+		t.Fatalf("set BATTLE failed: %v", err)
+	}
+
+	err := uc.SetLocation(ctx, LocationInput{
+		PlayerID: 201, State: LocationStateHub, HubPod: "hub-stale", ShardID: 1,
+	})
+	if err == nil {
+		t.Fatal("expected ErrLocatorConflict for stale HUB(match_id=0) during BATTLE, got nil")
+	}
+	if got := errcode.As(err); got != errcode.ErrLocatorConflict {
+		t.Errorf("expected ErrLocatorConflict(9202), got %d", got)
+	}
+
+	out, _ := uc.GetLocation(ctx, 201)
+	if out.State != LocationStateBattle || out.MatchID != 5 {
+		t.Errorf("BATTLE(match_id=5) should survive stale HUB, got state=%d match_id=%d", out.State, out.MatchID)
+	}
+}
+
+// TestFence_WrongMatchHubRejectedDuringBattle:玩家在 BATTLE（match_id=5），hub DS 上报
+// HUB 携带错误 / 陈旧的 match_id=9 → 被拒，BATTLE 不被顶掉。
+func TestFence_WrongMatchHubRejectedDuringBattle(t *testing.T) {
+	repo := newStubRepo()
+	uc := NewLocatorUsecase(repo, 30*time.Second)
+	ctx := context.Background()
+
+	if err := uc.SetLocation(ctx, LocationInput{
+		PlayerID: 202, State: LocationStateBattle, MatchID: 5, BattlePod: "bp-5",
+	}); err != nil {
+		t.Fatalf("set BATTLE failed: %v", err)
+	}
+
+	err := uc.SetLocation(ctx, LocationInput{
+		PlayerID: 202, State: LocationStateHub, HubPod: "hub-old", ShardID: 1, MatchID: 9,
+	})
+	if err == nil {
+		t.Fatal("expected ErrLocatorConflict for HUB with wrong fence match_id during BATTLE, got nil")
+	}
+	if got := errcode.As(err); got != errcode.ErrLocatorConflict {
+		t.Errorf("expected ErrLocatorConflict(9202), got %d", got)
+	}
+
+	out, _ := uc.GetLocation(ctx, 202)
+	if out.State != LocationStateBattle || out.MatchID != 5 {
+		t.Errorf("BATTLE(match_id=5) should survive wrong-token HUB, got state=%d match_id=%d", out.State, out.MatchID)
 	}
 }
