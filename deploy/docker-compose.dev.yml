@@ -78,7 +78,7 @@ services:
       retries: 10
     networks: [pandora-net]
 
-  # ===== Kafka 3.7(KRaft 模式坑多,先用 ZK 模式稳)=====
+  # ===== Kafka(Zookeeper 模式,Confluent Platform 7.9.x 兼容线)=====
   kafka:
     image: confluentinc/cp-kafka:7.9.7
     container_name: pandora-kafka
