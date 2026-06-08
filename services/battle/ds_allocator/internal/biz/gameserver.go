@@ -1,9 +1,8 @@
 // gameserver.go — DS pod 分配抽象 + W4 ② Mock 实现。
 //
-// W4 ③+ 接 Agones:实现一个 AgonesGameServerAllocator,调 K8s API
-// GameServerAllocation CRD(allocation.agones.dev/v1),从返回的 status 取 pod 名 +
-// address:port,Release 时给 GameServer 打 label 让 Agones 回收。本接口签名保持不变,
-// 只换实现 + main 装配,biz 逻辑零改动。
+// 真 Agones 实现见 internal/data/agones_allocator.go(W4 ⑫ AgonesGameServerAllocator,
+// 经 k8s apiserver REST 调 allocation.agones.dev/v1 GameServerAllocation)。本接口签名
+// 保持不变,Mock / Agones 只是两个实现,main 按 agones.enabled 选装配,biz 逻辑零改动。
 package biz
 
 import (

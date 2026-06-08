@@ -8,7 +8,7 @@
 //  2. conf.Defaults 填默认值
 //  3. log.Setup → 全局 zap logger
 //  4. Redis client 连通性 Ping(强依赖:DS 状态镜像)
-//  5. 装配链:RedisBattleRepo → MockGameServerAllocator → AllocatorUsecase → AllocatorService → gRPC/HTTP server
+//  5. 装配链:RedisBattleRepo → (Agones 或 Mock) GameServerAllocator → AllocatorUsecase → AllocatorService → gRPC/HTTP server
 //  6. 后台 RunHeartbeatSweep(心跳超时扫描)
 //  7. kratos.New(...).Run() 阻塞
 package main
@@ -102,7 +102,23 @@ func main() {
 
 	// 4. 装配链
 	repo := data.NewRedisBattleRepo(rdb)
-	allocator := biz.NewMockGameServerAllocator(cfg.Allocator) // W4 ② 打桩;W4 ③ 接 Agones
+	// W4 ⑫:agones.enabled=true → 真 GameServerAllocation;否则回退 Mock(本地/无集群联调)。
+	var allocator biz.GameServerAllocator
+	if cfg.Agones.Enabled {
+		ag, aerr := data.NewAgonesGameServerAllocator(cfg.Agones)
+		if aerr != nil {
+			helper.Errorw("msg", "agones_allocator_init_failed", "err", aerr,
+				"hint", "检查 agones.fleet_name / ca_path 配置")
+			os.Exit(1)
+		}
+		allocator = ag
+		helper.Infow("msg", "agones_allocator_ready",
+			"api_server", cfg.Agones.APIServer, "namespace", cfg.Agones.Namespace, "fleet", cfg.Agones.FleetName)
+	} else {
+		allocator = biz.NewMockGameServerAllocator(cfg.Allocator)
+		helper.Warnw("msg", "mock_allocator_active",
+			"hint", "agones.enabled=false,用确定性假地址(无真实 DS)")
+	}
 	uc := biz.NewAllocatorUsecase(repo, allocator, cfg.Allocator)
 
 	// 4.1 ds.lifecycle producer(弱依赖:心跳超时 abandoned → 通知 battle_result 段位回滚补偿,不变量 §4)
@@ -138,7 +154,7 @@ func main() {
 		"redis_addr", rc.Host,
 		"heartbeat_timeout", cfg.Allocator.HeartbeatTimeout.String(),
 		"sweep_interval", cfg.Allocator.SweepInterval.String(),
-		"mock_ds_host", cfg.Allocator.MockDSAddrHost,
+		"allocator_mode", allocatorMode(cfg.Agones.Enabled),
 	)
 
 	// 7. Kratos App
@@ -165,4 +181,12 @@ func (d *dsLifecyclePusher) PublishLifecycle(ctx context.Context, evt *dsv1.DSLi
 		return err
 	}
 	return d.p.SendRaw(ctx, strconv.FormatUint(evt.GetMatchId(), 10), payload)
+}
+
+// allocatorMode 返回 service_ready 日志里的分配器模式字符串。
+func allocatorMode(agonesEnabled bool) string {
+	if agonesEnabled {
+		return "agones"
+	}
+	return "mock"
 }

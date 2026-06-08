@@ -2536,3 +2536,54 @@ W4 ⑩ 已用 `WATCH/MULTI/EXEC + guardTransition` 挡住 `MATCHING` 被 stale `
 
 - 10 module BUILD=0。
 - player_locator VET=0 / TEST=0。
+
+
+## W4 ⑫ ✅ ds_allocator 真 Agones GameServerAllocation allocator(2026-06-08)
+
+把 W4 ② 的 `MockGameServerAllocator` 升级为可配置的真 Agones 分配器实现,
+但保留 Mock 作为本地无 k8s / 无 Agones 时的 fallback。无新 proto / 无新 errcode /
+无新第三方依赖。
+
+### 设计
+
+- 新增 `AgonesGameServerAllocator`,用标准库 `net/http` + `crypto/tls` + `encoding/json`
+  直连 k8s apiserver REST,不引入 agones SDK / client-go 重依赖。
+- `Allocate`:
+  - `POST /apis/allocation.agones.dev/v1/namespaces/{ns}/gameserverallocations`;
+  - selector:`agones.dev/fleet=<fleet_name>`;
+  - metadata labels:`pandora.dev/match-id` / `map-id` / `game-mode`;
+  - `status.state=="Allocated"` 时返回 `gameServerName` + `address:first_port`;
+  - 非 Allocated 返 `ERR_DS_NO_AVAILABLE=5001`,HTTP / decode / status 不完整返
+    `ERR_DS_ALLOCATION_FAILED=5002`。
+- `Release`:
+  - `DELETE /apis/agones.dev/v1/namespaces/{ns}/gameservers/{pod}`;
+  - 404 视作已释放,保持幂等。
+- 配置门控:
+  - `agones.enabled=false`(dev 默认)→ 继续 Mock;
+  - `agones.enabled=true` → 真 Agones REST allocator;
+  - in-cluster 默认 `https://kubernetes.default.svc` + ServiceAccount token/CA。
+
+### Codex 复审补强
+
+- 补 `sanitizeLabelValue` 首尾规则:k8s label value 必须首尾字母数字,中间允许 `-_.`;
+  全非法 / 空值回 `unknown`,避免 future `game_mode` 导致 apiserver 422。
+- 新增 helper 单测覆盖正常值、非法字符、全非法、63 字符截断。
+
+### 改动文件
+
+- `services/battle/ds_allocator/internal/data/agones_allocator.go`:真 Agones REST allocator。
+- `services/battle/ds_allocator/internal/data/agones_allocator_test.go`:httptest apiserver 单测。
+- `services/battle/ds_allocator/internal/conf/conf.go`:新增 `AgonesConf` + defaults。
+- `services/battle/ds_allocator/cmd/ds_allocator/main.go`:按 `agones.enabled` 选 Agones / Mock。
+- `services/battle/ds_allocator/etc/ds_allocator-dev.yaml`:新增 agones 配置段(dev 默认 disabled)。
+- `services/battle/ds_allocator/internal/biz/gameserver.go`:更新陈旧注释。
+- `CLAUDE.md` / `docs/design/go-services.md`:追加服务级决策与契约记录。
+
+### 验证
+
+- 10 module BUILD=0。
+- ds_allocator VET=0 / TEST=0。
+
+### 后续
+
+- D7 k8s/provider 环境拍板后,用真 Agones Fleet 做 Allocate/Release 集群联调。

@@ -2,7 +2,7 @@
 #
 # - gRPC :50020 / HTTP :51020(仅 /metrics)
 # - Redis 强依赖(DS 战斗实例镜像 + 心跳超时 ZSET 扫描)
-# - W4 ② 用 MockGameServerAllocator(返回假 pod/addr),真 Agones 接入留 W4 ③+
+# - W4 ② 用 MockGameServerAllocator(返回假 pod/addr);W4 ⑫ 接真 Agones(agones.enabled=true 启用)
 # - duration 字段用 pkg/config.Duration,yaml 可直接写 "15s"
 # - dev: enable_reflection=true 便于 grpcurl 联调
 
@@ -49,3 +49,16 @@ allocator:
   mock_ds_port_base: 30000
   # mock_ds_port_range: Mock 端口取模范围
   mock_ds_port_range: 1000
+
+# W4 ⑫: 真 Agones GameServerAllocation 配置。
+# dev 默认 enabled=false 走 Mock(本机无 k8s/Agones 也能跑 ds_allocator)。
+# 上集群时置 enabled=true + fleet_name;in-cluster 下 api_server/token_path/ca_path 可留空用默认。
+agones:
+  enabled: false
+  # api_server: "https://kubernetes.default.svc"   # in-cluster 默认
+  # namespace: "default"
+  fleet_name: "pandora-battle"
+  # token_path: "/var/run/secrets/kubernetes.io/serviceaccount/token"  # in-cluster 默认;"-" 禁用
+  # ca_path: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"     # in-cluster 默认
+  # insecure_skip_tls_verify: false   # 仅 dev
+  allocate_timeout: "5s"
