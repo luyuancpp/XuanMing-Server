@@ -122,6 +122,15 @@ type RedisConf struct {
 	DialTimeout  Duration `yaml:"dial_timeout,omitempty" json:"dial_timeout,omitempty"`
 	ReadTimeout  Duration `yaml:"read_timeout,omitempty" json:"read_timeout,omitempty"`
 	WriteTimeout Duration `yaml:"write_timeout,omitempty" json:"write_timeout,omitempty"`
+
+	// MaintNotifications 控制 go-redis 的 CLIENT MAINT_NOTIFICATIONS 能力探测。
+	//
+	// 取值:"disabled" / "auto" / "enabled";留空 = "disabled"(项目默认)。
+	// 自建 Redis(本地 / k8s 内 Redis 7.x)不支持该云厂商维护通知,默认关闭探测,
+	// 避免 go-redis 启动时打印 "maintnotifications disabled due to handshake error" 噪音日志。
+	// 仅当接 Redis Cloud / Enterprise 需要无缝故障转移时,才显式设为 "auto" / "enabled"。
+	// 由 pkg/redisx.NewClient 解析,非法值安全回退到 disabled。
+	MaintNotifications string `yaml:"maint_notifications,omitempty" json:"maint_notifications,omitempty"`
 }
 
 // KafkaConfig Kafka 生产/消费通用配置。

@@ -199,6 +199,9 @@ maintnotifications disabled due to handshake error
 `github.com/redis/go-redis/v9` 到 `v9.20.0`,并通过 `pkg/redisx.NewClient` 统一禁用
 维护通知探测;正常启动日志里不应再出现这条噪音。
 
+默认行为可经配置覆盖:在服务 yaml 的 `node.redis_client.maint_notifications` 写
+`auto` / `enabled`(接 Redis Cloud / Enterprise 时),留空或写 `disabled` = 关闭探测。
+
 ## 6. 这次登录测的是什么连接
 
 当前命令直连:
