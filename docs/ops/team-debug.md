@@ -255,4 +255,3 @@ grpcurl 使用 proto JSON 名称,写:
 ```json
 {"team_id":"...","target_player_id":"...","invite_id":"...","hero_id":1}
 ```
-
