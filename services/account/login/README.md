@@ -67,8 +67,31 @@ curl -X POST http://127.0.0.1:51001/v1/login `
 curl http://127.0.0.1:51001/metrics | Select-String pandora
 ```
 
-## 下一步(W3 真实化路线)
+## 开发期免密登录开关 `login.dev_skip_password`
 
+> ⚠️ **纯 dev / 联调开关,默认 `false`,绝不能上生产。**
+
+为了让客户端联调期“随便填个账号名就能进”,login 提供一个免密 + 懒注册开关:
+
+```yaml
+login:
+  dev_skip_password: true   # 默认 false（生产必须留 false）
+```
+
+开启后（`true`）行为:
+
+1. **跳过 bcrypt 密码校验** —— 任意 `password_hash` 都放行。
+2. **账号不存在时自动懒注册** —— 用 snowflake 生成 `player_id` 写入 `accounts`表
+   （靠 `uk_account` 唯一），同一账号名以后每次登录都拿到**同一个稳定 `player_id`**
+   （持久化在 MySQL，不是临时算的）。
+3. 启动时打 `DEV_SKIP_PASSWORD_ENABLED` 警告日志，`service_ready` 日志带 `dev_skip_password` 字段。
+
+用途:客户端随便填个账号名就能登录拿到对应 `player_id`，无需独立注册流程/RPC。
+
+⚠️ **绝不能上生产** —— 否则任意账号名都能登录任意 `player_id`。
+生产环境留 `false`（默认），走正常 bcrypt 校验。
+
+> 注:`mock` 模式（未配 MySQL DSN 时的 fallback）仍是单账号，“任意账号”懒注册只在接了 MySQL 的路径生效。
 - [ ] 接 MySQL pandora_account 库(替 MockAccountRepo)
 - [ ] 接 Redis session 缓存
 - [ ] 调 hub_allocator.Assign 拿真实 hub_ds_addr

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/luyuancpp/pandora/pkg/auth"
+	"github.com/luyuancpp/pandora/pkg/errcode"
 	"github.com/luyuancpp/pandora/pkg/passwd"
 	"github.com/luyuancpp/pandora/pkg/snowflake"
 	"github.com/luyuancpp/pandora/services/account/login/internal/data"
@@ -89,7 +90,7 @@ func newTestUsecase(t *testing.T, hub data.HubAssigner) *LoginUsecase {
 	hash := mustBcrypt(t, "pw")
 	repo := &fakeAccountRepo{playerID: 42, passwordHash: hash}
 	sf := snowflake.NewNode(1)
-	return NewLoginUsecase(repo, fakeSessionRepo{}, nil, hub, sf, "127.0.0.1:7777", "cn", signer, verifier)
+	return NewLoginUsecase(repo, fakeSessionRepo{}, nil, hub, sf, "127.0.0.1:7777", "cn", signer, verifier, false)
 }
 
 func TestLogin_HubAssignerSuccess(t *testing.T) {
@@ -159,5 +160,97 @@ func TestLogin_HubAssignerError_FallbackSelfSign(t *testing.T) {
 	}
 	if _, verr := uc.verifier.VerifyDSTicket(res.HubTicket); verr != nil {
 		t.Fatalf("fallback hub ticket not verifiable: %v", verr)
+	}
+}
+
+// ---- dev_skip_password fakes / tests ----
+
+// devFakeRepo 模拟 MySQL 行为:按 account 名查/建,验证免密模式下的懒注册稳定性。
+type devFakeRepo struct {
+	accounts map[string]uint64 // account -> player_id
+	created  []string          // 记录被 CreateAccount 的账号(断言"只建一次")
+}
+
+func newDevFakeRepo() *devFakeRepo {
+	return &devFakeRepo{accounts: map[string]uint64{}}
+}
+
+func (r *devFakeRepo) FindByAccount(_ context.Context, account string) (uint64, string, error) {
+	if id, ok := r.accounts[account]; ok {
+		return id, "", nil
+	}
+	return 0, "", errcode.New(errcode.ErrLoginAccountNotFound, "account=%s not found", account)
+}
+func (r *devFakeRepo) CreateAccount(_ context.Context, playerID uint64, account, _ string) error {
+	if _, ok := r.accounts[account]; ok {
+		return errcode.New(errcode.ErrAlreadyExists, "account=%s exists", account)
+	}
+	r.accounts[account] = playerID
+	r.created = append(r.created, account)
+	return nil
+}
+func (r *devFakeRepo) CheckBanned(_ context.Context, _ uint64, _ string) (bool, error) {
+	return false, nil
+}
+func (r *devFakeRepo) TouchDevice(_ context.Context, _ uint64, _ string) error { return nil }
+
+func newDevSkipUsecase(t *testing.T, repo data.AccountRepo) *LoginUsecase {
+	t.Helper()
+	cfg := auth.Config{Secret: []byte(testSecret)}
+	signer, err := auth.NewSigner(cfg)
+	if err != nil {
+		t.Fatalf("NewSigner: %v", err)
+	}
+	verifier, err := auth.NewVerifier(cfg)
+	if err != nil {
+		t.Fatalf("NewVerifier: %v", err)
+	}
+	sf := snowflake.NewNode(1)
+	// hubAssigner=nil 走自签回退;devSkipPassword=true。
+	return NewLoginUsecase(repo, fakeSessionRepo{}, nil, nil, sf, "127.0.0.1:7777", "cn", signer, verifier, true)
+}
+
+// TestLogin_DevSkipPassword_AutoProvision 验证:免密模式下任意新账号自动建号,
+// 同一账号名两次登录拿到同一个稳定 player_id,且账号只被创建一次。
+func TestLogin_DevSkipPassword_AutoProvision(t *testing.T) {
+	repo := newDevFakeRepo()
+	uc := newDevSkipUsecase(t, repo)
+
+	res1, err := uc.Login(context.Background(), "anybody", "whatever", "dev-1")
+	if err != nil {
+		t.Fatalf("first login: %v", err)
+	}
+	if res1.PlayerID == 0 {
+		t.Fatalf("PlayerID = 0, want auto-provisioned id")
+	}
+
+	res2, err := uc.Login(context.Background(), "anybody", "another-pw", "dev-2")
+	if err != nil {
+		t.Fatalf("second login: %v", err)
+	}
+	if res2.PlayerID != res1.PlayerID {
+		t.Errorf("PlayerID not stable: first=%d second=%d", res1.PlayerID, res2.PlayerID)
+	}
+	if len(repo.created) != 1 {
+		t.Errorf("account created %d times, want exactly 1", len(repo.created))
+	}
+}
+
+// TestLogin_DevSkipPassword_ExistingAccountWrongPassword 验证:已存在账号在免密模式下
+// 任意密码都放行(不做 bcrypt 校验)。
+func TestLogin_DevSkipPassword_ExistingAccountWrongPassword(t *testing.T) {
+	repo := newDevFakeRepo()
+	repo.accounts["known"] = 777
+	uc := newDevSkipUsecase(t, repo)
+
+	res, err := uc.Login(context.Background(), "known", "definitely-wrong", "dev-1")
+	if err != nil {
+		t.Fatalf("login with wrong password should pass in skip mode: %v", err)
+	}
+	if res.PlayerID != 777 {
+		t.Errorf("PlayerID = %d, want existing 777", res.PlayerID)
+	}
+	if len(repo.created) != 0 {
+		t.Errorf("existing account should not be re-created, got %d creates", len(repo.created))
 	}
 }

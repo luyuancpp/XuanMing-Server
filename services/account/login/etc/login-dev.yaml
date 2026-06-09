@@ -49,6 +49,12 @@ login:
   mock_account: "test"
   mock_password_hash: "abc"
 
+  # 开发期免密登录(⚠️ 仅本机 / 联调,严禁上生产):
+  #   true  → 跳过密码校验;账号不存在时自动懒注册,返回稳定 player_id
+  #           客户端随便填一个账号名就能进,无需独立注册流程
+  #   false → 走正常 bcrypt 密码校验
+  dev_skip_password: true
+
   # JWT(W3 ①,2026-06-05):HS256 共享密钥模式。
   # ⚠️ secret 跟 deploy/envoy/envoy.yaml jwt_authn provider 必须一致(envoy 那边
   #    放的是 base64url(secret) 的 JWKS)。可用以下命令算出 base64url:

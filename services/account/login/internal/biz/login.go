@@ -51,6 +51,10 @@ type LoginUsecase struct {
 	hubRegion   string // 传给 hub_allocator.AssignHub 的 region(空=allocator 选最空分片)
 	signer      *auth.Signer
 	verifier    *auth.Verifier
+
+	// devSkipPassword 开发期免密登录(conf.LoginConf.DevSkipPassword)。
+	// 为 true 时跳过密码校验,且账号不存在时自动懒注册一个稳定 player_id。
+	devSkipPassword bool
 }
 
 // NewLoginUsecase 构造 LoginUsecase。
@@ -70,17 +74,19 @@ func NewLoginUsecase(
 	hubRegion string,
 	signer *auth.Signer,
 	verifier *auth.Verifier,
+	devSkipPassword bool,
 ) *LoginUsecase {
 	return &LoginUsecase{
-		repo:        repo,
-		sessions:    sessions,
-		notifier:    notifier,
-		hubAssigner: hubAssigner,
-		sf:          sf,
-		hubDSAddr:   hubDSAddr,
-		hubRegion:   hubRegion,
-		signer:      signer,
-		verifier:    verifier,
+		repo:            repo,
+		sessions:        sessions,
+		notifier:        notifier,
+		hubAssigner:     hubAssigner,
+		sf:              sf,
+		hubDSAddr:       hubDSAddr,
+		hubRegion:       hubRegion,
+		signer:          signer,
+		verifier:        verifier,
+		devSkipPassword: devSkipPassword,
 	}
 }
 
@@ -99,11 +105,21 @@ func (u *LoginUsecase) Login(ctx context.Context, account, passwordHash, deviceI
 
 	playerID, expected, err := u.repo.FindByAccount(ctx, account)
 	if err != nil {
-		h.Warnw("msg", "login_account_not_found", "account", account)
-		return nil, err
-	}
-
-	if verr := passwd.Verify(expected, passwordHash); verr != nil {
+		// 开发期免密模式 + 账号不存在 → 懒注册一个稳定 player_id(不阻断登录)。
+		if !(u.devSkipPassword && errcode.As(err) == errcode.ErrLoginAccountNotFound) {
+			h.Warnw("msg", "login_account_not_found", "account", account)
+			return nil, err
+		}
+		playerID, err = u.ensureAccount(ctx, account)
+		if err != nil {
+			h.Errorw("msg", "login_auto_provision_failed", "err", err, "account", account)
+			return nil, err
+		}
+		h.Infow("msg", "login_dev_auto_provisioned", "account", account, "player_id", playerID)
+	} else if u.devSkipPassword {
+		// 账号已存在 + 免密模式 → 跳过密码校验。
+		h.Warnw("msg", "login_dev_skip_password", "account", account, "player_id", playerID)
+	} else if verr := passwd.Verify(expected, passwordHash); verr != nil {
 		h.Warnw("msg", "login_password_mismatch", "account", account, "player_id", playerID)
 		return nil, errcode.New(errcode.ErrLoginPasswordMismatch, "password mismatch")
 	}
@@ -165,6 +181,26 @@ func (u *LoginUsecase) Login(ctx context.Context, account, passwordHash, deviceI
 		HubTicket:      hubTicket,
 		HubTicketExpMs: hubExpMs,
 	}, nil
+}
+
+// ensureAccount 在开发期免密模式下为不存在的账号懒注册一条记录,返回稳定 player_id。
+//
+// snowflake 分配新 player_id 写入 accounts(uk_account 唯一);并发下若已被别的请求建好,
+// CreateAccount 返回 ErrAlreadyExists,回查拿到已存在的 player_id(保证同 account 名稳定)。
+// 密码哈希存空串:这类账号只能走免密模式登录(passwd.Verify 对空哈希恒失败,关掉开关即失效)。
+func (u *LoginUsecase) ensureAccount(ctx context.Context, account string) (uint64, error) {
+	newID := u.sf.Generate()
+	if err := u.repo.CreateAccount(ctx, newID, account, ""); err != nil {
+		if errcode.As(err) == errcode.ErrAlreadyExists {
+			id, _, ferr := u.repo.FindByAccount(ctx, account)
+			if ferr != nil {
+				return 0, ferr
+			}
+			return id, nil
+		}
+		return 0, err
+	}
+	return newID, nil
 }
 
 // resolveHub 解析玩家进大厅需要的 hub_ds_addr + hub_ticket(+ 票据过期 unix ms)。

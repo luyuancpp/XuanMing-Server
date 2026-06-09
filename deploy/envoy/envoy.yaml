@@ -4,12 +4,12 @@
 #   1. TLS 终止(:8443):客户端 HTTPS / gRPC-Web → Envoy 内部明文 gRPC
 #   2. gRPC-Web → 标准 gRPC 协议转换(envoy.filters.http.grpc_web)
 #   3. CORS(联调用,浏览器联调备用;UE FHttpModule 不强需)
-#   4. 路由:按 gRPC 全路径 /pandora.<X>.v1.<Y>Service/ 分发到 login / push 两个 cluster
+#   4. 路由:按 gRPC 全路径 /pandora.<X>.v1.<Y>Service/ 分发到 login / push / team / match 等 cluster
 #   5. W3 ①(2026-06-05):envoy.filters.http.jwt_authn 校验 SessionToken
 #      - HS256 + 共享 secret(dev 用,生产期切 RS256 + remote_jwks)
 #      - issuer=pandora-login / audience=pandora-client,要跟 login 服务 etc/login-dev.yaml 一致
 #      - 把 sub claim 提到 x-pandora-player-id 头,业务服 pmw.AuthOptional/Required 直接读
-#      - 只对 /pandora.push.v1.PushService/ 强制要 JWT;login / reflection / VerifyDSTicket bypass
+#      - 对 push / team / match 等玩家鉴权 path 强制要 JWT;login / reflection / VerifyDSTicket bypass
 #
 # ⚠️ 协议铁律(详见 docs/design/protocol-ordering-rules.md):
 #   - push.PushService/Subscribe 是 server stream,timeout 必须为 0(永不超时)
@@ -126,6 +126,11 @@ static_resources:
                   prefix: "/pandora.team.v1.TeamService/"
                 requires:
                   provider_name: "pandora_session"
+              # matchmaker 服务所有 RPC 均需 JWT(玩家发起匹配,player_id 经 sub claim 注入 x-pandora-player-id)
+              - match:
+                  prefix: "/pandora.match.v1.MatchService/"
+                requires:
+                  provider_name: "pandora_session"
               # 没列到的 path(login.Login / login.VerifyDSTicket / grpc reflection)默认放行。
               # VerifyDSTicket 是 DS → login 的内部调用,不带玩家 JWT;靠 ext_authz 限内网(W3+)。
 
@@ -174,6 +179,15 @@ static_resources:
                   prefix: "/pandora.team.v1.TeamService/"
                 route:
                   cluster: team_cluster
+                  timeout: 15s
+                  idle_timeout: 60s
+
+              # ----- matchmaker(unary,立即受理型,demo 15s 超时)-----
+              # 撮合进度由 pandora.match.progress push 驱动,这里只是受理 RPC,不是长连。
+              - match:
+                  prefix: "/pandora.match.v1.MatchService/"
+                route:
+                  cluster: match_cluster
                   timeout: 15s
                   idle_timeout: 60s
 
@@ -265,3 +279,24 @@ static_resources:
               socket_address:
                 address: host.docker.internal
                 port_value: 50010
+
+  # ===== match_cluster(matchmaker unary,demo 15s 超时)=====
+  - name: match_cluster
+    type: STRICT_DNS
+    dns_lookup_family: V4_ONLY
+    connect_timeout: 1s
+    lb_policy: ROUND_ROBIN
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
+    load_assignment:
+      cluster_name: match_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: host.docker.internal
+                port_value: 50011

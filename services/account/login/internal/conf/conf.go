@@ -42,6 +42,15 @@ type LoginConf struct {
 	MockAccount      string `yaml:"mock_account,omitempty" json:"mock_account,omitempty"`
 	MockPasswordHash string `yaml:"mock_password_hash,omitempty" json:"mock_password_hash,omitempty"`
 
+	// DevSkipPassword 开发期免密登录开关(默认 false)。
+	//
+	// 为 true 时(仅供本机 / 联调,⚠️ 严禁上生产):
+	//   - 跳过 bcrypt 密码校验,任意 password_hash 都放行
+	//   - 账号不存在时自动懒注册一条 accounts 记录(snowflake 分配 player_id)
+	//     → 同一 account 名每次登录拿到稳定 player_id(持久化在 MySQL,靠 uk_account 唯一)
+	// 这样客户端随便填一个账号名即可进入,无需独立注册流程。
+	DevSkipPassword bool `yaml:"dev_skip_password,omitempty" json:"dev_skip_password,omitempty"`
+
 	// JWT 设置(W3 ①,2026-06-05)。
 	// dev/prod 都走 HS256,secret 要跟 deploy/envoy/envoy.yaml 的 jwt_authn provider 保持一致。
 	JWT JWTConf `yaml:"jwt,omitempty" json:"jwt,omitempty"`
