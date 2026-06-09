@@ -112,21 +112,27 @@ services:
       start_period: 30s
     networks: [pandora-net]
 
-  # ===== etcd 3.5 =====
+  # ===== etcd 3.6 =====
   etcd:
-    image: bitnami/etcd:3.5.17
+    image: quay.io/coreos/etcd:v3.6.12
     container_name: pandora-etcd
     restart: unless-stopped
     ports:
       - "2380:2379"  # client
       - "2381:2380"  # peer
-    environment:
-      ALLOW_NONE_AUTHENTICATION: "yes"
-      ETCD_ADVERTISE_CLIENT_URLS: http://0.0.0.0:2379
-      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
-      ETCD_NAME: pandora-etcd
+    command:
+      - /usr/local/bin/etcd
+      - --name=pandora-etcd
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd:2380
+      - --initial-cluster=pandora-etcd=http://etcd:2380
+      - --initial-cluster-token=pandora-etcd-cluster
+      - --initial-cluster-state=new
     volumes:
-      - etcd-data:/bitnami/etcd
+      - etcd-data:/etcd-data
     healthcheck:
       test: ["CMD", "etcdctl", "endpoint", "health"]
       interval: 10s
