@@ -31,18 +31,19 @@
 | 链路段 | 后端 | UE（Pandora-Client，独立仓库）|
 |---|---|---|
 | 登录 gRPC-Web | ✅ login（W3）| ✅ `UPandoraBackendSubsystem.Login`（已通）|
-| 分配 Hub | ✅ hub_allocator.AssignHub（W4 ⑤/⑥）+ **Agones 发现（W4 ⑬）** | ⬜ Hub DS GameMode + Agones SDK |
+| 分配 Hub | ✅ hub_allocator.AssignHub（W4 ⑤/⑥）+ **Agones 发现（W4 ⑬）** | ⬜ NetDriver 连 Hub DS（客户端段）|
 | 进大厅 | ✅ login 返真实 hub_ds_addr（agones.enabled=true 后）| ⬜ NetDriver 连 Hub DS |
-| Hub 心跳 | ✅ hub_allocator.Heartbeat | ⬜ Hub DS 每 5s 调（契约见 §3）|
+| Hub 心跳 | ✅ hub_allocator.Heartbeat | 🟡 `APandoraHubGameMode` 骨架已落（每 5s 调，§3 契约）|
 | 匹配 | ✅ matchmaker（W4 ①/⑦）| ✅ gRPC-Web StartMatch/Confirm |
-| 分配 Battle | ✅ ds_allocator.AllocateBattle + **真 Agones（W4 ⑫）** | ⬜ Battle DS + Agones SDK |
+| 分配 Battle | ✅ ds_allocator.AllocateBattle + **真 Agones（W4 ⑫）** | ⬜ NetDriver 连 Battle DS（客户端段）|
 | 进战斗推送 | ✅ kafka match.progress → push stream | ✅ OnPushFrame 已通 |
-| Battle 心跳 | ✅ ds_allocator.Heartbeat | ⬜ Battle DS 每 5s 调（契约见 §3）|
-| 结算 | ✅ battle_result（W4 ③/⑨）| ⬜ Battle DS 发 pandora.battle.result |
-| locator HUB/BATTLE 上报 | ✅ guard + fence（W4 ⑩/⑪）| ⬜ DS 调 SetLocation（契约见 §4）|
+| Battle 心跳 | ✅ ds_allocator.Heartbeat | 🟡 `APandoraBattleGameMode` 骨架已落（每 5s 调，§3 契约）|
+| 结算 | ✅ battle_result（W4 ③/⑨）| 🟡 Battle DS 经 `ReportResult` 同步上报（§5，非 kafka）|
+| locator HUB/BATTLE 上报 | ✅ guard + fence（W4 ⑩/⑪）| 🟡 Hub DS `SetLocation(HUB)` 骨架已落（带 fence，§4）|
 
-> **结论**：后端主链路骨架已全部就位；剩余是 (a) 本地 Agones 联调让 allocator 返回真实地址，
-> (b) UE Hub/Battle DS 骨架按本文 §3/§4 契约接 allocator + locator。
+> **结论**：后端主链路骨架已全部就位；UE DS 后端联调骨架（心跳 / SetLocation / ReportResult）
+> 已在 Pandora-Client 落地（见 §5）。剩余是 (a) 本地 Agones 联调让 allocator 返回真实地址，
+> (b) 内部服务前补 gRPC-Web 入口让 UE DS 客户端打通（§5.1 wiring），(c) UE NetDriver 连 DS 的客户端段。
 
 ---
 
@@ -130,23 +131,60 @@
 
 > 仅列后端联调相关的骨架职责；GAS / Iris / Replication 细节见 `ds-arch.md`。
 
-- **模块**：服务端逻辑放 `PandoraHubServer` / `PandoraBattleServer`（不在客户端模块 `Source/Pandora/`，CLAUDE §11.3）。
-- **Agones SDK**：DS 进程起来后 `SDK.Ready()`，周期 `SDK.Health()`；接 `SDK.WatchGameServer` 拿分配元数据。
-- **后端 gRPC 客户端**：DS → allocator / locator 走**标准 gRPC**（DS 在集群内，不走 Envoy/gRPC-Web）。
-  心跳/SetLocation 是 unary，可复用一个轻量 gRPC 通道。
-- **GameServer 名**：从 Agones SDK `GameServer().ObjectMeta.Name` 取，作 `hub_pod_name`/`ds_pod_name`。
-- **match_id 下发**：matchmaker AllocateBattle 时把 match_id 打到 GameServer label（`pandora.dev/match-id`），
-  Battle DS 经 SDK 读 label 拿 match_id；或经 battle_ticket（JWT claim）取。
+**🟡 已落地（2026-06-09，Pandora-Client `Source/Pandora/`）**：
+
+| 文件 | 职责 |
+|---|---|
+| `Public/Net/PandoraDSBackendSubsystem.h` + `Private/Net/...cpp` | DS→后端 4 个 unary（HubHeartbeat / BattleHeartbeat / SetLocationHub / ReportBattleResult），复用 gRPC-Web codec |
+| `Public/Server/PandoraAgonesProvider.h` + cpp | Agones 身份/生命周期桩（读 env：`AGONES_GAMESERVER_NAME` / `PANDORA_MATCH_ID` / `PANDORA_REGION`），Ready/Health/Shutdown 占位 |
+| `Public/Server/PandoraHubGameMode.h` + cpp | 大厅 DS：5s 心跳 + PostLogin 落 `SetLocation(HUB)`（带 fence match_id，§4） |
+| `Public/Server/PandoraBattleGameMode.h` + cpp | 战斗 DS：5s 心跳 + `ReportResultAndEndMatch`（结算同步上报，不报 mmr_delta，§6） |
+
+- **模块**：当前暂放客户端模块 `Source/Pandora/`（M1.5 服务端模块未拆）；后续按 CLAUDE §11.3 迁
+  `PandoraHubServer` / `PandoraBattleServer`。`UPandoraDSBackendSubsystem::ShouldCreateSubsystem`
+  门控 `IsRunningDedicatedServer()`，客户端不背 DS 逻辑。
+- **传输方案（与原契约偏差，刻意为之）**：原 §5 设想 DS 走**标准 gRPC**；但原生 gRPC 需引入
+  grpc-cpp（80MB+）并改 UE 构建环境，触碰「客户端/DS 零额外依赖」铁律（CLAUDE §12）+ Claude 不动
+  构建环境（AGENTS §11.1）。故 DS 复用**已有 gRPC-Web codec**（`FPandoraProtoWriter` +
+  `FPandoraGrpcWeb` + `FHttpModule`），与客户端 `UPandoraBackendSubsystem` 同源、零新依赖。
+  代价：见 §5.1 需要 grpc-web 入口 wiring。原生 gRPC 路线留作未来可选项（抽象在 subsystem 后，可换）。
+- **Agones SDK**：当前是 env 桩（`FPandoraAgones`），非真 SDK。真 SDK.Ready()/Health()/WatchGameServer
+  接入时替换桩实现，GameMode 调用点不变。
+- **GameServer 名 / match_id**：桩从 env 读（Agones downward API / allocation label 透传）。
+- **玩家身份**：Hub DS 从 ClientTravel URL option（`?PlayerId=&FenceMatchId=`）解析（骨架）；
+  真实部署应改为校验 hub DSTicket(JWT) 取 player_id（DS 不可信 URL）。
 - **占位验证**：UE DS 就绪前，先用 `deploy/k8s/agones` 的 simple-game-server 占位 Fleet 验
   Agones 分配链路（见 README §4 第一步）；心跳 / locator 链路用 `tools/scripts/ds_heartbeat_stub.ps1`
   当 stub（grpcurl 周期调 Heartbeat + SetLocation，第二步），真 UE DS 就绪后替换。
   战斗结算 → 段位补偿链用 `tools/scripts/battle_result_outbox_probe.ps1`（grpcurl 同步
   ReportResult + GetMatchResult，验事务出箱 → player.update → 段位回写）。
 
+### 5.1 DS gRPC-Web 入口 wiring（运维步骤，Codex 联调时落地）
+
+UE DS 客户端走 gRPC-Web，但内部服务（hub_allocator :50021 / ds_allocator :50020 /
+player_locator :50006 / battle_result :50022）裸端口是**原生 gRPC**（HTTP/2 framing），
+gRPC-Web 报文打不通。要让 UE DS 端到端跑通，需在内部服务前补一层 grpc_web 转换，三选一：
+
+- **方案 A（推荐）**：给 Envoy 增加到这 4 个内部服务的 grpc_web route（后端 yaml 改动，
+  可由后端侧落地），UE DS `SetEndpoints` 指向 Envoy 入口（如 `127.0.0.1:8443` + 路径路由
+  或各服务独立 listener）。
+- **方案 B**：每内部服务挂一个 grpcwebproxy / Envoy sidecar，UE DS 指向各 sidecar。
+- **方案 C（长期）**：DS 换原生 gRPC（引 grpc-cpp，触碰零依赖，暂不做）。
+
+`UPandoraDSBackendSubsystem` 的 4 个 Endpoint 默认填裸 gRPC 端口（占位），Codex 联调时经
+`SetEndpoints` 或 Game.ini Config 覆盖成实际 grpc-web 入口地址。`bUseTls` 控制 http/https。
+
 ---
 
 ## 6. 阶段限制（留后续）
 
+- **Battle DS 结算走同步 `ReportResult` gRPC，非 kafka `pandora.battle.result`**（§1 图里画的是 kafka）：
+  UE 直接生产 kafka 较重，改用 battle_result 已有的同步兜底 RPC（`battle_result_outbox_probe.ps1` 用的同款），
+  复用同一 gRPC-Web 客户端、更轻。落库幂等 + 事务出箱 + Elo 重算逻辑后端不变（不变量 §2/§6）。
+- **UE DS 走 gRPC-Web 而非原生 gRPC**（§5 传输方案偏差）：需 §5.1 grpc-web 入口 wiring 才能端到端，
+  否则 DS 的 4 个 unary 打不通内部裸 gRPC 端口。
+- **Agones 为 env 桩非真 SDK**（`FPandoraAgones`）：Ready/Health/Shutdown 仅日志，GameServer 名/match_id 读 env。
+- **玩家身份从 URL option 解析非校验 DSTicket**：Hub DS 骨架先信 `?PlayerId=`，真实部署须校验 hub JWT。
 - hub_allocator `AgonesHubFleetProvider` 只在 region 首次无分片时 lazy-seed，Fleet 扩缩容后新
   GameServer 不自动发现（周期性 reconcile 留后续）。
 - 占位镜像不发业务心跳，心跳超时 sweep / locator 上报闭环须真 UE DS 或 stub 才能端到端验。
