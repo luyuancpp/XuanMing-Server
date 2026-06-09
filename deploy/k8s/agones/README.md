@@ -34,7 +34,17 @@ winget install Kubernetes.kubectl
 winget install Helm.Helm
 
 # 1.2 起 minikube（Docker driver，给足资源跑 Agones + 几个 GameServer）
-minikube start --driver=docker --cpus=4 --memory=6144 --kubernetes-version=v1.30.0
+# Windows / 国内网络下必须禁用 preload，否则容易卡在 Google preload tarball 下载；
+# kicbase 使用已验证可拉取的阿里云镜像。
+& 'C:\Program Files\Kubernetes\Minikube\minikube.exe' start `
+  --driver=docker `
+  --cpus=4 `
+  --memory=6144 `
+  --kubernetes-version=v1.30.0 `
+  --base-image=registry.cn-hangzhou.aliyuncs.com/google_containers/kicbase:v0.0.50 `
+  --preload=false `
+  --cache-images=false `
+  --interactive=false
 
 # 1.3 装 Agones（官方 helm chart，装到 agones-system 命名空间）
 helm repo add agones https://agones.dev/chart/stable

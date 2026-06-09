@@ -8,10 +8,51 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/IBM/sarama/mocks"
+
+	"github.com/luyuancpp/pandora/pkg/config"
 )
+
+// 回归用例:KafkaConfig 未配置 Net 超时(全 0)时,buildProducerConfig 必须保留 sarama
+// 30s 默认并通过 Validate();否则 ds_allocator/battle_result/team/matchmaker 的弱依赖
+// producer 会因 "Net.DialTimeout must be > 0" 静默构造失败,禁用对应 kafka 事件链(不变量 §4)。
+func TestBuildProducerConfig_ZeroTimeoutsUseSaramaDefaults(t *testing.T) {
+	c := buildProducerConfig(config.KafkaConfig{Brokers: []string{"127.0.0.1:9093"}})
+
+	if err := c.Validate(); err != nil {
+		t.Fatalf("Validate() with zero timeouts err=%v, want nil (应回退 sarama 默认)", err)
+	}
+	if c.Net.DialTimeout <= 0 || c.Net.ReadTimeout <= 0 || c.Net.WriteTimeout <= 0 {
+		t.Fatalf("Net timeouts must be > 0, got dial=%v read=%v write=%v",
+			c.Net.DialTimeout, c.Net.ReadTimeout, c.Net.WriteTimeout)
+	}
+}
+
+// 回归用例:只配置部分超时(如 team/matchmaker 的 dial+write 缺 read)也必须通过 Validate,
+// 且显式给出的值要生效。
+func TestBuildProducerConfig_PartialTimeoutsOverrideAndValidate(t *testing.T) {
+	cfg := config.KafkaConfig{Brokers: []string{"127.0.0.1:9093"}}
+	cfg.DialTimeout = config.Duration(2 * time.Second)
+	cfg.WriteTimeout = config.Duration(5 * time.Second) // 故意不配 read
+
+	c := buildProducerConfig(cfg)
+
+	if err := c.Validate(); err != nil {
+		t.Fatalf("Validate() with partial timeouts err=%v, want nil", err)
+	}
+	if c.Net.DialTimeout != cfg.DialTimeout.Std() {
+		t.Fatalf("DialTimeout=%v want=%v", c.Net.DialTimeout, cfg.DialTimeout.Std())
+	}
+	if c.Net.WriteTimeout != cfg.WriteTimeout.Std() {
+		t.Fatalf("WriteTimeout=%v want=%v", c.Net.WriteTimeout, cfg.WriteTimeout.Std())
+	}
+	if c.Net.ReadTimeout <= 0 {
+		t.Fatalf("ReadTimeout 未配置应回退 sarama 默认 > 0,got=%v", c.Net.ReadTimeout)
+	}
+}
 
 // newTestProducer 构造一个不依赖 broker 的 KeyOrderedProducer,
 // producer 字段用 sarama/mocks 注入,consistent 用 4 个虚拟 partition。

@@ -48,13 +48,25 @@ type KeyOrderedProducer struct {
 	errorCount   int64
 }
 
-// NewKeyOrderedProducer 用 config.KafkaConfig + topic 创建生产者。
-func NewKeyOrderedProducer(cfg config.KafkaConfig, topic string) (*KeyOrderedProducer, error) {
+// buildProducerConfig 从 config.KafkaConfig 构造 sarama 生产者配置。
+//
+// sarama.NewConfig() 已把三个 Net 超时初始化为 30s,且 Validate() 强制三者都 > 0。
+// 仅当 yaml 显式给出正值时才覆盖,缺省字段保留 sarama 默认,避免把未配置字段写成 0
+// 触发 "Net.DialTimeout/ReadTimeout/WriteTimeout must be > 0" 而导致 producer 构造失败
+// ——该失败在 ds_allocator/battle_result/team/matchmaker 是弱依赖,会静默禁用对应 kafka
+// 事件链(ds.lifecycle 补偿 / player.update outbox / team.update / match.progress)。
+func buildProducerConfig(cfg config.KafkaConfig) *sarama.Config {
 	c := sarama.NewConfig()
 	c.Version = sarama.V3_6_0_0
-	c.Net.DialTimeout = cfg.DialTimeout.Std()
-	c.Net.ReadTimeout = cfg.ReadTimeout.Std()
-	c.Net.WriteTimeout = cfg.WriteTimeout.Std()
+	if d := cfg.DialTimeout.Std(); d > 0 {
+		c.Net.DialTimeout = d
+	}
+	if d := cfg.ReadTimeout.Std(); d > 0 {
+		c.Net.ReadTimeout = d
+	}
+	if d := cfg.WriteTimeout.Std(); d > 0 {
+		c.Net.WriteTimeout = d
+	}
 	c.Producer.Return.Successes = true
 	c.Producer.Return.Errors = true
 	c.Producer.Retry.Max = cfg.RetryMax
@@ -64,6 +76,12 @@ func NewKeyOrderedProducer(cfg config.KafkaConfig, topic string) (*KeyOrderedPro
 	c.Producer.Compression = cfg.ParseCompression()
 	c.Producer.Idempotent = cfg.Idempotent
 	c.Net.MaxOpenRequests = 1
+	return c
+}
+
+// NewKeyOrderedProducer 用 config.KafkaConfig + topic 创建生产者。
+func NewKeyOrderedProducer(cfg config.KafkaConfig, topic string) (*KeyOrderedProducer, error) {
+	c := buildProducerConfig(cfg)
 
 	if err := c.Validate(); err != nil {
 		klog.Errorf("[kafkax] invalid sarama config: %v", err)
