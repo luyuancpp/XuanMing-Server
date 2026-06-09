@@ -162,15 +162,19 @@ Write-Host ""
 
 # 简单核对 outcome 语义
 if ($Outcome -eq "ABANDONED") {
-    if ($g -match '"mmrDelta"') {
-        $deltas = ([regex]::Matches($g, '"mmrDelta"\s*:\s*(-?\d+)') | ForEach-Object { [int]$_.Groups[1].Value })
-        $nonZero = $deltas | Where-Object { $_ -ne 0 }
-        if ($nonZero) {
-            Write-Host "  [WARN] ABANDONED 应强制 mmr_delta 全 0，但出现非 0 值：$($nonZero -join ',')" -ForegroundColor Yellow
-        }
-        else {
-            Write-Host "  [OK] ABANDONED：mmr_delta 全 0，玩家不掉段（不变量 §4）" -ForegroundColor Green
-        }
+    # proto3 省略 0 值:ABANDONED 时 mmrDelta 全 0 会被 JSON 整字段省略,所以「字段缺失」恰是
+    # 正确情况。判据改为:stats 存在(有 playerId)且没有任何非 0 mmrDelta,即视作通过。
+    $playerCount = ([regex]::Matches($g, '"playerId"')).Count
+    $deltas = ([regex]::Matches($g, '"mmrDelta"\s*:\s*(-?\d+)') | ForEach-Object { [int]$_.Groups[1].Value })
+    $nonZero = $deltas | Where-Object { $_ -ne 0 }
+    if ($playerCount -eq 0) {
+        Write-Host "  [WARN] GetMatchResult 未读回任何 stats,无法核对 ABANDONED(请确认 match 已落库)" -ForegroundColor Yellow
+    }
+    elseif ($nonZero) {
+        Write-Host "  [WARN] ABANDONED 应强制 mmr_delta 全 0，但出现非 0 值：$($nonZero -join ',')" -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "  [OK] ABANDONED：mmr_delta 全 0（proto3 省略 0 值）,$playerCount 名玩家不掉段（不变量 §4）" -ForegroundColor Green
     }
 }
 else {

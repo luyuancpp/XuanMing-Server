@@ -128,7 +128,7 @@ kubectl create -f deploy/k8s/agones/40-gameserverallocation-example.yaml -o yaml
 占位镜像**不会**向 ds_allocator / hub_allocator 发 Heartbeat（那是 Pandora 业务心跳，
 经 gRPC unary 每 5s，与 Agones SDK health 无关，详见 `docs/design/ds-arch.md` §0.2）。
 
-- 真 UE Pandora Hub DS / Battle DS（`D:\luyuan\Xuanming`，独立仓库）按
+- 真 UE Pandora Hub DS / Battle DS（`C:\work\Pandora`，独立仓库）按
   `docs/design/agones-dev.md` 的「DS 心跳上报契约」实现后，心跳链路 + locator HUB/BATTLE
   上报闭环才能端到端跑通。
 - **UE DS 就绪前用 stub 脚本先验后端心跳 / sweep / locator 闭环**
@@ -146,6 +146,20 @@ pwsh tools/scripts/ds_heartbeat_stub.ps1 -Role battle -PodName pandora-battle-12
 # locator BATTLE→HUB 合法回流(带 fence matchId, W4 ⑪)
 pwsh tools/scripts/ds_heartbeat_stub.ps1 -Role hub -PodName pandora-hub-global-1 `
     -LocatorPlayerId 30907585389428737 -ShardId 1 -FenceMatchId 123456 -Count 1
+```
+
+- **战斗结算 → 段位回滚补偿链(不变量 §4 第二段)用 `battle_result_outbox_probe.ps1`**
+  (grpcurl 同步 ReportResult → 事务出箱 → `pandora.player.update` → player 段位回写)：
+
+```powershell
+# 启动 player(:50002) + battle_result(:50022)(强依赖 MySQL pandora_battle/pandora_player + kafka),然后:
+# NORMAL: A 队胜, 5v5, 幂等复测(第二次 alreadyRecorded=true), 验 Elo +16/-16 守恒
+pwsh tools/scripts/battle_result_outbox_probe.ps1 -MatchId 987655001 `
+    -BasePlayerId 30907586000000000 -WinnerTeam 0 -Idempotent
+
+# ABANDONED: DS 崩溃补偿, 强制 mmr_delta 全 0(玩家不掉段)
+pwsh tools/scripts/battle_result_outbox_probe.ps1 -MatchId 987655002 `
+    -BasePlayerId 30907586100000000 -Outcome ABANDONED
 ```
 
 ---

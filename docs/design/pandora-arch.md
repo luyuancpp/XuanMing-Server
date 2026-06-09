@@ -16,11 +16,11 @@
 ```
 GitHub:
 ├── github.com/luyuancpp/Pandora           # 后端(go)+ proto + docs + deploy
-└── github.com/luyuancpp/Pandora-Client       # UE 5.7 客户端 + 大厅 DS + 战斗 DS（本地目录仍为 Xuanming）
+└── github.com/luyuancpp/Pandora-Client       # UE 5.7 客户端 + 大厅 DS + 战斗 DS
 
 本地:
 ├── F:/work/Pandora/                       # 后端工作目录
-└── D:/luyuan/Xuanming/                    # UE 工作目录(D4 已初始化)
+└── C:/work/Pandora/                       # UE 工作目录(D4 已初始化)
 ```
 
 **协作纪律**:
@@ -254,7 +254,7 @@ Client A          Hub DS                Client B (在 A 50 米内)
 │       ├── hub-fleet     (Hub DS pods, replicas=N)
 │       └── battle-fleet  (Battle DS pods, allocate on demand)
 │
-└── UE 编辑器(D:/luyuan/Xuanming/)
+└── UE 编辑器(C:/work/Pandora/)
     ├── Editor 跑客户端(PIE)
     └── Linux Server target → docker image → minikube
 ```

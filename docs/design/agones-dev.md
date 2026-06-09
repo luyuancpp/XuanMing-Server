@@ -4,7 +4,7 @@
 > **登录 → 拉/分配 Hub DS → 进大厅 → 匹配 → 拉/分配 Battle DS → 进战斗 → 结算 → 回大厅**。
 >
 > 本文是设计/契约层；本地 Agones 环境搭建与 apply 命令见 [`deploy/k8s/agones/README.md`](../../deploy/k8s/agones/README.md)。
-> UE 侧代码在独立仓库 `Pandora-Client`（本地 `D:\luyuan\Xuanming`），命名一律 **Pandora**。
+> UE 侧代码在独立仓库 `Pandora-Client`（本地 `C:\work\Pandora`），命名一律 **Pandora**。
 
 ---
 
@@ -90,6 +90,13 @@
 
 > **心跳超时（默认 15s）→ allocator sweep 标记 abandoned/draining**，Battle DS abandoned 经
 > `pandora.ds.lifecycle` 触发 battle_result 段位回滚补偿（W4 ⑧ at-least-once 闭环）。
+>
+> 补偿链两段都可在 UE DS 就绪前用 stub 端到端验：
+> - 第一段（DS 心跳超时 → abandoned → `ds.lifecycle`）：`tools/scripts/ds_heartbeat_stub.ps1`
+>   起 Battle DS 心跳后停掉，观察 sweep 标 abandoned + `ds_lifecycle_published`。
+> - 第二段（battle_result 事务出箱 → `player.update` → player 段位回滚）：
+>   `tools/scripts/battle_result_outbox_probe.ps1`（grpcurl 同步 ReportResult，验 NORMAL Elo 守恒 /
+>   ABANDONED delta 全 0 / 幂等 / outbox 清零，见 W4 ⑨）。
 
 ---
 
@@ -133,6 +140,8 @@
 - **占位验证**：UE DS 就绪前，先用 `deploy/k8s/agones` 的 simple-game-server 占位 Fleet 验
   Agones 分配链路（见 README §4 第一步）；心跳 / locator 链路用 `tools/scripts/ds_heartbeat_stub.ps1`
   当 stub（grpcurl 周期调 Heartbeat + SetLocation，第二步），真 UE DS 就绪后替换。
+  战斗结算 → 段位补偿链用 `tools/scripts/battle_result_outbox_probe.ps1`（grpcurl 同步
+  ReportResult + GetMatchResult，验事务出箱 → player.update → 段位回写）。
 
 ---
 
