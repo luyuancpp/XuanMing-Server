@@ -307,3 +307,4 @@ Client A          Hub DS                Client B (在 A 50 米内)
 | 0 | 2026-06-04 | 服务清单 13 → **14**(新增 push)| Envoy 作为基础设施不计 go 服务 |
 | 0 | 2026-06-04 | 客户端连接最终值 = **2 条**(NetDriver + FHttpModule)| 用户铁律确认 |
 | 排期 | 2026-06-06 | **friend / chat 暂缓到最后** | 社交好友(:50004)和聊天(:50005)当前只保留协议/端口/topic规划;实现等 UE 与核心链路全部完成后再做 |
+| TLS/发布 | 2026-06-10 | **生产连接 ② TLS 使用公网 CA + 真实域名;dev mkcert 自签只通过 DebuggingCertificatePath 叠加公开 dev CA** | 玩家设备默认信任公网 CA,零配置握手;dev 的 mkcert 信任问题不带到生产。详见 `gateway-decision.md` §14 |

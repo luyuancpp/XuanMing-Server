@@ -1,0 +1,15 @@
+# deploy/dev-ca —— 本地开发期受信任 CA(仅公开证书)
+#
+# 根 .gitignore 全局忽略 *.pem,本目录用例外放行**唯一一个公开 CA 证书**,
+# 让所有开发者拿到它、通过 DebuggingCertificatePath 叠加信任,
+# 从而本机 UE 能通过 TLS 校验连本地 Envoy。
+#
+# 安全边界(AGENTS.md §3 红线):
+#   - pandora-dev-rootCA.pem 是**公开 CA 证书**(BEGIN CERTIFICATE),不含私钥,入库安全。
+#   - 任何私钥(*-key.pem / *.key / rootCA-key.pem)**绝不入库**,下面继续忽略。
+
+# 先忽略本目录所有 pem/key,再单独放行公开 CA 证书
+*.pem
+*.key
+*-key.pem
+!pandora-dev-rootCA.pem

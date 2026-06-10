@@ -1,0 +1,29 @@
+# Pandora player_locator 生产配置【模板】。cp locator-prod.yaml.example locator-prod.yaml 填真值后部署。
+# ⚠️ 真实 locator-prod.yaml 被 services/.gitignore 忽略,只提交本 .example。
+# 与 dev 差异:删 enable_reflection;timeout 收紧;redis 加密码 + 真实 host。
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50006"
+    timeout: "5s"
+    # enable_reflection 不写 = false
+  http:
+    network: tcp
+    addr: ":51006"
+
+node:
+  zone_id: 1
+  redis_client:
+    host: "__REDIS_HOST__:6379"
+    password: "__REDIS_PASSWORD__"
+    db: 0
+    dial_timeout: "2s"
+
+snowflake:
+  epoch: 1773446400
+  node_bits: 17
+  step_bits: 15
+
+locator:
+  location_ttl: "30s"             # 不变量 §1:玩家位置 30s heartbeat,SetLocation 刷 TTL

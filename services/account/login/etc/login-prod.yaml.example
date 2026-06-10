@@ -1,0 +1,64 @@
+# Pandora login 生产配置【模板】。
+#
+# 用法:cp login-prod.yaml.example login-prod.yaml,把所有 __占位符__ 换成真实值后部署。
+#   pwsh tools/scripts/release_preflight.ps1   # 发布前校验本文件安全
+# ⚠️ 真实 login-prod.yaml 已被 services/.gitignore 忽略,只提交本 .example。
+# ⚠️ 配置加载用 Kratos file source(无 env 替换),secret 直接写在 yaml,故真值文件绝不入库。
+#
+# 与 dev 的关键差异:
+#   - 删除 enable_reflection(零值 false = 关 gRPC reflection,防 schema 泄露)
+#   - dev_skip_password: false(走 bcrypt 真密码校验)
+#   - 删除所有 mock_*(不再用 mock hub/account)
+#   - timeout 收紧;redis 加密码;mysql 强密码;jwt 强随机 secret
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50001"
+    timeout: "5s"                 # prod 收紧(dev 15s)
+    # enable_reflection 不写 = false:prod 关闭 reflection
+  http:
+    network: tcp
+    addr: ":51001"
+
+node:
+  zone_id: 1
+  session_expire_min: 1440
+  redis_client:
+    host: "__REDIS_HOST__:6379"
+    password: "__REDIS_PASSWORD__"   # prod 必须设 Redis 密码
+    db: 0
+    dial_timeout: "2s"
+  mysql_client:
+    dsn: "pandora:__MYSQL_STRONG_PASSWORD__@tcp(__MYSQL_HOST__:3306)/pandora_account?parseTime=true&loc=UTC&charset=utf8mb4&collation=utf8mb4_0900_ai_ci"
+    max_open_conns: 64
+    max_idle_conns: 16
+    conn_max_lifetime: "30m"
+    ping_timeout: "3s"
+
+snowflake:
+  epoch: 1773446400
+  node_bits: 17
+  step_bits: 15
+
+locker:
+  account_lock_ttl: 10
+  player_lock_ttl: 10
+
+login:
+  session_token_ttl: "24h"
+  ds_ticket_ttl: "5m"               # 不变量 §3:DS 票据短时效
+  dev_skip_password: false          # ⚠️ 必须 false:走正常 bcrypt 密码校验
+  jwt:
+    issuer: "pandora-login"
+    audience: "pandora-client"
+    # ⚠️ 必须与 envoy jwt_authn / matchmaker / hub_allocator 完全一致;≥32 字节强随机,不得用 dev 值
+    secret: "__JWT_SHARED_SECRET_32B_CHANGE_ME__"
+    session_ttl: "24h"
+    ds_ticket_ttl: "5m"
+  # 生产服务间地址走 k8s service DNS(按实际命名空间/service 名调整)
+  locator:
+    addr: "player-locator.pandora.svc.cluster.local:50006"
+  hub:
+    addr: "hub-allocator.pandora.svc.cluster.local:50021"
+    region: ""

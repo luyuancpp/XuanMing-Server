@@ -1,0 +1,35 @@
+# Pandora player 生产配置【模板】。cp player-prod.yaml.example player-prod.yaml 填真值后部署。
+# ⚠️ 真实 player-prod.yaml 被 services/.gitignore 忽略,只提交本 .example。
+# 与 dev 差异:删 enable_reflection;timeout 收紧;mysql 强密码 + 真实 host;kafka 真实 brokers。
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50002"
+    timeout: "5s"
+    # enable_reflection 不写 = false
+  http:
+    network: tcp
+    addr: ":51002"
+
+node:
+  zone_id: 1
+  mysql_client:
+    dsn: "pandora:__MYSQL_STRONG_PASSWORD__@tcp(__MYSQL_HOST__:3306)/pandora_player?parseTime=true&loc=UTC&charset=utf8mb4&collation=utf8mb4_0900_ai_ci"
+    max_open_conns: 64
+    max_idle_conns: 16
+    conn_max_lifetime: "30m"
+    ping_timeout: "3s"
+
+kafka:
+  brokers: ["__KAFKA_BROKER_1__:9092", "__KAFKA_BROKER_2__:9092"]
+  group_id: "pandora-player"
+  partition_cnt: 4
+
+player:
+  base_mmr: 1500
+  mmr_floor: 0
+  default_nickname_prefix: "Player_"
+  max_nickname_len: 32
+  consume_topics:
+    - "pandora.player.update"

@@ -1,0 +1,50 @@
+# Pandora ds_allocator 生产配置【模板】。cp ds_allocator-prod.yaml.example ds_allocator-prod.yaml 填真值后部署。
+# ⚠️ 真实 ds_allocator-prod.yaml 被 services/.gitignore 忽略,只提交本 .example。
+# 与 dev 差异:删 enable_reflection;timeout 收紧;redis 加密码;kafka 真实 brokers;
+#            agones.enabled: true(接真 Agones GameServerAllocation,不再用 Mock)。
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50020"
+    timeout: "5s"
+    # enable_reflection 不写 = false
+  http:
+    network: tcp
+    addr: ":51020"
+
+node:
+  zone_id: 1
+  redis_client:
+    host: "__REDIS_HOST__:6379"
+    password: "__REDIS_PASSWORD__"
+    db: 0
+    dial_timeout: "2s"
+    read_timeout: "1s"
+    write_timeout: "1s"
+
+snowflake:
+  epoch: 1773446400
+  node_bits: 17
+  step_bits: 15
+
+kafka:
+  brokers: ["__KAFKA_BROKER_1__:9092", "__KAFKA_BROKER_2__:9092"]
+  group_id: "pandora-ds-allocator"
+  partition_cnt: 4
+
+allocator:
+  heartbeat_timeout: "15s"        # 不变量 §4
+  sweep_interval: "5s"
+  battle_ttl: "2h"
+  # prod 用真 Agones(下方 agones.enabled: true),不再需要 mock_* 字段
+
+# 生产接真 Agones GameServerAllocation。in-cluster 运行时 api_server/token_path/ca_path 留空用默认。
+agones:
+  enabled: true
+  # api_server: 留空 = in-cluster "https://kubernetes.default.svc"
+  namespace: "pandora"
+  fleet_name: "pandora-battle"
+  # token_path / ca_path: 留空用 in-cluster ServiceAccount 默认
+  insecure_skip_tls_verify: false   # 生产必须 false(校验 apiserver 证书)
+  allocate_timeout: "5s"

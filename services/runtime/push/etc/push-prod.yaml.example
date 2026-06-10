@@ -1,0 +1,43 @@
+# Pandora push 生产配置【模板】。cp push-prod.yaml.example push-prod.yaml 填真值后部署。
+# ⚠️ 真实 push-prod.yaml 被 services/.gitignore 忽略,只提交本 .example。
+# 与 dev 差异:删 enable_reflection;redis 加密码;kafka 真实 brokers。
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50014"
+    # enable_reflection 不写 = false
+  http:
+    network: tcp
+    addr: ":51014"
+
+node:
+  zone_id: 1
+  session_expire_min: 1440
+  redis_client:
+    host: "__REDIS_HOST__:6379"
+    password: "__REDIS_PASSWORD__"
+    db: 0
+    dial_timeout: "2s"
+
+kafka:
+  brokers: ["__KAFKA_BROKER_1__:9092", "__KAFKA_BROKER_2__:9092"]
+  group_id: "pandora-push"
+  partition_cnt: 4
+  dial_timeout: "2s"
+  read_timeout: "10s"
+  write_timeout: "10s"
+  channel_buffer: 1024
+  idempotent: true
+
+snowflake:
+  epoch: 1773446400
+  node_bits: 17
+  step_bits: 15
+
+push:
+  topics:
+    - "pandora.team.update"
+    - "pandora.match.progress"
+    - "pandora.chat.private"
+  offline_cache_ttl: "5m"

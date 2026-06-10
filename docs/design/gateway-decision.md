@@ -774,3 +774,164 @@ push 服务 → 推 10 个客户端 stream
 - ⏸️ k8s 选型:阿里云 ACK / 自建 / 先 minikube(D7 阻塞,Envoy 一起决定)
 - ⏸️ Envoy 跑模式:k8s Ingress / 单独 Pod(D7 决定)
 - ⏸️ JWT 鉴权细节:Envoy filter / login 服务签发 / token 内容(W2 写 login 时定)
+
+---
+
+## §14 TLS 证书策略(dev vs 生产)
+
+> 状态:**已决策(2026-06-10)**。
+> 触发:本机 UE 客户端连 Envoy :8443 报 `libcurl error 35 / SSL_ERROR_SYSCALL`,
+> 根因排查见本节 §14.4。结论:**dev 自签证书的"客户端不信任"问题在生产环境不存在**,
+> 因为生产用公网 CA 证书,玩家设备出厂即信任。
+
+### 14.1 核心区分:玩家连的不是 IP+自签证书
+
+连接 ②(UE FHttpModule → Envoy)是 TLS。**证书信任链在 dev 和生产是两套完全不同的机制**,
+不能用 dev 的现象推断生产:
+
+| 维度 | dev(本机联调) | **生产(正确做法)** |
+|---|---|---|
+| 证书签发者 | **mkcert 本地 CA**(只有装过的机器信) | **公网 CA**(Let's Encrypt 免费 / 商业 CA) |
+| 客户端是否信任 | ❌ 默认不信,需手动装 CA | ✅ 设备/UE 出厂预装公网 CA 根证书,自动信任 |
+| 连接地址 | `127.0.0.1` / `localhost`(IP/本地名) | **真实域名** `gateway.<game>.com` |
+| 证书 SAN | `localhost` / `127.0.0.1` / `host.docker.internal` | 真实域名(**不写 IP**) |
+| 玩家侧配置 | 开发者手动信任一次 | **零配置、零感知** |
+
+**关键认知**:玩家千万家客户端能不能连上,取决于"证书是不是公网 CA 签的 + 连的是不是域名"。
+只要满足这两点,**所有玩家零配置直接握手成功**——这正是所有联网游戏/App 的通用做法。
+
+### 14.2 生产正确做法(所有玩家都要能连 → 唯一推荐)
+
+```
+玩家客户端(UE)
+  │  https://gateway.<game>.com:443      ← 真实域名,不是 IP
+  ▼
+公网 DNS → 网关公网 IP(LB / Ingress)
+  ▼
+Envoy / 边缘负载均衡
+  - 证书:公网 CA 签发(Let's Encrypt 免费,certbot/acme 自动签发+续期)
+  - 证书 SAN = gateway.<game>.com(真实域名)
+  - 玩家设备/UE 自带 cacert.pem 内已含该 CA 根证书 → 握手 0 错误、0 配置
+```
+
+落地三要素:
+1. **域名**:注册域名,把网关公网 IP 解析过去(A/AAAA 记录)。
+2. **公网 CA 证书**:Let's Encrypt(免费,ACME 自动续期 90 天)或商业 CA。证书绑域名,**SAN 不写 IP**。
+3. **客户端连域名**:UE `GatewayHost` 配真实域名(不是 `127.0.0.1`),其余不动。
+
+> ✅ 这条满足"不是个人开发、所有人都要能连":玩家什么都不装,直接连。
+
+### 14.3 dev 阶段(团队多人联调)怎么办
+
+dev 用 mkcert 自签证书的代价是"客户端默认不信任"。团队联调三选一:
+
+| 方案 | 做法 | 适用 | 谁执行 |
+|---|---|---|---|
+| **A 叠加 dev CA**(推荐) | 用 UE `[SSL] DebuggingCertificatePath` 指向客户端工程 `Config/Certificates/pandora-dev-rootCA.pem`, 叠加一张 dev CA 到引擎公网 CA 包之上 | 少数固定开发机 | Codex/人(项目侧脚本) |
+| **B 共享 dev 域名 + 公网 CA** | dev 也用真实域名 + Let's Encrypt,等于提前搭生产链路 | 团队人多 / 提前贴近生产 | Codex/人 |
+| C 关证书校验 | UE HTTP 层跳过校验(`bDevInsecureTls`) | 临时本机 | 不推荐(UE 版本敏感、易漏到生产) |
+
+方案 A 命令(由 Codex/人执行,Claude 不碰 UE 运行验证):
+
+```powershell
+pwsh E:\work\Pandora\tools\scripts\import_dev_ca.ps1
+# 重启 UE 编辑器后,UE OpenSSL 即信任本机 Envoy dev 证书
+```
+
+不要修改 `D:\UnrealEngine\Engine\Content\Certificates\ThirdParty\cacert.pem`。引擎目录是多项目共享环境,
+升级会覆盖,也不随客户端仓库分发。工程 `Content/Certificates/cacert.pem` 也不要用:它会整包替换公网 CA
+并进入发行包。`Config/` + `DebuggingCertificatePath` 才是不替换、不入包、不碰引擎的项目侧方案。
+
+### 14.4 根因留档(2026-06-10 排查实证)
+
+现象:UE 连 `https://127.0.0.1:8443` 报 `libcurl error 35 (SSL connect error) / SSL_ERROR_SYSCALL / error:00000000`。
+
+排查链(关键是"用和 UE 同后端的 OpenSSL 复现",别用 schannel/curl -k 误判):
+
+- `curl -k`(schannel + 跳过校验)→ 握手成功返 404 ⇒ **Envoy/证书本身正常**,问题在客户端信任。
+- `curl` 不加 `-k`(schannel)→ `CRYPT_E_NO_REVOCATION_CHECK`,这是 **schannel 吊销检查**问题,
+  与 UE 的 OpenSSL 后端**无关**,不能据此下结论。
+- `openssl s_client -connect 127.0.0.1:8443`(**与 UE 同后端**)→
+  `SSL handshake has read ... bytes`(握手实际完成)`Verify return code: 21
+  (unable to verify the first certificate)` ⇒ **唯一失败点是证书链验证:OpenSSL 不信任 mkcert CA**。
+- `openssl s_client ... -CAfile <mkcert rootCA.pem>` → `Verify return code: 0 (ok)` ⇒ **证实**:
+  只要信任 mkcert CA,验证立即通过。
+
+结论:UE 报的 `SSL_ERROR_SYSCALL / error:00000000` 是 **libcurl 校验回调失败后主动中止握手**的表象
+(OpenSSL 错误队列为空 → libcurl 归类成 SYSCALL),本质就是 **dev 自签证书不被 UE OpenSSL 信任**。
+生产用公网 CA 后该问题不存在。
+
+### 14.5 成本与常见疑问(为什么要域名 / 要不要花钱)
+
+**几乎不花钱。证书永久免费,唯一可能花钱的是域名(~¥30/年,常有免费替代)。**
+
+| 项 | 费用 | 必须吗 |
+|---|---|---|
+| TLS 证书 | **0 元**(Let's Encrypt 永久免费,ACME 自动续期 90 天) | 是 |
+| 域名 | **~¥30-70/年**(常有云厂商/Cloudflare 免费二级域名替代) | 建议(非技术硬性) |
+| 服务器 | 本就要租(跑 Envoy + 后端 + DS) | 是 |
+
+**为什么必须域名(不是行规,是 TLS 机制决定的)**:
+
+- Let's Encrypt 等免费公网 CA **只给域名签证书,不给纯 IP 签**(技术 + 政策双重限制)。
+- 玩家要"零配置自动信任" → 必须公网 CA 签的证书 → 必须有域名。
+- 用 IP + 自签证书,就回到 dev 老问题:**每个玩家都要手动装你的 CA**,千万玩家不可能做到。
+- 链路:**所有玩家零配置连上 → 必须公网 CA 证书 → 必须域名**。
+
+**省钱选项**:
+
+- 云服务器(阿里云/腾讯云)常**免费送二级域名**;Cloudflare 提供**免费 DNS + 免费证书**(回源还能免费签)。实际可做到**域名费 0 元**。
+- 商业 CA / 通配符证书只在有合规或多子域需求时才考虑,**起步阶段不需要**。
+
+**不要做的**:
+
+- ❌ 纯 IP + 自签证书发给玩家(没人会装你的 CA)。
+- ❌ 纯 IP + 关闭证书校验上线(传输无加密,account/password 可被中间人截获)。
+
+**阶段建议**:
+
+- 现在(本机 / 小团队联调):**不买任何东西**,走 §14.3 方案 A(`DebuggingCertificatePath` 叠加 dev CA)。
+- 以后给真实玩家:租正式服务器时顺手注册域名(或用云厂商免费域名)+ Let's Encrypt,玩家零配置连上。
+
+### 14.6 决策行(写入 pandora-arch.md §11)
+
+| 日期 | 决策 | 原因 |
+|---|---|---|
+| 2026-06-10 | 生产连接 ② 证书 = **公网 CA(Let's Encrypt/商业)+ 真实域名**,SAN 不写 IP | 玩家设备出厂即信任公网 CA,零配置握手;满足"所有玩家都要能连" |
+| 2026-06-10 | dev 自签(mkcert)证书"客户端不信任"**仅 dev 问题**,生产不存在 | dev/生产证书信任链是两套机制,不可互相推断 |
+| 2026-06-10 | dev 联调默认走**方案 A**(`[SSL] DebuggingCertificatePath` 叠加 dev CA) | UE 用自带 OpenSSL,不读系统根库；项目侧方案不碰引擎、不替换公网 CA、不进发行包 |
+| 2026-06-10 | TLS 证书选 **Let's Encrypt(免费)**,域名可用云厂商/Cloudflare 免费二级域名 | 公网 CA 不给纯 IP 签证书;成本可压到接近 0 |
+
+### 14.7 FAQ:自带证书包行不行 / 域名 vs IP 到底是两回事
+
+常见混淆:"玩家安装时自带证书包不就行了?这跟域名/IP 有啥关系?" —— **这是两个独立问题,生产都要对。**
+
+**问题一:证书"谁签的"(自带 CA 行不行)**
+
+- 客户端本来就**自带一份公网 CA 清单**(`cacert.pem`,几百个公网 CA)。生产的正确做法就是让 Envoy 证书**由这些公网 CA 签**,于是玩家零配置即可验证 —— 你说的"自带证书包"生产其实一直在用。
+- "自带**私有 CA**(像 dev 的 mkcert)"技术上也能跑,但生产**不推荐**:
+
+  | 维度 | 自带私有 CA | 公网 CA |
+  |---|---|---|
+  | 私钥泄露 | 根 CA 私钥在打包机,泄露 → 攻击者可伪造任意证书 MITM 全体玩家 | 私钥在 CA 的 HSM,有审计,你碰不到 |
+  | 吊销被盗证书 | 只能推客户端更新给每个玩家 | OCSP/CRL 即时吊销,客户端自动拉 |
+  | CA 过期 | 私有 CA 过期 → 重发整个客户端 | 续期在服务端,客户端无感 |
+  | 第三方接入 | 网页端/支付/客服 SDK 不认你的私有 CA | 全世界默认都认 |
+
+- 结论:**dev 自带私有 CA 没问题(现在做的);生产用公网 CA 签**,玩家不用额外塞东西。
+
+**问题二:证书"写哪个地址"(域名 vs IP)**
+
+跟"谁签的"无关。证书里有 **SAN** 字段写明"这张证书给哪个地址用"。TLS 握手要**同时**校验两件事:① 是不是可信 CA 签的;② **我连的地址 == 证书 SAN 写的地址**。
+
+域名优于 IP 的原因是**运维灵活性**:
+
+- **用域名** `gateway.yourgame.com`:SAN 写域名。换服务器/扩容/容灾**只改 DNS,IP 随便变,证书不动**。
+- **用裸 IP**:SAN 写死 IP。服务器一搬家**证书就废**,得重签重发;且**公网 CA 基本不给裸 IP 签**(内网 IP 更绝对不签)。
+
+**一句话类比(身份证)**:
+
+- "谁签发" = 谁盖章。公安局盖章(公网 CA)全国认;自己刻章(私有 CA)只有信你章的人认,且刻章丢了能被伪造。
+- "写哪个地址" = 证件上的地址。**域名 = 名字(搬家不变)**;**IP = 写死的门牌号(搬家就对不上)**。
+
+**生产两个都要对**:公网 CA(玩家零配置)+ 真实域名(以后换服务器证书不废)。两者各自独立,缺一不可。

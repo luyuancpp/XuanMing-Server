@@ -187,7 +187,50 @@ grpcurl -plaintext -max-time 300 `
 {"account":"test1","passwordHash":"abc","deviceId":"login-debug"}
 ```
 
-### 5.3 Redis maint_notifications 历史警告
+### 5.3 UE 客户端连 Envoy :8443 报 SSL 错误(`libcurl error 35 / SSL_ERROR_SYSCALL`)
+
+典型 UE 日志:
+
+```text
+LogHttp: Warning: ... request failed, libcurl error: 35 (SSL connect error)
+LogHttp: Warning: ... TLS connect error: error:00000000:lib(0):func(0):reason(0)
+LogHttp: Warning: ... OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection to 127.0.0.1:8443
+LogPandoraLogin: Warning: Login failed: ... err=HTTP request failed
+```
+
+**根因**:这不是 login 业务问题,也不是 Envoy 挂了,而是 **UE 自带 OpenSSL 不信任本机 mkcert 自签证书**。
+UE 在 Windows 上用引擎自带的 libcurl + OpenSSL(读引擎 `cacert.pem`,**不读 Windows 系统根证书库**),
+所以 `mkcert -install` 把 CA 装进系统库对 UE 无效。`SSL_ERROR_SYSCALL / error:00000000` 是
+libcurl 证书校验回调失败后主动中止握手的表象(OpenSSL 错误队列为空 → 归类成 SYSCALL)。
+
+**快速判定**(用与 UE 同后端的 OpenSSL,别用 `curl -k` 或 schannel 误判):
+
+```powershell
+# 与 UE 同后端：openssl 复现
+& "<git>\usr\bin\openssl.exe" s_client -connect 127.0.0.1:8443 -servername localhost
+#   → Verify return code: 21 (unable to verify the first certificate) = 证书不被信任（就是本问题）
+#   → 握手 has read ... bytes 说明 TLS 协商本身是通的，Envoy/证书没问题
+
+# 用 mkcert rootCA 验证应通过：
+& "<git>\usr\bin\openssl.exe" s_client -connect 127.0.0.1:8443 -servername localhost -CAfile (Join-Path (mkcert -CAROOT) 'rootCA.pem')
+#   → Verify return code: 0 (ok)
+```
+
+**修复(dev 方案 A,由 Codex/人执行,项目侧配置)**:用 UE `[SSL] DebuggingCertificatePath`
+叠加 dev CA,不修改引擎:
+
+```powershell
+pwsh E:\work\Pandora\tools\scripts\import_dev_ca.ps1
+# 重启 UE 编辑器
+```
+
+脚本会把公开 dev CA 放到 UE 客户端工程 `Config/Certificates/`,并在 `Config/DefaultEngine.ini`
+写入 `[SSL] DebuggingCertificatePath`。不要改 `D:\UnrealEngine` 的 `cacert.pem`。
+
+**说明**:此问题**仅 dev 自签证书存在**;生产用公网 CA(Let's Encrypt)+ 真实域名后,玩家零配置直接连。
+完整证书策略见 [`docs/design/gateway-decision.md`](../design/gateway-decision.md) §14。
+
+### 5.4 Redis maint_notifications 历史警告
 
 旧版本 go-redis 启动时可能出现:
 

@@ -1,0 +1,7 @@
+# Pandora 后端服务目录 — 不入库规则
+#
+# 真实生产配置(*-prod.yaml)含 DB 密码 / JWT secret / Redis 密码等敏感值,
+# **绝不入库**(AGENTS.md / CLAUDE.md §3 红线:secret 不写进 git 跟踪文件)。
+# 只提交占位符模板 *-prod.yaml.example;部署时 cp example → prod.yaml 填真值。
+
+**/etc/*-prod.yaml

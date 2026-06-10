@@ -1,0 +1,59 @@
+# Pandora matchmaker 生产配置【模板】。cp matchmaker-prod.yaml.example matchmaker-prod.yaml 填真值后部署。
+# ⚠️ 真实 matchmaker-prod.yaml 被 services/.gitignore 忽略,只提交本 .example。
+# 与 dev 差异:删 enable_reflection;timeout 收紧;redis 加密码;kafka 真实 brokers;
+#            服务间地址走 k8s service DNS;jwt 强随机 secret(与 login/envoy/hub_allocator 一致)。
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50011"
+    timeout: "5s"
+    # enable_reflection 不写 = false
+  http:
+    network: tcp
+    addr: ":51011"
+
+node:
+  zone_id: 1
+  redis_client:
+    host: "__REDIS_HOST__:6379"
+    password: "__REDIS_PASSWORD__"
+    db: 0
+    dial_timeout: "2s"
+    read_timeout: "1s"
+    write_timeout: "1s"
+
+kafka:
+  brokers: ["__KAFKA_BROKER_1__:9092", "__KAFKA_BROKER_2__:9092"]
+  dial_timeout: "2s"
+  write_timeout: "5s"
+  idempotent: true
+
+snowflake:
+  epoch: 1773446400
+  node_bits: 17
+  step_bits: 15
+
+match:
+  team_addr: "team.pandora.svc.cluster.local:50010"
+  ds_allocator_addr: "ds-allocator.pandora.svc.cluster.local:50020"
+  locator_addr: "player-locator.pandora.svc.cluster.local:50006"
+  map_id: 1
+  game_mode: "5v5_ranked"
+  confirm_timeout: "15s"
+  match_interval: "2s"
+  ticket_ttl: "30m"
+  match_ttl: "30m"
+  team_size: 5
+  mmr_base_window: 200
+  mmr_widen_per_sec: 20
+  mmr_max_window: 2000
+  optimistic_retry: 3
+
+jwt:
+  issuer: "pandora-login"
+  audience: "pandora-client"
+  # ⚠️ 必须与 login / envoy / hub_allocator 完全一致;≥32 字节强随机
+  secret: "__JWT_SHARED_SECRET_32B_CHANGE_ME__"
+  session_ttl: "24h"
+  ds_ticket_ttl: "5m"
