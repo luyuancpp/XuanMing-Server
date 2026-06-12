@@ -397,6 +397,99 @@ func TestSetReadyAllReady(t *testing.T) {
 	}
 }
 
+// ── GetMyTeam ─────────────────────────────────────────────────────────────────
+
+// TestGetMyTeamHasTeam 验证已在队伍中的玩家能查回自己队伍。
+func TestGetMyTeamHasTeam(t *testing.T) {
+	uc, _, cleanup := newTestUsecase(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	if _, err := uc.CreateTeam(ctx, 1001, 2001); err != nil {
+		t.Fatalf("CreateTeam: %v", err)
+	}
+
+	team, hasTeam, err := uc.GetMyTeam(ctx, 2001)
+	if err != nil {
+		t.Fatalf("GetMyTeam: %v", err)
+	}
+	if !hasTeam {
+		t.Fatal("expected hasTeam=true")
+	}
+	if team.TeamId != 1001 || team.CaptainId != 2001 || len(team.Members) != 1 {
+		t.Errorf("unexpected team: %+v", team)
+	}
+}
+
+// TestGetMyTeamNoTeam 验证没有队伍的玩家返回 hasTeam=false 且不报错(正常态)。
+func TestGetMyTeamNoTeam(t *testing.T) {
+	uc, _, cleanup := newTestUsecase(t)
+	defer cleanup()
+
+	team, hasTeam, err := uc.GetMyTeam(context.Background(), 7777)
+	if err != nil {
+		t.Fatalf("GetMyTeam: %v", err)
+	}
+	if hasTeam || team != nil {
+		t.Errorf("expected no team, got hasTeam=%v team=%+v", hasTeam, team)
+	}
+}
+
+// TestGetMyTeamStaleIndexCleaned 验证索引命中但队伍记录已过期(TTL 竞态)时:
+// 按无队伍处理 + 顺手清掉脏索引,玩家随后可以正常再建队(不被 SETNX 挡住)。
+func TestGetMyTeamStaleIndexCleaned(t *testing.T) {
+	uc, _, mr := newTestUsecaseWithMR(t)
+	ctx := context.Background()
+
+	if _, err := uc.CreateTeam(ctx, 1001, 2001); err != nil {
+		t.Fatalf("CreateTeam: %v", err)
+	}
+	// 模拟队伍 key TTL 到期被回收,player 索引仍残留
+	mr.Del("pandora:team:{1001}")
+
+	team, hasTeam, err := uc.GetMyTeam(ctx, 2001)
+	if err != nil {
+		t.Fatalf("GetMyTeam: %v", err)
+	}
+	if hasTeam || team != nil {
+		t.Errorf("expected no team after stale index, got hasTeam=%v team=%+v", hasTeam, team)
+	}
+	// 脏索引已清理,可重新建队
+	if _, err := uc.CreateTeam(ctx, 1002, 2001); err != nil {
+		t.Fatalf("CreateTeam after cleanup: %v", err)
+	}
+}
+
+// TestGetMyTeamDisbandedTreatedAsNoTeam 验证队伍已解散(短 TTL 保留期内)但索引残留时
+// 按无队伍处理并清掉脏索引(走 DISBANDED 分支,而非 key miss 分支)。
+func TestGetMyTeamDisbandedTreatedAsNoTeam(t *testing.T) {
+	uc, _, mr := newTestUsecaseWithMR(t)
+	ctx := context.Background()
+
+	if _, err := uc.CreateTeam(ctx, 1001, 2001); err != nil {
+		t.Fatalf("CreateTeam: %v", err)
+	}
+	// 队长离队 → 单人队解散(DISBANDED 记录短 TTL 保留,正常路径会删索引)
+	if _, err := uc.LeaveTeam(ctx, 1001, 2001); err != nil {
+		t.Fatalf("LeaveTeam: %v", err)
+	}
+	// 人为残留脏索引,指向仍在保留期内的 DISBANDED 记录
+	if err := mr.Set("pandora:team:player:2001", "1001"); err != nil {
+		t.Fatalf("set stale index: %v", err)
+	}
+
+	team, hasTeam, err := uc.GetMyTeam(ctx, 2001)
+	if err != nil {
+		t.Fatalf("GetMyTeam: %v", err)
+	}
+	if hasTeam || team != nil {
+		t.Errorf("expected no team after disband, got hasTeam=%v team=%+v", hasTeam, team)
+	}
+	if mr.Exists("pandora:team:player:2001") {
+		t.Error("expected stale index cleaned")
+	}
+}
+
 // TestSetReadyPartialStillForming 验证部分 ready 时仍是 FORMING。
 func TestSetReadyPartialStillForming(t *testing.T) {
 	uc, _, cleanup := newTestUsecase(t)

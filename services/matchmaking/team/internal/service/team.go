@@ -39,7 +39,7 @@ func NewTeamService(uc *biz.TeamUsecase, sf snowflakeGen) *TeamService {
 	return &TeamService{uc: uc, sf: sf}
 }
 
-// ── 7 RPC ─────────────────────────────────────────────────────────────────────
+// ── 8 RPC ─────────────────────────────────────────────────────────────────────
 
 // CreateTeam 创建队伍。player_id 以 JWT ctx 为准(R5)。
 func (s *TeamService) CreateTeam(ctx context.Context, _ *teamv1.CreateTeamRequest) (*teamv1.CreateTeamResponse, error) {
@@ -179,6 +179,28 @@ func (s *TeamService) GetTeam(ctx context.Context, req *teamv1.GetTeamRequest) (
 	return &teamv1.GetTeamResponse{
 		Code: commonv1.ErrCode_OK,
 		Team: biz.RecordToProto(rec),
+	}, nil
+}
+
+// GetMyTeam 查询自己当前所在队伍的完整快照(队伍主界面直接渲染)。player_id 以 JWT ctx 为准(R5)。
+// 没队伍是正常态:返 OK + has_team=false,不用 errcode 表达。
+func (s *TeamService) GetMyTeam(ctx context.Context, _ *teamv1.GetMyTeamRequest) (*teamv1.GetMyTeamResponse, error) {
+	playerID := callerID(ctx)
+	if playerID == 0 {
+		return &teamv1.GetMyTeamResponse{Code: commonv1.ErrCode_ERR_UNAUTHORIZED}, nil
+	}
+
+	rec, hasTeam, err := s.uc.GetMyTeam(ctx, playerID)
+	if err != nil {
+		return &teamv1.GetMyTeamResponse{Code: toProtoCode(err)}, nil
+	}
+	if !hasTeam {
+		return &teamv1.GetMyTeamResponse{Code: commonv1.ErrCode_OK, HasTeam: false}, nil
+	}
+	return &teamv1.GetMyTeamResponse{
+		Code:    commonv1.ErrCode_OK,
+		HasTeam: true,
+		Team:    biz.RecordToProto(rec),
 	}, nil
 }
 

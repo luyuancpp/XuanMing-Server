@@ -25,7 +25,8 @@ service TeamService {
   rpc LeaveTeam(LeaveTeamRequest) returns (LeaveTeamResponse);           // 立即完成型
   rpc Kick(KickRequest) returns (KickResponse);                          // 立即完成型;push 不发 captain
   rpc SetReady(SetReadyRequest) returns (SetReadyResponse);              // 立即完成型
-  rpc GetTeam(GetTeamRequest) returns (GetTeamResponse);                 // 只读,客户端进入大厅时拉一次完整快照
+  rpc GetTeam(GetTeamRequest) returns (GetTeamResponse);                 // 只读,按 team_id 查任意队伍快照
+  rpc GetMyTeam(GetMyTeamRequest) returns (GetMyTeamResponse);           // 只读,登录后进大厅查"我的队伍"完整快照(队伍主界面)
 }
 
 enum TeamState {
@@ -158,6 +159,21 @@ message GetTeamRequest {
 message GetTeamResponse {
   pandora.common.v1.ErrCode code = 1;
   Team team = 2;
+}
+
+// GetMyTeam:登录后进大厅时调用,客户端不需要预先知道 team_id。
+// 服务端从 JWT x-pandora-player-id 取 player_id → 查 pandora:team:player:<id> 索引。
+// 返回完整 Team 快照(队伍主界面直接渲染,无需再发 GetTeam)。
+// 带宽说明:这是登录进大厅调一次的 unary,5 人队 Team 序列化后 ~200 字节,
+// 比拆成两次 RPC(先查 team_id 再 GetTeam)更省;Team 本身已是 §5.11 客户端最小视图。
+message GetMyTeamRequest {
+  uint64 player_id = 1;  // 服务端以 JWT x-pandora-player-id 为准,此字段忽略
+}
+
+message GetMyTeamResponse {
+  pandora.common.v1.ErrCode code = 1;
+  bool has_team = 2;  // false=玩家当前没有队伍(正常态,code 仍为 OK)
+  Team team     = 3;  // has_team=false 时为空;完整快照,队伍主界面直接用
 }
 
 // ===== Kafka 推送 payload =====

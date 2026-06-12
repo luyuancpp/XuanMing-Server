@@ -36,6 +36,7 @@ const (
 	TeamService_Kick_FullMethodName         = "/pandora.team.v1.TeamService/Kick"
 	TeamService_SetReady_FullMethodName     = "/pandora.team.v1.TeamService/SetReady"
 	TeamService_GetTeam_FullMethodName      = "/pandora.team.v1.TeamService/GetTeam"
+	TeamService_GetMyTeam_FullMethodName    = "/pandora.team.v1.TeamService/GetMyTeam"
 )
 
 // TeamServiceClient is the client API for TeamService service.
@@ -55,6 +56,7 @@ type TeamServiceClient interface {
 	Kick(ctx context.Context, in *KickRequest, opts ...grpc.CallOption) (*KickResponse, error)
 	SetReady(ctx context.Context, in *SetReadyRequest, opts ...grpc.CallOption) (*SetReadyResponse, error)
 	GetTeam(ctx context.Context, in *GetTeamRequest, opts ...grpc.CallOption) (*GetTeamResponse, error)
+	GetMyTeam(ctx context.Context, in *GetMyTeamRequest, opts ...grpc.CallOption) (*GetMyTeamResponse, error)
 }
 
 type teamServiceClient struct {
@@ -135,6 +137,16 @@ func (c *teamServiceClient) GetTeam(ctx context.Context, in *GetTeamRequest, opt
 	return out, nil
 }
 
+func (c *teamServiceClient) GetMyTeam(ctx context.Context, in *GetMyTeamRequest, opts ...grpc.CallOption) (*GetMyTeamResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMyTeamResponse)
+	err := c.cc.Invoke(ctx, TeamService_GetMyTeam_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TeamServiceServer is the server API for TeamService service.
 // All implementations should embed UnimplementedTeamServiceServer
 // for forward compatibility.
@@ -152,6 +164,7 @@ type TeamServiceServer interface {
 	Kick(context.Context, *KickRequest) (*KickResponse, error)
 	SetReady(context.Context, *SetReadyRequest) (*SetReadyResponse, error)
 	GetTeam(context.Context, *GetTeamRequest) (*GetTeamResponse, error)
+	GetMyTeam(context.Context, *GetMyTeamRequest) (*GetMyTeamResponse, error)
 }
 
 // UnimplementedTeamServiceServer should be embedded to have
@@ -181,6 +194,9 @@ func (UnimplementedTeamServiceServer) SetReady(context.Context, *SetReadyRequest
 }
 func (UnimplementedTeamServiceServer) GetTeam(context.Context, *GetTeamRequest) (*GetTeamResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTeam not implemented")
+}
+func (UnimplementedTeamServiceServer) GetMyTeam(context.Context, *GetMyTeamRequest) (*GetMyTeamResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMyTeam not implemented")
 }
 func (UnimplementedTeamServiceServer) testEmbeddedByValue() {}
 
@@ -328,6 +344,24 @@ func _TeamService_GetTeam_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TeamService_GetMyTeam_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMyTeamRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TeamServiceServer).GetMyTeam(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TeamService_GetMyTeam_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TeamServiceServer).GetMyTeam(ctx, req.(*GetMyTeamRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TeamService_ServiceDesc is the grpc.ServiceDesc for TeamService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -362,6 +396,10 @@ var TeamService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTeam",
 			Handler:    _TeamService_GetTeam_Handler,
+		},
+		{
+			MethodName: "GetMyTeam",
+			Handler:    _TeamService_GetMyTeam_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

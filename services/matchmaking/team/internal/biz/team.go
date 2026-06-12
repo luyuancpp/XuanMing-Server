@@ -70,7 +70,7 @@ func (u *TeamUsecase) activeTTL() time.Duration {
 	return u.cfg.ActiveTTL.Std()
 }
 
-// ── 7 RPC ──────────────────────────────────────────────────────────────────
+// ── 8 RPC ──────────────────────────────────────────────────────────────────
 
 // CreateTeam 创建队伍,playerID 为队长。
 // 前置条件:playerID 不在任何队伍中。
@@ -383,6 +383,34 @@ func (u *TeamUsecase) GetTeam(ctx context.Context, teamID uint64) (*teamv1.TeamS
 		return nil, errcode.New(errcode.ErrTeamNotFound, "team %d not found", teamID)
 	}
 	return team, nil
+}
+
+// GetMyTeam 查询玩家当前所在队伍(只读,登录后进大厅时调用)。
+// 返回 (record, hasTeam, err):没队伍是正常态,hasTeam=false 且 err=nil。
+// 索引命中但队伍记录已过期/已解散时,顺手清掉脏索引(否则玩家会被
+// ClaimPlayer SETNX 挡住无法再建队,不变量 §1 的残留侧漏洞)。
+func (u *TeamUsecase) GetMyTeam(ctx context.Context, playerID uint64) (*teamv1.TeamStorageRecord, bool, error) {
+	teamID, found, err := u.repo.GetPlayerTeamID(ctx, playerID)
+	if err != nil {
+		return nil, false, err
+	}
+	if !found {
+		return nil, false, nil
+	}
+
+	team, found, err := u.repo.Get(ctx, teamID)
+	if err != nil {
+		return nil, false, err
+	}
+	if !found || team.State == stateDisbanded {
+		// TTL 竞态残留:索引还在但队伍已没/已解散 → 按无队伍处理并清索引。
+		if err := u.repo.DeletePlayerIndex(ctx, playerID); err != nil {
+			plog.With(ctx).Warnw("msg", "team_stale_player_index_cleanup_failed",
+				"player_id", playerID, "team_id", teamID, "err", err)
+		}
+		return nil, false, nil
+	}
+	return team, true, nil
 }
 
 // ── push 辅助 ─────────────────────────────────────────────────────────────────
