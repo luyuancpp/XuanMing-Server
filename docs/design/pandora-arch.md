@@ -302,3 +302,4 @@ Client A          Hub DS                Client B (在 A 50 米内)
 | 排期 | 2026-06-06 | **friend / chat 暂缓到最后** | 社交好友(:50004)和聊天(:50005)当前只保留协议/端口/topic规划;实现等 UE 与核心链路全部完成后再做 |
 | TLS/发布 | 2026-06-10 | **生产连接 ② TLS 使用公网 CA + 真实域名;dev mkcert 自签只通过 DebuggingCertificatePath 叠加公开 dev CA** | 玩家设备默认信任公网 CA,零配置握手;dev 的 mkcert 信任问题不带到生产。详见 `gateway-decision.md` §14 |
 | ID 生成 | 2026-06-11 | **拒绝 Redis INCR 发号;当前继续静态 `node.zone_id` + 本地 snowflake,未来动态多副本用 etcd Lease 分配 nodeID** | Redis INCR 慢 4~5 个数量级且有持久化/主从切换计数回退发重号风险;Redis `SETNX+TTL+看门狗` 不能可靠 fencing。etcd 方案仍需 KeepAlive/session monitor,失租必须停发并退出。详见 `infra.md` §8.1 |
+| UE push | 2026-06-15 | **push stream 当前保持 AsyncTask 回传成品帧;解析器锁只保护 StreamParser 生命周期** | push 是低频事件流,双缓冲队列不能替代解析器生命周期同步;若未来追求零锁,改为每条 HTTP stream 闭包独占解析器 + 队列回传帧。详见 `gateway-decision.md` §15 |

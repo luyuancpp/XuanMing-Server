@@ -935,3 +935,121 @@ pwsh E:\work\Pandora\tools\scripts\import_dev_ca.ps1
 - "写哪个地址" = 证件上的地址。**域名 = 名字(搬家不变)**;**IP = 写死的门牌号(搬家就对不上)**。
 
 **生产两个都要对**:公网 CA(玩家零配置)+ 真实域名(以后换服务器证书不废)。两者各自独立,缺一不可。
+
+## §15 UE push stream 客户端解析器线程安全决策
+
+### 15.1 结论
+
+当前客户端 push stream 解析路径里的锁,保护的是 **`StreamParser` 解析器对象本身的生命周期**,
+不是保护"收到的帧"传递。稳态游戏过程中,游戏线程不进入这把锁,不会因为玩家正常收 push 而卡住游戏线程。
+
+双缓冲队列适合优化"已解析帧从接收线程交给游戏线程"这一段,但它不能替代解析器生命周期保护。
+如果后续要彻底去掉锁,正确方向是改所有权模型:每条 HTTP stream 的接收回调闭包独占一个解析器,
+游戏线程不再直接 Reset/替换解析器。
+
+### 15.2 这把锁保护什么
+
+`StreamParser` 内部有累积状态:
+
+- `Buffer`:保存半包和已接收但尚未完整解析的数据。
+- `Cursor`:记录当前解析进度。
+
+它会被两个线程触碰:
+
+| 线程 | 行为 | 风险点 |
+|---|---|---|
+| HTTP 接收线程 | `OnStreamBytes` 内 `Feed()` / `NextFrame()` | 追加 Buffer、移动 Cursor |
+| 游戏线程 | `Subscribe()` / `CloseStream()` | 顶号重连时替换解析器,断线/关闭时 Reset 解析器 |
+
+如果 HTTP 线程正在 `Feed()` 同一个解析器对象,游戏线程同时把成员 `TSharedPtr` Reset 或替换成新的解析器,
+就是对同一个指针变量和同一份解析器内部状态的并发读写。`ESPMode::ThreadSafe` 只保证引用计数原子,
+不保证 `TSharedPtr` 变量本身和被指向对象的业务状态可以被多线程无锁读写。
+
+解析后的帧传递给 UI/BP 已经不依赖这把锁:当前方案通过 `AsyncTask(GameThread, ...)` 投递到游戏线程。
+因此锁和"把消息送回游戏线程"不是一件事。
+
+### 15.3 为什么不会卡住玩家游戏线程
+
+锁的进入点很少:
+
+| 线程 | 何时拿锁 | 频率 |
+|---|---|---|
+| HTTP 接收线程 | 每次 `OnStreamBytes` | 收包时,但不在游戏线程 |
+| 游戏线程 | `Subscribe()` / `CloseStream()` / 关闭广播 | 登录、顶号、断线等低频路径 |
+
+稳态游戏过程中,游戏线程只消费已经投递回来的 push frame 并执行 `OnPushFrame.Broadcast`,
+不会每帧进入解析器锁。锁争用只可能出现在登录、重连、断线这类生命周期切换点。
+
+### 15.4 双缓冲队列能解决什么,不能解决什么
+
+双缓冲队列是 MPSC 模型:多个生产者线程 `put`,单个消费者线程每帧 `take` 一批。
+它适合做"成品帧交接":
+
+- 可以替代 `AsyncTask(GameThread, ...)`,把已解析的 `FPandoraPushFrame` 推进队列,
+  再由游戏线程 Tick 中每帧取 N 个处理。
+- 可以减少 task 调度和小分配,吞吐更稳,也方便做每帧消费上限。
+
+但它不能解决解析器生命周期 race:
+
+- 解析器仍然必须由某个线程独占地喂字节、维护半包和 cursor。
+- `Subscribe()` / `CloseStream()` 如果仍从游戏线程直接替换或 Reset 解析器,仍需要同步。
+
+所以双缓冲队列优化的是"传成品",当前锁保护的是"不要一边使用解析器一边拆解析器"。
+
+### 15.5 真正的零锁方向
+
+如果后续要做完全无锁版本,推荐采用"每条流独占解析器 + 队列回传帧":
+
+1. 不再把 `StreamParser` 作为可被游戏线程替换/Reset 的共享成员。
+2. `Subscribe()` 创建新 HTTP request 时,同时 `MakeShared` 一个解析器,并把它捕获进该 request 的接收回调闭包。
+3. 旧流闭包持有旧解析器,新流闭包持有新解析器,顶号重连时两者天然隔离。
+4. `CloseStream()` 只 `CancelRequest()`,不直接 Reset 解析器;解析器随回调链结束自然析构。
+5. 已解析出的 `FPandoraPushFrame` 通过线程安全队列回到游戏线程,游戏线程 Tick 中批量消费。
+
+这套模型的核心收益是:解析器所有权只属于对应 HTTP stream 的接收回调链,
+游戏线程永远不碰解析器对象,因此不再需要用锁协调解析器拆建。
+
+### 15.6 成品帧回传保持 AsyncTask
+
+对 `PushService/Subscribe` 这条推送流,当前保持 `AsyncTask(GameThread, ...)` 回传已解析帧,
+不引入双缓冲队列。
+
+原因是 push stream 的真实流量是事件级,不是帧同步级:
+
+- 稳态通常每秒 0 到几条,很多时候几秒才一条。
+- 峰值如组队频繁操作、匹配状态变化、系统通知等,每秒几十条已经属于高峰。
+- 一帧内通常只有 0 到 1 批 push 数据,双缓冲把多次调度合并成每帧一次 swap 的优势基本用不上。
+
+在这个量级下,`AsyncTask` 的 task 调度和一次 `TArray` move 相对 16ms 帧预算是噪声,
+吞吐瓶颈不在这里。`AsyncTask` 还具备几个工程优势:
+
+| 维度 | AsyncTask | 双缓冲队列 |
+|---|---|---|
+| 延迟 | 收到后立即投递 GameThread,下一个 tick 可执行 | 必须等游戏线程主动 take |
+| 驱动点 | 不需要额外 Tick | 需要 subsystem tick 或 ticker |
+| 维护成本 | 引擎原生,代码少 | 需要引入/维护并发队列 |
+| 背压控制 | 无显式每帧上限 | 可每帧限量消费 |
+| 适用场景 | 低频事件推送 | 高频小消息热路径 |
+
+双缓冲或 SPSC ring buffer 只在 push 流被错误地扩展成高频热路径时再考虑,
+例如用它推实时战斗状态、单帧内 push frame 经常超过几十条,
+或 profiler 明确显示 GameThread task 调度成为可见开销。
+
+如果未来要在代码里留注释,建议写在 `OnStreamBytes` 投递帧的位置:
+
+```cpp
+// Push stream is event-level traffic, so AsyncTask keeps latency low and avoids
+// a separate tick-driven queue. Revisit SPSC/double-buffer only if profiling
+// shows high per-frame push volume or GameThread task scheduling overhead.
+```
+
+### 15.7 决策行
+
+| 日期 | 决策 | 原因 |
+|---|---|---|
+| 2026-06-15 | 当前锁保护 `StreamParser` 生命周期,不是 push frame 传递 | `StreamParser` 有 Buffer/Cursor 累积状态,不能在 HTTP 线程 Feed 时被游戏线程 Reset/替换 |
+| 2026-06-15 | 现有锁不会在稳态游戏过程中锁住游戏线程 | 游戏线程只在 Subscribe/CloseStream 等低频生命周期路径拿锁,正常 push 消费走游戏线程投递/广播 |
+| 2026-06-15 | 双缓冲队列可用于替代 AsyncTask 传递已解析帧,但不能替代解析器生命周期同步 | 双缓冲解决成品交接,不解决解析器对象被跨线程拆建的问题 |
+| 2026-06-15 | 若追求完全无锁,采用"每条 HTTP stream 闭包独占解析器 + 线程安全队列回传帧" | 消除共享解析器成员,让旧流/新流解析器自然隔离 |
+| 2026-06-15 | 当前成品帧回传保持 `AsyncTask(GameThread, ...)`,不引入双缓冲队列 | push stream 是低频事件流,双缓冲吞吐优势用不上;AsyncTask 延迟更直接、维护成本更低 |
+| 2026-06-15 | 仅当单帧 push frame 经常超过几十条或 profiler 显示 task 调度成为可见开销时,再评估 SPSC/double-buffer | 用性能数据触发复杂度升级,避免为非热路径过度设计 |
