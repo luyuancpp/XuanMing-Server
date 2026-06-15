@@ -38,11 +38,20 @@ spec:
         spec:
           containers:
             - name: pandora-battle-ds
-              image: us-docker.pkg.dev/agones-images/examples/simple-game-server:0.37
+              # Pandora 战斗 DS（UE Linux Dedicated Server）。
+              # 由 Tool/Server/Agones/build-linux-ds.ps1 + build-image.sh 产出镜像；push 由人手动执行，按实际 registry 覆盖。
+              # Agones 自动注入 SDK sidecar；DS 内 UPandoraAgonesSubsystem 走 sidecar HTTP 调 Ready/Health/Shutdown。
+              image: pandora/battle-ds:dev
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: PANDORA_DS_PORT
+                  value: "7777"
+                - name: PANDORA_DS_MAP
+                  value: "/Game/Entry/Entry"
               resources:
                 requests:
-                  cpu: 50m
-                  memory: 64Mi
+                  cpu: "1"
+                  memory: 1Gi
                 limits:
-                  cpu: 100m
-                  memory: 128Mi
+                  cpu: "2"
+                  memory: 2Gi

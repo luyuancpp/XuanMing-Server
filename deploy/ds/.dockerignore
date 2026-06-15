@@ -1,0 +1,3 @@
+# 打包产物 / 大文件不进 docker build context（context 是本目录）。
+*.md
+# stage/ 是唯一要进镜像的内容，显式保留；其它忽略由上面规则覆盖。

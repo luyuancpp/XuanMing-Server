@@ -104,7 +104,7 @@ F:/work/Pandora/
    ```
 2. 与 `prev-summary.txt` 二维对比,写进 `round-N-vs-N-1.md`
 3. 贴决策行 + 更新 `docs/design/pandora-arch.md` §11
-4. 更新 `CLAUDE.md` §7
+4. 更新 `PROGRESS.md`
 5. **压期间不上传日志,只上传 summary 表格**
 
 ### 4.4 完成清单
@@ -119,7 +119,7 @@ F:/work/Pandora/
 [ ] summarize.ps1 输出五段表
 [ ] 对比表已写
 [ ] 决策行已贴
-[ ] CLAUDE.md §7 已更新
+[ ] PROGRESS.md 已更新
 ```
 
 **漏一项重来**。

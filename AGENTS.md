@@ -60,7 +60,7 @@
 
 所有架构 / 玩法 / 性能决策必须写到:
 
-- 大决策 → `CLAUDE.md` §7(决策行)+ `docs/design/pandora-arch.md` §11
+- 大决策 → `docs/design/pandora-arch.md` §11
 - 服务级 → `docs/design/<service>.md`
 - 压测结果 → `docs/design/stress-<round>-*.md`
 - 进度 → `PROGRESS.md`(每周追加,不删旧的)

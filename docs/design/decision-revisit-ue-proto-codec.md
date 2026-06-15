@@ -2,7 +2,7 @@
 
 > 状态:**已拍板(2026-06-09 人确认采纳)** —— 采用方案 A 中间路线,protobuf **v35.0**,**源码随 UE(UBT)构建**。
 > 提出人:Claude(Opus)/ 2026-06-09
-> 关联决策:CLAUDE.md §7 `UE 仓库 | 2026-06-08`「gRPC-Web 客户端 C++ 骨架(FHttpModule 自研,**客户端零额外依赖**):`FPandoraProtoWriter/Reader`(极简 protobuf wire codec)」
+> 关联决策:`docs/design/pandora-arch.md` §11 与 `PROGRESS.md` 中 2026-06-08 UE 客户端 gRPC-Web 骨架记录。
 
 ---
 
@@ -106,7 +106,7 @@
 - **风险**:跨平台(尤其主机/移动)protobuf 工具链可能有坑 → 先只保 Win64,逐平台补。
 - **回退**:若某平台 protobuf 实在链不进,可退守「**用 proto codegen 自动生成 UE 友好序列化器**」
   (仍以 proto 为真相源,但生成而非手写)——比当前手写强,作为 B 计划保留。
-- 决策一旦拍板,更新 CLAUDE.md §7(复议行)+ 本文状态,并在 UE 仓库 README 记录 ThirdParty 约定。
+- 决策一旦拍板,更新 `docs/design/pandora-arch.md` §11 + 本文状态,并在 UE 仓库 README 记录 ThirdParty 约定。
 
 ## 7. 拍板记录(2026-06-09 人确认)
 
