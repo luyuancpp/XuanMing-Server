@@ -54,7 +54,7 @@ hub:
   # assignment_ttl: 玩家→分片归属 Redis key TTL(每次 Assign/Transfer 刷新)
   assignment_ttl: "30m"
   # default_region: AssignHub 未指定 region 时的兜底分区
-  default_region: "global"
+  default_region: "cn"
   # default_capacity: 单分片人数上限(大厅 500 人/实例)
   default_capacity: 500
   # autoscale_enabled: Hub Fleet 自动扩缩容。

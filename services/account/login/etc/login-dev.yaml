@@ -82,4 +82,4 @@ login:
   # region 空 → 让 hub_allocator 选最空分片。
   hub:
     addr: "127.0.0.1:50021"
-    region: ""
+    region: "cn"
