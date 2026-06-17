@@ -59,11 +59,11 @@ allocator:
 #    (kubectl proxy 端口、临时 token 文件路径都随机),**不要提交进仓库**。
 #    本机联调请改本地 ignored 配置或临时覆盖,示例见 deploy/k8s/agones/README.md。
 agones:
-  enabled: false
-  # api_server: "https://127.0.0.1:8443"        # 本机 minikube apiserver(每台机端口不同)
+  enabled: true
+  api_server: "https://127.0.0.1:61863"        # 本机 minikube apiserver(每台机端口不同)
   namespace: "default"
   fleet_name: "pandora-battle"
-  # token_path: "/path/to/allocator.token"      # 本机 ServiceAccount token(每台机路径不同)
+  token_path: "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\pandora-allocator.token"      # 本机 ServiceAccount token(每台机路径不同)
   # ca_path: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"     # in-cluster 默认
   insecure_skip_tls_verify: true   # 仅 dev
   allocate_timeout: "5s"
