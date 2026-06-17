@@ -1,0 +1,37 @@
+# Pandora data_service 服务开发期配置(2026-06-16)。
+#
+# - gRPC :50003 / HTTP :51003(仅 /metrics)
+# - 内网数据网关(不经 Envoy,不直接暴露给玩家)
+# - MySQL 强依赖(pandora_player 库 player_data 版本化 blob,事实源)
+# - Redis 弱依赖(cache-aside 旁路缓存,Ping 失败降级直连 MySQL)
+# - 不接 kafka
+# - dev: enable_reflection=true 便于 grpcurl 联调
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50003"
+    timeout: "15s"
+    enable_reflection: true
+  http:
+    network: tcp
+    addr: ":51003"
+
+node:
+  zone_id: 1
+  mysql_client:
+    # pandora_player 库(player_data 表见 deploy/mysql-init/07-data-tables.sql)
+    dsn: "pandora:pandora_dev_pwd@tcp(127.0.0.1:3307)/pandora_player?parseTime=true&loc=UTC&charset=utf8mb4&collation=utf8mb4_0900_ai_ci"
+    max_open_conns: 32
+    max_idle_conns: 8
+    conn_max_lifetime: "30m"
+  redis_client:
+    host: "127.0.0.1:6380"
+    db: 0
+    dial_timeout: "2s"
+    read_timeout: "1s"
+    write_timeout: "1s"
+
+data:
+  # cache_ttl: Redis 缓存条目存活时长(读 miss 回填按此 TTL)
+  cache_ttl: "5m"

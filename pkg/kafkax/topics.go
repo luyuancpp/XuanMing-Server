@@ -74,12 +74,34 @@ const (
 //
 // W3 ④ 启用 team.update / match.progress / chat.private;
 // 2026-06-15 friend 服务上线,补 friend.event(好友请求 / 接受推送)。
+// 2026-06-16 chat 三频道补全:加 chat.team(队伍)/ chat.world(世界广播),
+// 让队伍聊天和世界聊天也被 push 消费(此前只订阅 chat.private,team/world 消息丢失)。
 // 后续 player.update / system.notify Event message 落地后,
 // 在对应业务服 PR 里把常量加进本切片,push etc yaml 同步加 topics。
 var PushTopics = []string{
 	TopicTeamUpdate,
 	TopicMatchProgress,
 	TopicChatPrivate,
+	TopicChatTeam,
+	TopicChatWorld,
 	TopicHubMigrate,
 	TopicFriendEvent,
+}
+
+// BroadcastTopics 是「广播类」push topic 集合:这些 topic 的 kafka key 为空(广播语义),
+// push 消费侧必须走 ConnectionManager.Broadcast 给全部在线玩家,而**不能**按 player_id key 解析
+// (空 key ParseUint 会失败被当 invalid key ack 丢弃)。
+//
+// 目前包含 chat.world(世界聊天)/ system.notify(系统公告)。
+// 其余 topic(team.update / match.progress / chat.private / chat.team / friend.event / hub.migrate)
+// 都是 per-player 定向推送,key=player_id,走 SendTo。
+var BroadcastTopics = map[string]struct{}{
+	TopicChatWorld:    {},
+	TopicSystemNotify: {},
+}
+
+// IsBroadcastTopic 判断一个 topic 是否为广播类(走 Broadcast 而非 SendTo)。
+func IsBroadcastTopic(topic string) bool {
+	_, ok := BroadcastTopics[topic]
+	return ok
 }

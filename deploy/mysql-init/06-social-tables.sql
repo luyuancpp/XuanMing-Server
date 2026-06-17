@@ -52,3 +52,19 @@ CREATE TABLE IF NOT EXISTS `blocks` (
     KEY `idx_player` (`player_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   COMMENT='Pandora 黑名单';
+
+-- chat 服务私聊历史(2026-06-16)。
+--   只有私聊(PRIVATE)落库支持离线 PullHistory;世界 / 队伍是即时频道,不持久化。
+--   message_id PK = snowflake(uint64);按收发双方 + 时间倒序查历史。
+--   content 是结构化列(CLAUDE.md §5.9 关系型表不强制 proto bytes blob)。
+CREATE TABLE IF NOT EXISTS `chat_private_messages` (
+    `message_id`   BIGINT UNSIGNED NOT NULL COMMENT 'snowflake 消息 ID(uint64)',
+    `sender_id`    BIGINT UNSIGNED NOT NULL COMMENT '发送方玩家',
+    `receiver_id`  BIGINT UNSIGNED NOT NULL COMMENT '接收方玩家',
+    `content`      VARCHAR(512)    NOT NULL COMMENT '消息内容(服务端已校验长度 + 敏感词)',
+    `send_time_ms` BIGINT          NOT NULL COMMENT '发送时间(毫秒,排序 / 翻页游标)',
+    PRIMARY KEY (`message_id`),
+    KEY `idx_pair_time` (`sender_id`, `receiver_id`, `send_time_ms`),
+    KEY `idx_receiver_time` (`receiver_id`, `send_time_ms`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  COMMENT='Pandora 私聊历史(离线 PullHistory)';

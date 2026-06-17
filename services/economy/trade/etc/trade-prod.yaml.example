@@ -1,0 +1,41 @@
+# Pandora trade 服务生产配置模板(2026-06-16)。
+#
+# 真实部署时复制为 trade-prod.yaml 并按集群实际地址 / 密码填写,**不要提交真实密码到 git**。
+# - gRPC :50012 / HTTP :51012(仅 /metrics)
+# - prod: enable_reflection 不写(零值 false,关 reflection 减少攻击面)
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50012"
+    timeout: "3s"
+  http:
+    network: tcp
+    addr: ":51012"
+
+node:
+  zone_id: 1
+  redis_client:
+    host: "redis:6379"
+    password: "__REPLACE_WITH_SECRET__"
+    db: 0
+    dial_timeout: "2s"
+    read_timeout: "1s"
+    write_timeout: "1s"
+
+kafka:
+  brokers: ["kafka:9092"]
+  dial_timeout: "2s"
+  write_timeout: "5s"
+  idempotent: true
+
+snowflake:
+  epoch: 1773446400
+  node_bits: 17
+  step_bits: 15
+
+trade:
+  order_ttl: "10m"
+  order_expire: "5m"
+  optimistic_retry: 3
+  max_items_per_order: 20

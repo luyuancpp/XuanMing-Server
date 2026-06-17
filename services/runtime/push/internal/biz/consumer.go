@@ -34,27 +34,41 @@ type FrameSender interface {
 	SendTo(playerID uint64, frame *pushv1.PushFrame) (online bool, err error)
 }
 
+// FrameBroadcaster 抽象 ConnectionManager.Broadcast(广播类 topic 用,便于单测注入)。
+type FrameBroadcaster interface {
+	Broadcast(frame *pushv1.PushFrame) (sent int, failed int)
+}
+
+// FrameRouter 是 SendTo + Broadcast 的并集;ConnectionManager 同时满足两者。
+// KafkaConsumer 按 topic 是否广播类选择 SendTo / Broadcast。
+type FrameRouter interface {
+	FrameSender
+	FrameBroadcaster
+}
+
 // KafkaConsumer 包装一个 topic 的消费循环。
 type KafkaConsumer struct {
-	topic    string
-	cm       FrameSender
-	offline  data.OfflineCacheRepo
-	consumer *kafkax.KeyOrderedConsumer
+	topic     string
+	broadcast bool // 广播类 topic(chat.world / system.notify):走 cm.Broadcast,不按 player_id key 解析
+	cm        FrameRouter
+	offline   data.OfflineCacheRepo
+	consumer  *kafkax.KeyOrderedConsumer
 }
 
 // NewKafkaConsumer 构造但不启动;调用 Start() 才开始消费。
 //
 // brokers / groupID / partitionCnt 由 cfg.Kafka 提供。
+// 广播类 topic(kafkax.IsBroadcastTopic)在 handle 里走 cm.Broadcast,不依赖 player_id key。
 func NewKafkaConsumer(
 	brokers []string,
 	groupID string,
 	topic string,
 	partitionCnt int32,
-	cm FrameSender,
+	cm FrameRouter,
 	offline data.OfflineCacheRepo,
 ) (*KafkaConsumer, error) {
 	if cm == nil {
-		return nil, errors.New("FrameSender must not be nil")
+		return nil, errors.New("FrameRouter must not be nil")
 	}
 	if offline == nil {
 		return nil, errors.New("OfflineCacheRepo must not be nil")
@@ -63,7 +77,7 @@ func NewKafkaConsumer(
 		return nil, errors.New("topic must not be empty")
 	}
 
-	kc := &KafkaConsumer{topic: topic, cm: cm, offline: offline}
+	kc := &KafkaConsumer{topic: topic, broadcast: kafkax.IsBroadcastTopic(topic), cm: cm, offline: offline}
 
 	c, err := kafkax.NewKeyOrderedConsumer(kafkax.ConsumerConfig{
 		Brokers:        brokers,
@@ -98,6 +112,23 @@ func (k *KafkaConsumer) Close() error { return k.consumer.Close() }
 // 修复"redis down → 静默丢消息"的隐患。
 func (k *KafkaConsumer) handle(ctx context.Context, msg *sarama.ConsumerMessage) error {
 	h := plog.With(ctx)
+
+	// 广播类 topic(chat.world / system.notify):key 为空,给全部在线玩家 Broadcast。
+	// 不写离线缓存(广播无 per-player 归属;离线玩家重连后不补推全服广播,避免历史公告刷屏)。
+	if k.broadcast {
+		frame := &pushv1.PushFrame{
+			Topic:   msg.Topic,
+			Payload: msg.Value,
+			TsMs:    msg.Timestamp.UnixMilli(),
+			TraceId: headerStr(msg.Headers, "trace_id"),
+		}
+		sent, failed := k.cm.Broadcast(frame)
+		if failed > 0 {
+			h.Warnw("msg", "push_broadcast_partial_failed",
+				"topic", msg.Topic, "sent", sent, "failed", failed)
+		}
+		return nil
+	}
 
 	// 1. 取 player_id(不变量 §9:key 必须是 player_id 序列化字符串)
 	playerID, err := strconv.ParseUint(string(msg.Key), 10, 64)
@@ -160,5 +191,8 @@ func headerStr(headers []*sarama.RecordHeader, key string) string {
 	return ""
 }
 
-// 让 *ConnectionManager 自动满足 FrameSender(编译期检查)。
-var _ FrameSender = (*ConnectionManager)(nil)
+// 让 *ConnectionManager 自动满足 FrameSender / FrameRouter(编译期检查)。
+var (
+	_ FrameSender = (*ConnectionManager)(nil)
+	_ FrameRouter = (*ConnectionManager)(nil)
+)

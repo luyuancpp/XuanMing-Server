@@ -54,14 +54,18 @@ allocator:
 # W4 ⑫: 真 Agones GameServerAllocation 配置。
 # dev 默认 enabled=false 走 Mock(本机无 k8s/Agones 也能跑 ds_allocator)。
 # 上集群时置 enabled=true + fleet_name;in-cluster 下 api_server/token_path/ca_path 可留空用默认。
+#
+# ⚠️ 本机 minikube + Agones 联调时,api_server / token_path 是「每台机各异的临时值」
+#    (kubectl proxy 端口、临时 token 文件路径都随机),**不要提交进仓库**。
+#    本机联调请改本地 ignored 配置或临时覆盖,示例见 deploy/k8s/agones/README.md。
 agones:
   enabled: false
-  # api_server: "https://kubernetes.default.svc"   # in-cluster 默认
-  # namespace: "default"
+  # api_server: "https://127.0.0.1:8443"        # 本机 minikube apiserver(每台机端口不同)
+  namespace: "default"
   fleet_name: "pandora-battle"
-  # token_path: "/var/run/secrets/kubernetes.io/serviceaccount/token"  # in-cluster 默认;"-" 禁用
+  # token_path: "/path/to/allocator.token"      # 本机 ServiceAccount token(每台机路径不同)
   # ca_path: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"     # in-cluster 默认
-  # insecure_skip_tls_verify: false   # 仅 dev
+  insecure_skip_tls_verify: true   # 仅 dev
   allocate_timeout: "5s"
 
 # 本机拉起 Windows Dedicated Server 调试模式(与 agones 并列的第二种 DS 启动方式)。

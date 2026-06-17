@@ -31,6 +31,10 @@ use ./services/account/player
 
 use ./services/social/friend
 
+use ./services/social/chat
+
+use ./services/social/dialogue
+
 use ./services/runtime/push
 
 use ./services/runtime/player_locator
@@ -44,6 +48,10 @@ use ./services/battle/ds_allocator
 use ./services/battle/hub_allocator
 
 use ./services/battle/battle_result
+
+use ./services/economy/trade
+
+use ./services/data/data_service
 
 // ⚠️ 构建验证:仓库根没有 go.mod,不能在根目录跑 go build ./...
 // 正确做法:按 use 列表构建,例如 go build ./pkg/...

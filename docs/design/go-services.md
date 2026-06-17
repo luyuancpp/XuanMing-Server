@@ -14,14 +14,14 @@
 |---|---|---|---|---|---|---|
 | 1 | login | 50001 | 无 | mysql + redis | (生产 login.event) | ✅ W2 ③(mock,W3 接 mysql/redis) |
 | 2 | player | 50002 | 无 | mysql + redis | player.update | ✅ W4 ④(MMR 写回 + GetMMR reader) |
-| 3 | data_service | 50003 | 无 | mysql + redis | (写穿层) | ⏸️ UE 主链路后再评估(当前 player 已先直连 MySQL) |
+| 3 | data_service | 50003 | 无 | mysql + redis | (写穿层) | ✅ 2026-06-16(player_data 版本化 blob + cache-aside 网关,内网) |
 | 4 | friend | 50004 | 弱(friend.event 推送) | mysql | pandora.friend.event | ✅ 2026-06-15(好友请求/接受/列表/拉黑 + locator 在线状态) |
-| 5 | chat | 50005 | 弱 | redis pub/sub | chat.world | 🧊 暂缓到最后(UE + 核心链路完成后再做) |
+| 5 | chat | 50005 | 弱 | mysql(私聊历史)+ kafka | chat.{world,team,private} | ✅ 2026-06-16(三频道 + 内容校验 + 私聊落库 + team fan-out) |
 | 6 | player_locator | 50006 | 强 | redis | locator.update | ✅ W3 ⑤(W4 ⑦ matchmaker 上报 MATCHING/BATTLE) |
 | 7 | team | 50010 | 强 | redis | - | ✅ W3 ⑦ |
 | 8 | matchmaker | 50011 | 强 | redis | (生产 match.found) | ✅ W4 ①(W4 ⑦ 接 locator 串 MATCHING/BATTLE) |
-| 9 | trade | 50012 | 强 | redis + mysql | trade.audit | ⏸️ UE 主链路后(非当前阻塞项) |
-| 10 | dialogue | 50013 | 无 | mysql / 配置中心 | - | ⏸️ UE 主链路后(先可用 UE/配置占位) |
+| 9 | trade | 50012 | 强 | redis | trade.audit | ✅ 2026-06-16(两阶段确认订单状态机 + 乐观锁 + 结算幂等键 + 审计) |
+| 10 | dialogue | 50013 | 无 | 配置驱动(内存,留 mysql hook) | - | ✅ 2026-06-16(配置对话树 + 内存会话状态机 Start/Choose/End) |
 | 11 | ds_allocator | 50020 | 弱 | redis (+k8s) | (生产 ds.lifecycle) | ✅ W4 ②(Mock 分配器,W4 ③ 发 abandoned,W4 ⑧ abandoned 可靠补偿,W4 ⑫ 真 Agones REST allocator) |
 | 12 | hub_allocator | 50021 | 弱 | redis (+k8s) | (生产 ds.lifecycle) | ✅ W4 ⑤ + 自动扩缩容(2026-06-15:按在线人数控 Agones Fleet 副本) |
 | 13 | battle_result | 50022 | 无 | mysql | battle.result + ds.lifecycle | ✅ W4 ③(幂等落库 + Elo MMR + abandoned 补偿),W4 ⑨(player.update 事务出箱可靠化) |
@@ -272,9 +272,11 @@ ChooseOption(player_id, dialogue_id, option_id) → DialogueState
 EndDialogue(player_id, dialogue_id) → ok
 ```
 
-**对话树存储**:配置中心 / mysql `dialogue_trees` 表(json blob)
+**对话树存储**:当前最小版本对话树内联在 `dialogue-dev.yaml`(配置驱动,`ConfigTreeProvider` 内存只读);后续接配置中心 / mysql `dialogue_trees` 表(json blob)只换 `TreeProvider` 实现,biz/service 不动。
 
-**MOBA 早期**:简单 if-else 即可,不上行为树
+**会话状态机**:`StartDialogue` 服务端分配 `dialogue_id` 建会话 → `ChooseOption` 按 `option_id` 推进节点 → `EndDialogue` 关闭;当前 `MemorySessionStore` 单实例内存会话(`session_ttl` 默认 5m),多实例部署改 `SessionStore` 接 Redis,biz/service 不动。
+
+**MOBA 早期**:简单 if-else 即可,不上行为树。对话选项当前无副作用(领奖励 / 改任务等留后续接 trade / player 服务,届时在服务端权威判定 `visible` 前置条件)。
 
 ---
 

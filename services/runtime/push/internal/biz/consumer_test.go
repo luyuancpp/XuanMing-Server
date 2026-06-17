@@ -27,6 +27,10 @@ type mockSender struct {
 	frames map[uint64]*pushv1.PushFrame
 	online map[uint64]bool
 	sendEr error
+
+	broadcastFrames []*pushv1.PushFrame
+	broadcastSent   int
+	broadcastFailed int
 }
 
 func newMockSender() *mockSender {
@@ -47,6 +51,13 @@ func (m *mockSender) SendTo(playerID uint64, frame *pushv1.PushFrame) (bool, err
 	}
 	m.frames[playerID] = frame
 	return true, nil
+}
+
+func (m *mockSender) Broadcast(frame *pushv1.PushFrame) (sent int, failed int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.broadcastFrames = append(m.broadcastFrames, frame)
+	return m.broadcastSent, m.broadcastFailed
 }
 
 type mockOffline struct {
@@ -81,7 +92,7 @@ func (o *mockOffline) Range(_ context.Context, playerID uint64, _ int64) ([]data
 
 // =============== helpers ===============
 
-func makeConsumer(t *testing.T, sender FrameSender, offline data.OfflineCacheRepo) *KafkaConsumer {
+func makeConsumer(t *testing.T, sender FrameRouter, offline data.OfflineCacheRepo) *KafkaConsumer {
 	t.Helper()
 	// 不调 NewKafkaConsumer(会拨号 broker);直接构造 struct,只用于 handle 测试
 	return &KafkaConsumer{
@@ -209,5 +220,36 @@ func TestKafkaConsumer_HandleOfflineFail(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "redis dial timeout") {
 		t.Fatalf("err should wrap original cause, got=%v", err)
+	}
+}
+
+// 用例 6(chat 三频道补全):广播类 topic(chat.world)空 key → 走 Broadcast,
+// 不按 player_id 解析(空 key 不会被当 invalid key 丢弃),也不写离线缓存。
+func TestKafkaConsumer_HandleBroadcastWorld(t *testing.T) {
+	sender := newMockSender()
+	sender.broadcastSent = 3 // 模拟 3 个在线玩家收到
+	offline := newMockOffline()
+	kc := makeConsumer(t, sender, offline)
+	kc.topic = "pandora.chat.world"
+	kc.broadcast = true
+
+	// 世界聊天是空 key 广播;旧逻辑会 ParseUint("") 失败丢弃。
+	msg := makeMsg("pandora.chat.world", "", []byte("world-chat-bytes"), "trace-world")
+	if err := kc.handle(context.Background(), msg); err != nil {
+		t.Fatalf("handle err=%v", err)
+	}
+
+	if len(sender.broadcastFrames) != 1 {
+		t.Fatalf("expected 1 broadcast frame, got=%d", len(sender.broadcastFrames))
+	}
+	f := sender.broadcastFrames[0]
+	if f.GetTopic() != "pandora.chat.world" || string(f.GetPayload()) != "world-chat-bytes" {
+		t.Fatalf("broadcast frame=%+v", f)
+	}
+	if len(sender.frames) != 0 {
+		t.Fatalf("broadcast must not call SendTo, got=%+v", sender.frames)
+	}
+	if len(offline.appended) != 0 {
+		t.Fatalf("broadcast must not write offline, got=%+v", offline.appended)
 	}
 }

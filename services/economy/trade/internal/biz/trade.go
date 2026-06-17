@@ -1,0 +1,309 @@
+// Package biz 是 trade 服务的业务逻辑层(2026-06-16)。
+//
+// 职责(docs/design/go-services.md §2.12):
+//   - 玩家间交易两阶段确认状态机
+//   - 订单存 Redis(data.TradeRepo,WATCH/MULTI/EXEC 乐观锁)
+//   - 结算走 ResourceLedger 原子扣减 + 幂等键 = order_id(不变量 §9.7)
+//   - 每次状态流转把订单快照发 kafka pandora.trade.audit(弱依赖,审计)
+//
+// 状态机(OrderState):
+//
+//	PENDING ──买方确认──▶ BUYER_CONFIRMED ──卖方确认+结算──▶ COMPLETED
+//	   │                       │
+//	   └──任一方 Cancel────────┴────▶ CANCELED
+//	   └──超时(惰性)──────────────▶ EXPIRED
+//	结算扣减失败 ───────────────────▶ FAILED
+//
+// 关键规则:
+//   - 卖方挂单(CreateOrder),买方先确认,卖方后确认触发结算(双确认防单方面成交)
+//   - 任一方可在终态前 Cancel
+//   - 过期惰性判定:访问订单时若已过 expires_at_ms 且非终态 → 置 EXPIRED
+//   - player_id 一律以 JWT ctx 为准(R5),service 层注入
+package biz
+
+import (
+	"context"
+	"time"
+
+	"github.com/luyuancpp/pandora/pkg/errcode"
+	plog "github.com/luyuancpp/pandora/pkg/log"
+	tradev1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/trade/v1"
+
+	"github.com/luyuancpp/pandora/services/economy/trade/internal/conf"
+	"github.com/luyuancpp/pandora/services/economy/trade/internal/data"
+)
+
+// ResourceLedger 抽象「原子扣减交易双方资源 + 幂等」的账本操作(不变量 §9.7)。
+//
+// Settle 在卖方确认、订单进入 COMPLETED 前调用:把卖方物品转给买方、买方货币转给卖方,
+// idempotencyKey = order_id 保证同一订单重复结算只生效一次。
+// 返回 ErrTradeInsufficient 表示余额 / 物品不足,biz 将订单置 FAILED。
+//
+// W1 暂用 NoopResourceLedger 占位(总是成功);真实账本接 player / 背包服务后替换。
+type ResourceLedger interface {
+	Settle(ctx context.Context, order *tradev1.Order, idempotencyKey uint64) error
+}
+
+// NoopResourceLedger 是占位实现:总是结算成功。
+// 真实资源扣减(背包 / 货币原子事务 + 幂等键)接入前先让交易闭环可联调。
+type NoopResourceLedger struct{}
+
+// Settle 永远成功(占位)。
+func (NoopResourceLedger) Settle(_ context.Context, _ *tradev1.Order, _ uint64) error { return nil }
+
+// TradeAuditPusher 把订单流转快照发 kafka pandora.trade.audit(main.go 注入;弱依赖,nil 静默)。
+type TradeAuditPusher interface {
+	PushAudit(ctx context.Context, order *tradev1.Order) error
+}
+
+// snowflakeGen 是 snowflake.Node 的最小接口。
+type snowflakeGen interface {
+	Generate() uint64
+}
+
+// TradeUsecase 是 trade 服务业务逻辑核心。
+type TradeUsecase struct {
+	repo   data.TradeRepo
+	ledger ResourceLedger
+	audit  TradeAuditPusher // 弱依赖,可为 nil
+	sf     snowflakeGen
+	cfg    conf.TradeConf
+}
+
+// NewTradeUsecase 构造。ledger 为 nil 时退化为 NoopResourceLedger;audit 允许 nil。
+func NewTradeUsecase(repo data.TradeRepo, ledger ResourceLedger, audit TradeAuditPusher, sf snowflakeGen, cfg conf.TradeConf) *TradeUsecase {
+	if ledger == nil {
+		ledger = NoopResourceLedger{}
+	}
+	if cfg.OptimisticRetry <= 0 {
+		cfg.OptimisticRetry = 3
+	}
+	if cfg.MaxItemsPerOrder <= 0 {
+		cfg.MaxItemsPerOrder = 20
+	}
+	return &TradeUsecase{repo: repo, ledger: ledger, audit: audit, sf: sf, cfg: cfg}
+}
+
+// CreateOrder 卖方挂单。sellerID 由 service 从 JWT ctx 得到(R5)。
+func (u *TradeUsecase) CreateOrder(ctx context.Context, sellerID, buyerID uint64, items []*tradev1.TradeItem, price int64) (uint64, error) {
+	if sellerID == 0 || buyerID == 0 {
+		return 0, errcode.New(errcode.ErrInvalidArg, "seller / buyer required")
+	}
+	if sellerID == buyerID {
+		return 0, errcode.New(errcode.ErrInvalidArg, "cannot trade with self")
+	}
+	if len(items) == 0 {
+		return 0, errcode.New(errcode.ErrInvalidArg, "items required")
+	}
+	if len(items) > u.cfg.MaxItemsPerOrder {
+		return 0, errcode.New(errcode.ErrInvalidArg, "too many items: %d > %d", len(items), u.cfg.MaxItemsPerOrder)
+	}
+	for _, it := range items {
+		if it.GetItemUid() == "" || it.GetCount() <= 0 {
+			return 0, errcode.New(errcode.ErrInvalidArg, "invalid item: uid=%q count=%d", it.GetItemUid(), it.GetCount())
+		}
+	}
+	if price < 0 {
+		return 0, errcode.New(errcode.ErrInvalidArg, "price must be >= 0")
+	}
+
+	now := nowMs()
+	order := &tradev1.Order{
+		OrderId:     u.sf.Generate(),
+		SellerId:    sellerID,
+		BuyerId:     buyerID,
+		Items:       items,
+		Price:       price,
+		State:       tradev1.OrderState_ORDER_STATE_PENDING,
+		CreatedAtMs: now,
+		ExpiresAtMs: now + int64(u.cfg.OrderExpire.Std()/time.Millisecond),
+	}
+	if err := u.repo.CreateOrder(ctx, order, u.cfg.OrderTTL.Std()); err != nil {
+		return 0, err
+	}
+	u.pushAudit(ctx, order)
+	return order.GetOrderId(), nil
+}
+
+// ConfirmOrder 买方 / 卖方确认。两阶段:
+//   - 买方 + PENDING → BUYER_CONFIRMED
+//   - 卖方 + BUYER_CONFIRMED → 结算 → COMPLETED(结算失败 → FAILED 并返错)
+//
+// 返回最新状态。playerID 由 service 从 JWT ctx 得到(R5)。
+func (u *TradeUsecase) ConfirmOrder(ctx context.Context, playerID, orderID uint64) (tradev1.OrderState, error) {
+	if playerID == 0 || orderID == 0 {
+		return tradev1.OrderState_ORDER_STATE_UNSPECIFIED, errcode.New(errcode.ErrInvalidArg, "player / order required")
+	}
+
+	var settled *tradev1.Order // 进入 COMPLETED 时记录,用于事务后 audit
+	var expired bool           // 惰性过期:置 EXPIRED 并持久化,事务后返回 ErrTradeOrderExpired
+	err := u.repo.UpdateWithLock(ctx, orderID, u.cfg.OptimisticRetry, func(o *tradev1.Order) error {
+		if expireIfStale(o) {
+			// 访问订单时惰性置 EXPIRED:返回 nil 让 UpdateWithLock 把 EXPIRED 写回 Redis
+			// (此前返回 error → fn 报错不写回,订单状态停留在旧值,过期态永远落不了库)。
+			expired = true
+			return nil
+		}
+		if playerID != o.GetSellerId() && playerID != o.GetBuyerId() {
+			return errcode.New(errcode.ErrUnauthorized, "player %d not party of order %d", playerID, orderID)
+		}
+
+		switch {
+		case playerID == o.GetBuyerId() && o.GetState() == tradev1.OrderState_ORDER_STATE_PENDING:
+			o.State = tradev1.OrderState_ORDER_STATE_BUYER_CONFIRMED
+			return nil
+		case playerID == o.GetSellerId() && o.GetState() == tradev1.OrderState_ORDER_STATE_BUYER_CONFIRMED:
+			// 卖方确认 → 结算(原子扣减 + 幂等键 = order_id,不变量 §9.7)。
+			// 结算失败时透传错误:fn 返回非 nil → UpdateWithLock 不写回,
+			// 由下方单独事务把订单置 FAILED(让双方看到失败终态)。
+			if serr := u.ledger.Settle(ctx, o, o.GetOrderId()); serr != nil {
+				return serr
+			}
+			o.State = tradev1.OrderState_ORDER_STATE_COMPLETED
+			settled = o
+			return nil
+		default:
+			return errcode.New(errcode.ErrTradeWrongState,
+				"player %d cannot confirm order %d in state %s", playerID, orderID, o.GetState())
+		}
+	}, u.cfg.OrderTTL.Std())
+
+	// 惰性过期:EXPIRED 已在锁内写回 Redis(err==nil),读回做 audit 并返回过期错误。
+	if expired && err == nil {
+		if o, ok, gerr := u.repo.GetOrder(ctx, orderID); gerr == nil && ok {
+			u.pushAudit(ctx, o)
+		}
+		return tradev1.OrderState_ORDER_STATE_EXPIRED,
+			errcode.New(errcode.ErrTradeOrderExpired, "order %d expired", orderID)
+	}
+
+	// 结算失败(余额 / 物品不足):把订单从 BUYER_CONFIRMED 推到 FAILED 终态并 audit。
+	if err != nil && errcode.As(err) == errcode.ErrTradeInsufficient {
+		_ = u.repo.UpdateWithLock(ctx, orderID, u.cfg.OptimisticRetry, func(o *tradev1.Order) error {
+			if o.GetState() == tradev1.OrderState_ORDER_STATE_BUYER_CONFIRMED {
+				o.State = tradev1.OrderState_ORDER_STATE_FAILED
+			}
+			return nil
+		}, u.cfg.OrderTTL.Std())
+		if o, ok, gerr := u.repo.GetOrder(ctx, orderID); gerr == nil && ok {
+			u.pushAudit(ctx, o)
+		}
+		return tradev1.OrderState_ORDER_STATE_FAILED, err
+	}
+	if err != nil {
+		return tradev1.OrderState_ORDER_STATE_UNSPECIFIED, err
+	}
+
+	// 读回最新状态做 audit + 返回。
+	o, ok, gerr := u.repo.GetOrder(ctx, orderID)
+	if gerr != nil || !ok {
+		// 写成功但读回失败:返回我们已知的推进结果(settled 或 buyer_confirmed)。
+		if settled != nil {
+			u.pushAudit(ctx, settled)
+			return tradev1.OrderState_ORDER_STATE_COMPLETED, nil
+		}
+		return tradev1.OrderState_ORDER_STATE_BUYER_CONFIRMED, nil
+	}
+	u.pushAudit(ctx, o)
+	return o.GetState(), nil
+}
+
+// CancelOrder 任一方在终态前取消订单。playerID 由 service 从 JWT ctx 得到(R5)。
+func (u *TradeUsecase) CancelOrder(ctx context.Context, playerID, orderID uint64) error {
+	if playerID == 0 || orderID == 0 {
+		return errcode.New(errcode.ErrInvalidArg, "player / order required")
+	}
+	err := u.repo.UpdateWithLock(ctx, orderID, u.cfg.OptimisticRetry, func(o *tradev1.Order) error {
+		if playerID != o.GetSellerId() && playerID != o.GetBuyerId() {
+			return errcode.New(errcode.ErrUnauthorized, "player %d not party of order %d", playerID, orderID)
+		}
+		if isTerminal(o.GetState()) {
+			return errcode.New(errcode.ErrTradeWrongState, "order %d already terminal: %s", orderID, o.GetState())
+		}
+		o.State = tradev1.OrderState_ORDER_STATE_CANCELED
+		return nil
+	}, u.cfg.OrderTTL.Std())
+	if err != nil {
+		return err
+	}
+	if o, ok, gerr := u.repo.GetOrder(ctx, orderID); gerr == nil && ok {
+		u.pushAudit(ctx, o)
+	}
+	return nil
+}
+
+// ListMyOrders 列玩家参与的订单(客户端可见结构 Order)。
+// activeOnly=true 时只返回非终态订单。playerID 由 service 从 JWT ctx 得到(R5)。
+func (u *TradeUsecase) ListMyOrders(ctx context.Context, playerID uint64, activeOnly bool) ([]*tradev1.Order, error) {
+	if playerID == 0 {
+		return nil, errcode.New(errcode.ErrInvalidArg, "player_id required")
+	}
+	ids, err := u.repo.ListPlayerOrderIDs(ctx, playerID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*tradev1.Order, 0, len(ids))
+	for _, id := range ids {
+		o, ok, gerr := u.repo.GetOrder(ctx, id)
+		if gerr != nil || !ok {
+			continue // 订单已过期被 Redis 回收 → 跳过
+		}
+		// 惰性过期:把已超时的非终态订单置 EXPIRED(尽力,不阻断列表)。
+		if expireIfStale(o) {
+			_ = u.repo.UpdateWithLock(ctx, id, u.cfg.OptimisticRetry, func(x *tradev1.Order) error {
+				if !isTerminal(x.GetState()) && x.GetExpiresAtMs() > 0 && nowMs() >= x.GetExpiresAtMs() {
+					x.State = tradev1.OrderState_ORDER_STATE_EXPIRED
+				}
+				return nil
+			}, u.cfg.OrderTTL.Std())
+		}
+		if activeOnly && isTerminal(o.GetState()) {
+			continue
+		}
+		out = append(out, o)
+	}
+	return out, nil
+}
+
+// ── 辅助 ──────────────────────────────────────────────────────────────────────
+
+// expireIfStale 若订单已过 expires_at_ms 且非终态,就地把状态改为 EXPIRED 并返回 true。
+func expireIfStale(o *tradev1.Order) bool {
+	if isTerminal(o.GetState()) {
+		return false
+	}
+	if o.GetExpiresAtMs() > 0 && nowMs() >= o.GetExpiresAtMs() {
+		o.State = tradev1.OrderState_ORDER_STATE_EXPIRED
+		return true
+	}
+	return false
+}
+
+// isTerminal 判断订单是否已到终态(不可再流转)。
+func isTerminal(s tradev1.OrderState) bool {
+	switch s {
+	case tradev1.OrderState_ORDER_STATE_COMPLETED,
+		tradev1.OrderState_ORDER_STATE_FAILED,
+		tradev1.OrderState_ORDER_STATE_EXPIRED,
+		tradev1.OrderState_ORDER_STATE_CANCELED:
+		return true
+	default:
+		return false
+	}
+}
+
+// pushAudit 弱依赖审计推送:audit 为 nil 或失败只 warn,不影响主流程。
+func (u *TradeUsecase) pushAudit(ctx context.Context, order *tradev1.Order) {
+	if u.audit == nil {
+		return
+	}
+	if err := u.audit.PushAudit(ctx, order); err != nil {
+		plog.With(ctx).Warnw("msg", "trade_audit_push_failed",
+			"order_id", order.GetOrderId(), "state", order.GetState().String(), "err", err)
+	}
+}
+
+// nowMs 返回当前毫秒时间戳。
+func nowMs() int64 {
+	return time.Now().UnixMilli()
+}

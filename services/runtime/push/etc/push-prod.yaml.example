@@ -39,10 +39,13 @@ push:
   # 订阅 topic 列表;不填走 kafkax.PushTopics 默认,但显式列出会覆盖默认,新增 topic 必须同步补全。
   # 2026-06-15 friend 服务上线,补 pandora.friend.event。
   # 2026-06-15 hub_allocator 强制整合上线,补 pandora.hub.migrate(大厅迁移通知)。
+  # 2026-06-16 chat 三频道补全,补 pandora.chat.team(队伍)/ pandora.chat.world(世界广播)。
   topics:
     - "pandora.team.update"
     - "pandora.match.progress"
     - "pandora.chat.private"
+    - "pandora.chat.team"
+    - "pandora.chat.world"
     - "pandora.friend.event"
     - "pandora.hub.migrate"
   offline_cache_ttl: "5m"

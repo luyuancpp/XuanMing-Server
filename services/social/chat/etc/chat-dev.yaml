@@ -1,0 +1,42 @@
+# Pandora chat 服务开发期配置(2026-06-16)。
+#
+# - gRPC :50005 / HTTP :51005(仅 /metrics)
+# - MySQL 强依赖(pandora_social 库:chat_private_messages,私聊离线历史)
+# - Kafka 弱依赖(生产 pandora.chat.{world,team,private} → push 推送)
+# - team 弱依赖(队伍频道解析成员;addr 空则队伍频道降级)
+# - dev: enable_reflection=true 便于 grpcurl 联调
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50005"
+    timeout: "15s"              # demo:弱网/本机抖动下 unary RPC 放宽;prod 再按接口收紧
+    enable_reflection: true     # dev 开;prod 关(零值=false)
+  http:
+    network: tcp
+    addr: ":51005"
+
+node:
+  zone_id: 1
+  # MySQL:dev 连本机 docker mysql 的 pandora_social 库(强依赖,DSN 必填)。
+  mysql_client:
+    dsn: "pandora:pandora_dev_pwd@tcp(127.0.0.1:3307)/pandora_social?parseTime=true&loc=UTC&charset=utf8mb4&collation=utf8mb4_0900_ai_ci"
+    max_open_conns: 32
+    max_idle_conns: 8
+    conn_max_lifetime: "30m"
+    ping_timeout: "3s"
+
+kafka:
+  brokers: ["127.0.0.1:9093"]
+  group_id: "pandora-chat"
+  partition_cnt: 4
+
+chat:
+  # max_content_len: 单条消息最大字符数(utf8 rune,默认 256)
+  max_content_len: 256
+  # history_limit: PullHistory 单次返回上限(默认 50)
+  history_limit: 50
+  # team_addr: team 服务 gRPC 地址;空 → 队伍频道降级(弱依赖)
+  team_addr: "127.0.0.1:50010"
+  # sensitive_words: 敏感词列表(命中整词替换为等长 *);空 → 不过滤
+  sensitive_words: []

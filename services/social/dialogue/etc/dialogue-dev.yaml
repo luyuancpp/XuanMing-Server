@@ -1,0 +1,68 @@
+# Pandora dialogue 服务开发期配置(2026-06-16)。
+#
+# - gRPC :50013 / HTTP :51013(仅 /metrics)
+# - 无 MySQL / 无 Redis / 无 Kafka:对话树内联在本 yaml(配置驱动),会话为单实例内存
+# - dev: enable_reflection=true 便于 grpcurl 联调
+#
+# 阶段限制:内存会话不跨实例、进程重启即丢;多实例部署需把 SessionStore 换 Redis 版。
+# 对话选项当前无副作用(领奖励 / 改任务等留后续接 trade / player 服务)。
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50013"
+    timeout: "15s"              # demo:弱网/本机抖动下 unary RPC 放宽;prod 再按接口收紧
+    enable_reflection: true     # dev 开;prod 关(零值=false)
+  http:
+    network: tcp
+    addr: ":51013"
+
+node:
+  zone_id: 1
+
+dialogue:
+  # session_ttl: 单次对话会话空闲存活时间(默认 5m)
+  session_ttl: "5m"
+
+  # trees: NPC 对话树(MOBA 早期:简单 if-else,不上行为树)。
+  # 选项 visible 省略 = 可见;next_node 为空或指向不存在节点 = 结束对话。
+  trees:
+    - npc_id: 1001
+      speaker: "商店老板"
+      start_node: "greet"
+      nodes:
+        - node_id: "greet"
+          text: "欢迎光临,冒险者!需要点什么?"
+          options:
+            - option_id: "shop"
+              text: "看看你的货品"
+              next_node: "shop"
+            - option_id: "rumor"
+              text: "最近有什么新鲜事?"
+              next_node: "rumor"
+            - option_id: "bye"
+              text: "没事,告辞"
+              # next_node 省略 = 结束对话
+        - node_id: "shop"
+          text: "这把钢剑削铁如泥,要不要试试?"
+          options:
+            - option_id: "back"
+              text: "我再想想"
+              next_node: "greet"
+            - option_id: "leave"
+              text: "下次再来"
+              # 结束对话
+        - node_id: "rumor"
+          text: "听说东边山洞里有宝藏,不过也有怪物出没。"
+          # 无选项 = 终止节点,展示后对话结束
+
+    - npc_id: 1002
+      speaker: "守卫"
+      start_node: "hello"
+      nodes:
+        - node_id: "hello"
+          text: "止步!这里是禁区。"
+          options:
+            - option_id: "leave"
+              text: "抱歉,我这就走"
+              # 结束对话

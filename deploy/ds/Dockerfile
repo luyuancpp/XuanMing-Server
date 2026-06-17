@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-#
 # Pandora 战斗/大厅 DS（Linux Dedicated Server）镜像。
 # Agones Fleet 调度此镜像；Agones 会向同一 Pod 注入 sidecar（提供 SDK，端口经
 # AGONES_SDK_HTTP_PORT/AGONES_SDK_GRPC_PORT 注入），DS 进程内由
@@ -10,7 +8,8 @@
 #
 #   docker build -f deploy/ds/Dockerfile -t pandora/battle-ds:dev deploy/ds
 #
-FROM ubuntu:22.04
+ARG BASE_IMAGE=ubuntu:22.04
+FROM ${BASE_IMAGE}
 
 # UE 无头专用服务器的最小运行期依赖。
 RUN apt-get update \
@@ -35,7 +34,7 @@ USER pandora
 EXPOSE 7777/udp
 
 # 关卡 / 端口可被 K8s env 覆盖（见 entrypoint.sh）。
-ENV PANDORA_DS_MAP="/Game/Entry/Entry" \
+ENV PANDORA_DS_MAP="/Game/Entry/Level/Lvl_Server_Entry" \
     PANDORA_DS_PORT="7777"
 
 ENTRYPOINT ["/home/pandora/entrypoint.sh"]

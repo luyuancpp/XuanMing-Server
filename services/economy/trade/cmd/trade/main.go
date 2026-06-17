@@ -1,0 +1,160 @@
+// Pandora trade 服务入口(2026-06-16)。
+//
+// 职责:玩家间两阶段确认交易;订单存 Redis(强依赖);结算走 ResourceLedger
+// 原子扣减 + 幂等键 = order_id(不变量 §9.7);状态流转快照发 kafka
+// pandora.trade.audit(弱依赖,审计 / 对账)。
+//
+// 启动顺序(对齐 team):
+//  1. 解析 -conf 路径,加载 yaml
+//  2. conf.Defaults 填默认值
+//  3. log.Setup → 全局 zap logger
+//  4. Redis client + Ping(强依赖:订单状态机不可降级)
+//  5. Snowflake Node(order_id 生成)
+//  6. kafka producer(topic=pandora.trade.audit)→ tradeAuditPusher(弱依赖)
+//  7. ResourceLedger(W1 用 NoopResourceLedger 占位)
+//  8. 装配 TradeUsecase → TradeService → gRPC/HTTP server
+//  9. kratos.New(...).Run() 阻塞
+package main
+
+import (
+	"context"
+	"flag"
+	"os"
+	"path/filepath"
+	"strconv"
+	"time"
+
+	"github.com/go-kratos/kratos/v2"
+	kconfig "github.com/go-kratos/kratos/v2/config"
+	"github.com/go-kratos/kratos/v2/config/file"
+
+	"github.com/luyuancpp/pandora/pkg/config"
+	"github.com/luyuancpp/pandora/pkg/kafkax"
+	plog "github.com/luyuancpp/pandora/pkg/log"
+	"github.com/luyuancpp/pandora/pkg/redisx"
+	"github.com/luyuancpp/pandora/pkg/snowflake"
+	tradev1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/trade/v1"
+
+	"github.com/luyuancpp/pandora/services/economy/trade/internal/biz"
+	"github.com/luyuancpp/pandora/services/economy/trade/internal/conf"
+	"github.com/luyuancpp/pandora/services/economy/trade/internal/data"
+	"github.com/luyuancpp/pandora/services/economy/trade/internal/server"
+	"github.com/luyuancpp/pandora/services/economy/trade/internal/service"
+)
+
+const serviceName = "trade"
+
+var flagConf string
+
+func init() {
+	flag.StringVar(&flagConf, "conf", "etc/trade-dev.yaml", "config file path")
+}
+
+func main() {
+	flag.Parse()
+
+	// 1. Logger
+	logger := plog.Setup(serviceName)
+	helper := plog.NewHelper(logger)
+	helper.Infow("msg", "service_starting", "conf", flagConf)
+
+	// 2. 加载 yaml
+	cfgPath, err := filepath.Abs(flagConf)
+	if err != nil {
+		helper.Errorw("msg", "abs_conf_path_failed", "err", err)
+		os.Exit(1)
+	}
+	c := kconfig.New(kconfig.WithSource(file.NewSource(cfgPath)))
+	defer func() { _ = c.Close() }()
+
+	if err := c.Load(); err != nil {
+		helper.Errorw("msg", "config_load_failed", "err", err, "path", cfgPath)
+		os.Exit(1)
+	}
+
+	var cfg conf.Config
+	if err := c.Scan(&cfg); err != nil {
+		helper.Errorw("msg", "config_scan_failed", "err", err)
+		os.Exit(1)
+	}
+	cfg.Defaults()
+
+	// 3. Redis(强依赖:订单状态机不可降级)
+	rc := cfg.Node.RedisClient
+	if rc.Host == "" {
+		helper.Errorw("msg", "redis_host_required")
+		os.Exit(1)
+	}
+	rdb := redisx.NewClient(rc)
+	defer func() { _ = rdb.Close() }()
+
+	pingCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	if err := rdb.Ping(pingCtx).Err(); err != nil {
+		cancel()
+		helper.Errorw("msg", "redis_ping_failed", "err", err, "addr", rc.Host)
+		os.Exit(1)
+	}
+	cancel()
+	helper.Infow("msg", "redis_connected", "addr", rc.Host)
+
+	// 4. Snowflake(order_id 生成)
+	sf := snowflake.NewNode(uint64(cfg.Node.ZoneId))
+
+	// 5. kafka producer → tradeAuditPusher(弱依赖:broker 不通则 warn 并继续,审计静默 fail)
+	auditTopic := config.BuildTopic("trade", "audit") // pandora.trade.audit
+	var audit biz.TradeAuditPusher
+	if len(cfg.Kafka.Brokers) > 0 {
+		producer, perr := kafkax.NewKeyOrderedProducer(cfg.Kafka, auditTopic)
+		if perr != nil {
+			helper.Warnw("msg", "kafka_producer_init_failed", "err", perr,
+				"hint", "trade audit silently dropped until kafka is available")
+		} else {
+			defer func() { _ = producer.Close() }()
+			audit = &tradeAuditPusher{p: producer}
+			helper.Infow("msg", "kafka_producer_ready", "topic", auditTopic)
+		}
+	} else {
+		helper.Warnw("msg", "kafka_brokers_empty", "hint", "trade audit disabled")
+	}
+
+	// 6. ResourceLedger:W1 占位(总是成功)。真实背包 / 货币原子事务接入后替换。
+	ledger := biz.NoopResourceLedger{}
+
+	// 7. 装配链
+	repo := data.NewRedisTradeRepo(rdb)
+	uc := biz.NewTradeUsecase(repo, ledger, audit, sf, cfg.Trade)
+	svc := service.NewTradeService(uc)
+
+	grpcSrv := server.NewGRPCServer(&cfg, svc)
+	httpSrv := server.NewHTTPServer(&cfg)
+
+	helper.Infow(
+		"msg", "service_ready",
+		"grpc", cfg.Server.Grpc.Addr,
+		"http", cfg.Server.Http.Addr,
+		"redis_addr", rc.Host,
+		"kafka_brokers", cfg.Kafka.Brokers,
+		"order_expire", cfg.Trade.OrderExpire.String(),
+	)
+
+	// 8. Kratos App
+	app := kratos.New(
+		kratos.Name(serviceName),
+		kratos.Logger(logger),
+		kratos.Server(grpcSrv, httpSrv),
+	)
+	if err := app.Run(); err != nil {
+		helper.Errorw("msg", "app_run_failed", "err", err)
+		os.Exit(1)
+	}
+}
+
+// tradeAuditPusher 把 biz.TradeAuditPusher 接口适配到 kafkax.KeyOrderedProducer。
+// kafka key = order_id(不变量 §9:同一订单的审计事件保序)。
+type tradeAuditPusher struct {
+	p *kafkax.KeyOrderedProducer
+}
+
+func (k *tradeAuditPusher) PushAudit(ctx context.Context, order *tradev1.Order) error {
+	return k.p.Send(ctx, strconv.FormatUint(order.GetOrderId(), 10), order)
+}

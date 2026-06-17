@@ -1,0 +1,32 @@
+# Pandora data_service 服务生产配置模板(2026-06-16)。
+#
+# 真实部署时复制为 data_service-prod.yaml 并按集群实际地址 / 密码填写,**不要提交真实密码到 git**。
+# - gRPC :50003 / HTTP :51003(仅 /metrics)
+# - prod: enable_reflection 不写(零值 false)
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50003"
+    timeout: "3s"
+  http:
+    network: tcp
+    addr: ":51003"
+
+node:
+  zone_id: 1
+  mysql_client:
+    dsn: "pandora:__REPLACE_WITH_SECRET__@tcp(mysql:3306)/pandora_player?parseTime=true&charset=utf8mb4&loc=UTC"
+    max_open_conns: 64
+    max_idle_conns: 16
+    conn_max_lifetime: "30m"
+  redis_client:
+    host: "redis:6379"
+    password: "__REPLACE_WITH_SECRET__"
+    db: 0
+    dial_timeout: "2s"
+    read_timeout: "1s"
+    write_timeout: "1s"
+
+data:
+  cache_ttl: "5m"

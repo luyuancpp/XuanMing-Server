@@ -6,6 +6,7 @@
 #   ./deploy/ds/build-image.sh [TAG] [REGISTRY]
 #   TAG       默认 pandora/battle-ds:dev
 #   REGISTRY  传了只做本地 retag（如 registry.example.com/pandora）；push 由人手动执行
+#   BASE_IMAGE 可选：覆盖 Dockerfile 基础镜像（国内/本机可用镜像，如 minikube kicbase）
 #
 set -euo pipefail
 
@@ -18,8 +19,10 @@ if [[ ! -d "${SCRIPT_DIR}/stage/LinuxServer" ]]; then
   exit 1
 fi
 
-echo "[build-image] docker build -t ${TAG}"
-docker build -f "${SCRIPT_DIR}/Dockerfile" -t "${TAG}" "${SCRIPT_DIR}"
+BASE_IMAGE="${BASE_IMAGE:-ubuntu:22.04}"
+
+echo "[build-image] docker build -t ${TAG} --build-arg BASE_IMAGE=${BASE_IMAGE}"
+docker build --build-arg "BASE_IMAGE=${BASE_IMAGE}" -f "${SCRIPT_DIR}/Dockerfile" -t "${TAG}" "${SCRIPT_DIR}"
 
 if [[ -n "${REGISTRY}" ]]; then
   FULL="${REGISTRY%/}/${TAG##*/}"

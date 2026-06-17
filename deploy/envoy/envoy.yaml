@@ -136,6 +136,21 @@ static_resources:
                   prefix: "/pandora.friend.v1.FriendService/"
                 requires:
                   provider_name: "pandora_session"
+              # chat 服务所有 RPC 均需 JWT(sender_id / player_id 以 JWT sub 为准,R5)
+              - match:
+                  prefix: "/pandora.chat.v1.ChatService/"
+                requires:
+                  provider_name: "pandora_session"
+              # trade 服务所有 RPC 均需 JWT(交易双方身份以 JWT sub 为准,R5)
+              - match:
+                  prefix: "/pandora.trade.v1.TradeService/"
+                requires:
+                  provider_name: "pandora_session"
+              # dialogue 服务所有 RPC 均需 JWT(player_id 以 JWT sub 为准,R5)
+              - match:
+                  prefix: "/pandora.dialogue.v1.DialogueService/"
+                requires:
+                  provider_name: "pandora_session"
               # 没列到的 path(login.Login / login.VerifyDSTicket / grpc reflection)默认放行。
               # VerifyDSTicket 是 DS → login 的内部调用,不带玩家 JWT;靠 ext_authz 限内网(W3+)。
 
@@ -201,6 +216,31 @@ static_resources:
                   prefix: "/pandora.friend.v1.FriendService/"
                 route:
                   cluster: friend_cluster
+                  timeout: 15s
+                  idle_timeout: 60s
+
+              # ----- chat(unary,立即完成型,demo 15s 超时)-----
+              - match:
+                  prefix: "/pandora.chat.v1.ChatService/"
+                route:
+                  cluster: chat_cluster
+                  timeout: 15s
+                  idle_timeout: 60s
+
+              # ----- trade(unary,立即完成型,demo 15s 超时)-----
+              - match:
+                  prefix: "/pandora.trade.v1.TradeService/"
+                route:
+                  cluster: trade_cluster
+                  timeout: 15s
+                  idle_timeout: 60s
+
+              # ----- dialogue(unary,立即完成型,demo 15s 超时)-----
+              # StartDialogue / ChooseOption / EndDialogue;会话状态在服务端权威推进。
+              - match:
+                  prefix: "/pandora.dialogue.v1.DialogueService/"
+                route:
+                  cluster: dialogue_cluster
                   timeout: 15s
                   idle_timeout: 60s
 
@@ -428,6 +468,69 @@ static_resources:
               socket_address:
                 address: host.docker.internal
                 port_value: 50004
+
+  # ===== chat_cluster(unary,demo 15s 超时)=====
+  - name: chat_cluster
+    type: STRICT_DNS
+    dns_lookup_family: V4_ONLY
+    connect_timeout: 1s
+    lb_policy: ROUND_ROBIN
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
+    load_assignment:
+      cluster_name: chat_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: host.docker.internal
+                port_value: 50005
+
+  # ===== trade_cluster(unary,demo 15s 超时)=====
+  - name: trade_cluster
+    type: STRICT_DNS
+    dns_lookup_family: V4_ONLY
+    connect_timeout: 1s
+    lb_policy: ROUND_ROBIN
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
+    load_assignment:
+      cluster_name: trade_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: host.docker.internal
+                port_value: 50012
+
+  # ===== dialogue_cluster(unary,demo 15s 超时)=====
+  - name: dialogue_cluster
+    type: STRICT_DNS
+    dns_lookup_family: V4_ONLY
+    connect_timeout: 1s
+    lb_policy: ROUND_ROBIN
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
+    load_assignment:
+      cluster_name: dialogue_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: host.docker.internal
+                port_value: 50013
 
   # ===========================================================================
   # DS 面内部服务 cluster(供 :8444 pandora_ds_listener 使用,agones-dev.md §5.1)

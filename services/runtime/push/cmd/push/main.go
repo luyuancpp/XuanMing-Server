@@ -148,7 +148,7 @@ func mustBuildRedis(cfg *conf.Config, h kratosHelper) *redis.Client {
 // brokers 空 / topics 空 时 panic(W3 ④ push 不可降级)。
 func mustBuildConsumers(
 	cfg *conf.Config,
-	cm biz.FrameSender,
+	cm biz.FrameRouter,
 	offline data.OfflineCacheRepo,
 	h kratosHelper,
 ) []*biz.KafkaConsumer {
