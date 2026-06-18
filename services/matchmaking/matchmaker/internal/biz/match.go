@@ -402,11 +402,9 @@ func (u *MatchUsecase) onAllConfirmed(ctx context.Context, m *matchv1.MatchStora
 		u.pushOne(ctx, member.PlayerId, ready, dsAddr, tickets[member.PlayerId], now)
 	}
 
-	// 确认期结束:移出 active,删票据(玩家已进战斗,归属保留至战斗结束 = W4 ② 处理)
+	// 确认期结束:移出 active。票据保留到 TTL, 让客户端用 StartMatch 返回的 ticket_id
+	// 继续轮询时也能解析到 READY match, 避免错过 push 后 GetMatchProgress 变成 4001。
 	u.removeActive(ctx, m.MatchId)
-	for _, tid := range m.TicketIds {
-		_ = u.repo.DeleteTicket(ctx, tid)
-	}
 	plog.With(ctx).Infow("msg", "match_ready", "match_id", m.MatchId, "ds_addr", dsAddr, "players", len(playerIDs))
 }
 
@@ -426,6 +424,15 @@ func (u *MatchUsecase) GetMatchProgress(ctx context.Context, callerID, id uint64
 	if t, found, err := u.repo.GetTicket(ctx, id); err != nil {
 		return nil, err
 	} else if found {
+		if t.MatchId != 0 {
+			if m, found, err := u.repo.GetMatch(ctx, t.MatchId); err != nil {
+				return nil, err
+			} else if found {
+				prog := matchToProgress(m)
+				u.refreshBattleTicket(ctx, m, callerID, prog)
+				return prog, nil
+			}
+		}
 		return ticketToProgress(t), nil
 	}
 	return nil, errcode.New(errcode.ErrMatchNotFound, "match/ticket %d not found", id)
@@ -499,6 +506,15 @@ func (u *MatchUsecase) matchOnce(ctx context.Context) error {
 	}
 	sort.SliceStable(tickets, func(i, j int) bool { return tickets[i].AvgMmr < tickets[j].AvgMmr })
 
+	if u.cfg.EnableSoloMatch {
+		for _, t := range tickets {
+			if err := u.formSoloMatch(ctx, t); err != nil {
+				plog.With(ctx).Warnw("msg", "form_solo_match_failed", "ticket_id", t.TicketId, "err", err)
+			}
+		}
+		return nil
+	}
+
 	need := 2 * u.cfg.TeamSize
 	now := time.Now().UnixMilli()
 	used := make(map[uint64]bool)
@@ -538,6 +554,48 @@ func (u *MatchUsecase) matchOnce(ctx context.Context) error {
 	return nil
 }
 
+// formSoloMatch 是本地端到端测试路径:单张队伍票据直接成局,跳过多人确认,立即拉 Battle DS。
+func (u *MatchUsecase) formSoloMatch(ctx context.Context, ticket *matchv1.MatchTicketStorageRecord) error {
+	// StartMatch 返回 ticket_id 作为客户端进度句柄。单人联调复用它做 match_id,
+	// 让轮询和 push 驱动的进战流程使用同一个 ID。
+	matchID := ticket.TicketId
+	now := time.Now().UnixMilli()
+
+	members := make([]*matchv1.MatchMemberStorageRecord, 0, len(ticket.Members))
+	for _, m := range ticket.Members {
+		members = append(members, &matchv1.MatchMemberStorageRecord{
+			PlayerId: m.PlayerId,
+			TeamId:   m.TeamId,
+			Mmr:      m.Mmr,
+			HeroId:   m.HeroId,
+			Side:     0,
+			Confirm:  confirmAccepted,
+		})
+	}
+	match := &matchv1.MatchStorageRecord{
+		MatchId:           matchID,
+		Stage:             stageAllocating,
+		Members:           members,
+		TicketIds:         []uint64{ticket.TicketId},
+		CreatedAtMs:       now,
+		ConfirmDeadlineMs: now,
+	}
+
+	ticket.MatchId = matchID
+	if err := u.repo.ReserveTicket(ctx, ticket, u.ticketTTL()); err != nil {
+		return fmt.Errorf("reserve solo ticket %d: %w", ticket.TicketId, err)
+	}
+	if err := u.repo.CreateMatch(ctx, match, u.matchTTL()); err != nil {
+		u.rollbackReservations(ctx, []*matchv1.MatchTicketStorageRecord{ticket})
+		return err
+	}
+
+	u.notifyMatching(ctx, memberPlayerIDs(members), matchID)
+	plog.With(ctx).Infow("msg", "solo_match_found", "match_id", matchID, "ticket_id", ticket.TicketId, "players", len(members))
+	u.onAllConfirmed(ctx, match)
+	return nil
+}
+
 // formMatch 把两边票据组成一场 match:写 match record + 预留票据 + 推 FOUND/CONFIRM。
 func (u *MatchUsecase) formMatch(ctx context.Context, sideA, sideB []*matchv1.MatchTicketStorageRecord) error {
 	matchID := u.idGen.Generate()
@@ -546,6 +604,10 @@ func (u *MatchUsecase) formMatch(ctx context.Context, sideA, sideB []*matchv1.Ma
 
 	members := make([]*matchv1.MatchMemberStorageRecord, 0, 2*u.cfg.TeamSize)
 	ticketIDs := make([]uint64, 0, len(sideA)+len(sideB))
+	initialConfirm := confirmPending
+	if u.cfg.AutoConfirmMatch {
+		initialConfirm = confirmAccepted
+	}
 	collect := func(side []*matchv1.MatchTicketStorageRecord, sideIdx int32) {
 		for _, t := range side {
 			ticketIDs = append(ticketIDs, t.TicketId)
@@ -556,7 +618,7 @@ func (u *MatchUsecase) formMatch(ctx context.Context, sideA, sideB []*matchv1.Ma
 					Mmr:      m.Mmr,
 					HeroId:   m.HeroId,
 					Side:     sideIdx,
-					Confirm:  confirmPending,
+					Confirm:  initialConfirm,
 				})
 			}
 		}
@@ -604,6 +666,10 @@ func (u *MatchUsecase) formMatch(ctx context.Context, sideA, sideB []*matchv1.Ma
 	u.pushProgress(ctx, matchID, stageFound, members, "", "")
 	u.pushProgress(ctx, matchID, stageConfirm, members, "", "")
 	plog.With(ctx).Infow("msg", "match_found", "match_id", matchID, "players", len(members))
+	if u.cfg.AutoConfirmMatch {
+		plog.With(ctx).Infow("msg", "match_auto_confirm", "match_id", matchID, "players", len(members))
+		u.onAllConfirmed(ctx, match)
+	}
 	return nil
 }
 

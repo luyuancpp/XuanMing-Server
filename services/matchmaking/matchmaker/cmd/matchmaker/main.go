@@ -183,6 +183,8 @@ func main() {
 		"confirm_timeout", cfg.Match.ConfirmTimeout.String(),
 		"match_interval", cfg.Match.MatchInterval.String(),
 		"team_size", cfg.Match.TeamSize,
+		"enable_solo_match", cfg.Match.EnableSoloMatch,
+		"auto_confirm_match", cfg.Match.AutoConfirmMatch,
 	)
 
 	// 10. Kratos App

@@ -63,6 +63,14 @@ type MatchConf struct {
 	// TeamSize 一方人数(MOBA 5v5,一方 5 人)。
 	TeamSize int `yaml:"team_size,omitempty" json:"team_size,omitempty"`
 
+	// EnableSoloMatch 仅用于本地端到端联调。开启后,单张队伍票据可以直接成局并拉起 Battle DS。
+	// 生产环境必须保持 false。
+	EnableSoloMatch bool `yaml:"enable_solo_match,omitempty" json:"enable_solo_match,omitempty"`
+
+	// AutoConfirmMatch 仅用于本地端到端联调。开启后,撮合成功后跳过客户端确认期并直接拉 Battle DS。
+	// 生产环境必须保持 false。
+	AutoConfirmMatch bool `yaml:"auto_confirm_match,omitempty" json:"auto_confirm_match,omitempty"`
+
 	// MmrBaseWindow 初始 MMR 撮合窗口半宽(默认 200);两张票 avg_mmr 差 ≤ 窗口才可同场。
 	MmrBaseWindow int `yaml:"mmr_base_window,omitempty" json:"mmr_base_window,omitempty"`
 

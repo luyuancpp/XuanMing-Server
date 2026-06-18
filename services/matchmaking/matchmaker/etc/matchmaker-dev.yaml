@@ -56,8 +56,12 @@ match:
   ticket_ttl: "30m"
   # match_ttl: 已撮合 match Redis key TTL
   match_ttl: "30m"
-  # team_size: MOBA 5v5,一方 5 人
-  team_size: 5
+  # team_size: 本地端到端测试使用 1v1;正式 5v5 改回 5
+  team_size: 1
+  # enable_solo_match: 单客户端测试专用;两个队伍联调时保持 false,否则每个队伍都会单独开一局
+  enable_solo_match: false
+  # auto_confirm_match: 本地端到端测试专用;撮合后跳过确认期,直接拉 Battle DS
+  auto_confirm_match: true
   # mmr_base_window: 初始 MMR 撮合窗口半宽
   mmr_base_window: 200
   # mmr_widen_per_sec: 每等待 1 秒窗口放宽的 MMR
@@ -75,4 +79,3 @@ jwt:
   secret: "pandora-dev-jwt-secret-change-me-32!"
   session_ttl: "24h"
   ds_ticket_ttl: "5m"
-
