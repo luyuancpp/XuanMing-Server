@@ -1,7 +1,6 @@
 # Pandora 项目规范
 
-> 本文档是 Pandora 项目的"宪法",AI 协作和人类开发都必须遵守。
-> Pandora 后端项目规范,适配 MOBA 玩法 + UE DS + 双仓库架构。
+> 本文档是 Pandora 项目的"宪法",AI 协作和人类开发都须遵守。后端项目,适配 MOBA + UE DS + 双仓库架构。
 
 ## 1. 项目基本信息
 
@@ -37,28 +36,25 @@ UE 客户端 + DS                  # 独立仓库，工程统一为 Pandora
 
 ## 5. proto 同步流程(双仓库)
 
-1. proto 改动后由 Codex 执行 `pwsh tools/scripts/proto_gen.ps1` 生成 go pb
-2. cpp pb 同步到 UE 仓库 `Source/Pandora/Generated/Proto/` 的操作由 Codex 执行
-3. UE 客户端改动跟随后端 proto 同步,由 Codex 协助处理
-4. 字段编号规则:上线后**不复用**,只能 deprecate(`reserved 5;` + 注释原因);开发期间已删除字段可复用编号,但必须重新生成 proto 并完整编译所有已启用 module
-5. `player_id` / `team_id` / `match_id` / `order_id` / `message_id` / `dialogue_id` / `hub_id` / `invite_id` 等 Snowflake 业务 ID **一律用 `uint64`**;不准再用 `int64` / `string` 承载这类 ID。未知 / 空值用 `0`,需要表达 presence 时用 `optional uint64`
-6. 配置表 ID / 静态表 ID **默认用 `uint32`**(`npc_id` / `hero_id` / `skill_id` / `item_config_id` / `map_id` 等);如果字段名容易和运行时实体混淆,新协议优先命名为 `<entity>_config_id`
-7. 状态 / 类型 / 原因等 proto 枚举常量**不属于 ID 规则**;proto enum 底层是 `int32`,Go 代码优先使用生成的 enum 类型,必要时才用 `int32`,不因取值非负改成 `uint32`
-8. 新增业务数据结构**优先定义 proto message**,按下面四类各司其职,**不准手写与 proto 重复的并行 struct**:
+1. proto 改动后由 Codex 跑 `pwsh tools/scripts/proto_gen.ps1` 生成 go pb
+2. cpp pb 同步到 UE 仓库 `Source/Pandora/Generated/Proto/`,由 Codex 执行
+3. UE 客户端改动跟随后端 proto 同步,由 Codex 协助
+4. 字段编号:上线后**不复用**,只能 deprecate(`reserved 5;` + 注释原因);开发期已删字段可复用编号,但须重生 proto 并完整编译所有启用 module
+5. `player_id` / `team_id` / `match_id` / `order_id` / `message_id` / `dialogue_id` / `hub_id` / `invite_id` 等 Snowflake 业务 ID **一律 `uint64`**,不准用 `int64` / `string`;未知/空值用 `0`,需 presence 时用 `optional uint64`
+6. 配置表 / 静态表 ID **默认 `uint32`**(`npc_id` / `hero_id` / `skill_id` / `item_config_id` / `map_id` 等);易与运行时实体混淆时新协议命名为 `<entity>_config_id`
+7. 状态 / 类型 / 原因等 proto 枚举**不属 ID 规则**;enum 底层是 `int32`,Go 优先用生成的 enum 类型,不因取值非负改 `uint32`
+8. 新增业务数据结构**优先定义 proto message**,按下表四类各司其职,**不准手写与 proto 重复的并行 struct**:
 
    | 类别 | 命名 | 用途 |
    |---|---|---|
    | RPC 请求/响应 | `<Verb><Domain>Request` / `<Verb><Domain>Response` | gRPC unary/stream 出入参 |
    | 客户端可见结构 | `<Domain>` / `<Domain><Part>`(短名,如 `Team` / `TeamMember`) | RPC response、push payload 里给客户端看的字段 |
    | 服务端存储快照 | `<Domain>StorageRecord` + 子结构 `<Domain><Part>StorageRecord` | Redis value、Kafka 快照、MySQL **blob 列**里序列化成 bytes 的整块状态 |
-   | 服务间事件 | `<Domain><Action>Event` | Kafka payload;可内嵌"客户端可见结构",但它本身是服务内部消息,不是存储快照 |
+   | 服务间事件 | `<Domain><Action>Event` | Kafka payload;可内嵌"客户端可见结构",但本身是服务内部消息,不是存储快照 |
 
-9. 第 8 条的"存储快照用 proto bytes"**只针对快照/blob 场景**(Redis value、Kafka payload、MySQL blob 列):
-   - **关系型 MySQL 表(结构化列)不强制 proto 化**;列直接映射 proto 字段即可,不为每张表再造一个 proto bytes blob
-   - 临时小令牌(如 invite,2~3 个字段、短 TTL)允许继续用 redis hash,不必升级成 proto bytes
-   - 规则核心是"消灭与 proto 重复漂移的并行 struct",**不是"一切都序列化成 bytes"**
-10. proto message 直接当存储 record 时:**禁止值拷贝 proto message**(`a := *rec` 会复制内部 state/mu/sizeCache),克隆一律用 `proto.Clone`;存储字段命名以 `<Domain>StorageRecord` 为准,客户端结构与存储结构**分开两个 message**,存储侧独有字段(如 `updated_at_ms`)不外泄给客户端
-11. **禁止把服务端存储快照原样返回 / 推送给客户端**。RPC response / push payload 只能使用"客户端可见结构",由服务端从 `StorageRecord` / MySQL 行 / Redis 状态中按客户端当前需求的**最小数据单位**填充,必要时重新计算派生字段(如 ready 状态、queue_seconds、mmr_delta、展示用昵称),而不是把整块存储 record 暴露出去。例外只能是明确写入设计文档的运维 / 内部调试 RPC,且必须做鉴权、脱敏、不经 Envoy 对客户端开放。
+9. 第 8 条的"快照用 proto bytes"**只针对快照/blob 场景**(Redis value、Kafka payload、MySQL blob 列):关系型 MySQL 表(结构化列)不强制 proto 化,列直接映射 proto 字段;临时小令牌(如 invite,2~3 字段、短 TTL)允许继续用 redis hash。核心是"消灭与 proto 漂移的并行 struct",不是"一切序列化成 bytes"
+10. proto message 直接当存储 record 时:**禁止值拷贝**(`a := *rec` 会复制 state/mu/sizeCache),克隆一律 `proto.Clone`;存储与客户端结构**分两个 message**,存储侧独有字段(如 `updated_at_ms`)不外露
+11. **禁止把存储快照原样返回/推送给客户端**。RPC response / push 只能用"客户端可见结构",由服务端从 `StorageRecord`/MySQL 行/Redis 状态按**最小数据单位**填充,必要时重算派生字段(ready、queue_seconds、mmr_delta、显示昵称)。例外只能是写入设计文档的运维/调试 RPC,且须鉴权、脱敏、不经 Envoy 对客户端开放。
 
 ## 6. 服务命名 / 端口规范
 
@@ -75,15 +71,7 @@ UE 客户端 + DS                  # 独立仓库，工程统一为 Pandora
 
 ## 8. 压测纪律
 
-详见 [`docs/design/stress-discipline.md`](./docs/design/stress-discipline.md)。**核心规则**:
-
-- 跑测前必有 `prev-summary.txt`,否则不许开下一轮
-- **跑测前清空** redis / mysql / etcd / kafka offset / k8s GameServer
-- 至少 3 次 prom snapshot:ramp 完成 / 稳态中段 / 稳态末
-- summarize 脚本输出五段二维表,**不许手 grep raw prom**
-- **没有对比表不许声明"性能提升"**
-- 压期间不上传日志
-- **每次登录压测把所有 redis/mysql/etcd 数据全部删除再开新一轮**
+详见 [`docs/design/stress-discipline.md`](./docs/design/stress-discipline.md)。**核心**:跑测前必有 `prev-summary.txt` 且清空 redis/mysql/etcd/kafka offset/k8s GameServer;至少 3 次 prom snapshot(ramp 完/稳态中/稳态末);用 summarize 脚本输出五段二维表,不手 grep raw prom;没对比表不准声明"性能提升";压期不上传日志。
 
 ## 9. 不变量(数据一致性 / 安全)
 
@@ -108,13 +96,13 @@ UE 客户端 + DS                  # 独立仓库，工程统一为 Pandora
 
 AI 协作规则以 [`AGENTS.md`](./AGENTS.md) 为准,本文件不重复维护细则,避免双文档漂移。
 
-## 11. UE 工程约束(写给 UE 仓库的开发者参考)
+## 11. UE 工程约束(写给 UE 仓库开发者参考)
 
 1. 类前缀统一 `Pandora*`(GameMode / Character / PlayerController)
-2. 服务端逻辑统一在 `PandoraHubServer` / `PandoraBattleServer` 模块,不在 `Source/Pandora/` 客户端模块
+2. 服务端逻辑统一在 `PandoraHubServer` / `PandoraBattleServer`,不在 `Source/Pandora/` 客户端模块
 3. 蓝图只做"胶水"(挂技能动画 / UMG 绑定),逻辑在 C++
 4. 资源走 Git LFS(`.uasset / .umap / .fbx / .png / .wav / .ogg`)
-5. **永远不要在 git 里提交** `Binaries/ Intermediate/ DerivedDataCache/ Saved/`
+5. **永远不要提交** `Binaries/ Intermediate/ DerivedDataCache/ Saved/`
 
 ## 12. 不要做的事
 
