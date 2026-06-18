@@ -94,6 +94,14 @@ extern const ::google::protobuf::internal::ClassDataFull AddFriendResponse_class
 #else
 extern const AddFriendResponseGlobalsTypeInternal AddFriendResponse_globals_;
 #endif  // PROTOBUF_MESSAGE_GLOBALS
+class BlockInfo;
+struct BlockInfoGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern BlockInfoGlobalsTypeInternal BlockInfo_globals_;
+extern const ::google::protobuf::internal::ClassDataFull BlockInfo_class_data_;
+#else
+extern const BlockInfoGlobalsTypeInternal BlockInfo_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
 class BlockRequest;
 struct BlockRequestGlobalsTypeInternal;
 #ifndef PROTOBUF_MESSAGE_GLOBALS
@@ -126,6 +134,46 @@ extern const ::google::protobuf::internal::ClassDataFull FriendInfo_class_data_;
 #else
 extern const FriendInfoGlobalsTypeInternal FriendInfo_globals_;
 #endif  // PROTOBUF_MESSAGE_GLOBALS
+class FriendRequestInfo;
+struct FriendRequestInfoGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern FriendRequestInfoGlobalsTypeInternal FriendRequestInfo_globals_;
+extern const ::google::protobuf::internal::ClassDataFull FriendRequestInfo_class_data_;
+#else
+extern const FriendRequestInfoGlobalsTypeInternal FriendRequestInfo_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+class ListBlocksRequest;
+struct ListBlocksRequestGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern ListBlocksRequestGlobalsTypeInternal ListBlocksRequest_globals_;
+extern const ::google::protobuf::internal::ClassDataFull ListBlocksRequest_class_data_;
+#else
+extern const ListBlocksRequestGlobalsTypeInternal ListBlocksRequest_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+class ListBlocksResponse;
+struct ListBlocksResponseGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern ListBlocksResponseGlobalsTypeInternal ListBlocksResponse_globals_;
+extern const ::google::protobuf::internal::ClassDataFull ListBlocksResponse_class_data_;
+#else
+extern const ListBlocksResponseGlobalsTypeInternal ListBlocksResponse_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+class ListFriendRequestsRequest;
+struct ListFriendRequestsRequestGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern ListFriendRequestsRequestGlobalsTypeInternal ListFriendRequestsRequest_globals_;
+extern const ::google::protobuf::internal::ClassDataFull ListFriendRequestsRequest_class_data_;
+#else
+extern const ListFriendRequestsRequestGlobalsTypeInternal ListFriendRequestsRequest_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+class ListFriendRequestsResponse;
+struct ListFriendRequestsResponseGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern ListFriendRequestsResponseGlobalsTypeInternal ListFriendRequestsResponse_globals_;
+extern const ::google::protobuf::internal::ClassDataFull ListFriendRequestsResponse_class_data_;
+#else
+extern const ListFriendRequestsResponseGlobalsTypeInternal ListFriendRequestsResponse_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
 class ListFriendsRequest;
 struct ListFriendsRequestGlobalsTypeInternal;
 #ifndef PROTOBUF_MESSAGE_GLOBALS
@@ -141,6 +189,54 @@ extern ListFriendsResponseGlobalsTypeInternal ListFriendsResponse_globals_;
 extern const ::google::protobuf::internal::ClassDataFull ListFriendsResponse_class_data_;
 #else
 extern const ListFriendsResponseGlobalsTypeInternal ListFriendsResponse_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+class RejectFriendRequest;
+struct RejectFriendRequestGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern RejectFriendRequestGlobalsTypeInternal RejectFriendRequest_globals_;
+extern const ::google::protobuf::internal::ClassDataFull RejectFriendRequest_class_data_;
+#else
+extern const RejectFriendRequestGlobalsTypeInternal RejectFriendRequest_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+class RejectFriendResponse;
+struct RejectFriendResponseGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern RejectFriendResponseGlobalsTypeInternal RejectFriendResponse_globals_;
+extern const ::google::protobuf::internal::ClassDataFull RejectFriendResponse_class_data_;
+#else
+extern const RejectFriendResponseGlobalsTypeInternal RejectFriendResponse_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+class RemoveFriendRequest;
+struct RemoveFriendRequestGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern RemoveFriendRequestGlobalsTypeInternal RemoveFriendRequest_globals_;
+extern const ::google::protobuf::internal::ClassDataFull RemoveFriendRequest_class_data_;
+#else
+extern const RemoveFriendRequestGlobalsTypeInternal RemoveFriendRequest_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+class RemoveFriendResponse;
+struct RemoveFriendResponseGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern RemoveFriendResponseGlobalsTypeInternal RemoveFriendResponse_globals_;
+extern const ::google::protobuf::internal::ClassDataFull RemoveFriendResponse_class_data_;
+#else
+extern const RemoveFriendResponseGlobalsTypeInternal RemoveFriendResponse_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+class UnblockRequest;
+struct UnblockRequestGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern UnblockRequestGlobalsTypeInternal UnblockRequest_globals_;
+extern const ::google::protobuf::internal::ClassDataFull UnblockRequest_class_data_;
+#else
+extern const UnblockRequestGlobalsTypeInternal UnblockRequest_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+class UnblockResponse;
+struct UnblockResponseGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern UnblockResponseGlobalsTypeInternal UnblockResponse_globals_;
+extern const ::google::protobuf::internal::ClassDataFull UnblockResponse_class_data_;
+#else
+extern const UnblockResponseGlobalsTypeInternal UnblockResponse_globals_;
 #endif  // PROTOBUF_MESSAGE_GLOBALS
 }  // namespace v1
 }  // namespace friend_
@@ -251,6 +347,1248 @@ using ::google::protobuf::internal::generated_enum::AbslUnparseFlag;
 
 // -------------------------------------------------------------------
 
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED UnblockResponse final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.friend.v1.UnblockResponse) */ {
+ public:
+  inline UnblockResponse() : UnblockResponse(nullptr) {}
+  ~UnblockResponse() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(UnblockResponse* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(UnblockResponse));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr UnblockResponse(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline UnblockResponse(const UnblockResponse& from) : UnblockResponse(nullptr, from) {}
+  inline UnblockResponse(UnblockResponse&& from) noexcept : UnblockResponse(nullptr, ::std::move(from)) {}
+  inline UnblockResponse& operator=(const UnblockResponse& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline UnblockResponse& operator=(UnblockResponse&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const UnblockResponse& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<UnblockResponse>(&UnblockResponse_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 17;
+  friend void swap(UnblockResponse& a, UnblockResponse& b) { a.Swap(&b); }
+  inline void Swap(UnblockResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(UnblockResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] UnblockResponse* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<UnblockResponse>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const UnblockResponse& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const UnblockResponse& from) { UnblockResponse::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(UnblockResponse* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.friend.v1.UnblockResponse"; }
+
+  explicit UnblockResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  UnblockResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const UnblockResponse& from);
+  UnblockResponse(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, UnblockResponse&& from) noexcept
+      : UnblockResponse(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kCodeFieldNumber = 1,
+  };
+  // .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
+  void clear_code() ;
+  [[nodiscard]] ::pandora::common::v1::ErrCode code() const;
+  void set_code(::pandora::common::v1::ErrCode value);
+
+  private:
+  ::pandora::common::v1::ErrCode _internal_code() const;
+  void _internal_set_code(::pandora::common::v1::ErrCode value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.friend.v1.UnblockResponse)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<0, 1,
+                          0, 0,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const UnblockResponse& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    int code_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2ffriend_2fv1_2ffriend_2eproto;
+};
+// -------------------------------------------------------------------
+
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED UnblockRequest final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.friend.v1.UnblockRequest) */ {
+ public:
+  inline UnblockRequest() : UnblockRequest(nullptr) {}
+  ~UnblockRequest() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(UnblockRequest* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(UnblockRequest));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr UnblockRequest(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline UnblockRequest(const UnblockRequest& from) : UnblockRequest(nullptr, from) {}
+  inline UnblockRequest(UnblockRequest&& from) noexcept : UnblockRequest(nullptr, ::std::move(from)) {}
+  inline UnblockRequest& operator=(const UnblockRequest& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline UnblockRequest& operator=(UnblockRequest&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const UnblockRequest& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<UnblockRequest>(&UnblockRequest_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 16;
+  friend void swap(UnblockRequest& a, UnblockRequest& b) { a.Swap(&b); }
+  inline void Swap(UnblockRequest* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(UnblockRequest* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] UnblockRequest* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<UnblockRequest>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const UnblockRequest& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const UnblockRequest& from) { UnblockRequest::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(UnblockRequest* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.friend.v1.UnblockRequest"; }
+
+  explicit UnblockRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  UnblockRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const UnblockRequest& from);
+  UnblockRequest(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, UnblockRequest&& from) noexcept
+      : UnblockRequest(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kPlayerIdFieldNumber = 1,
+    kTargetPlayerIdFieldNumber = 2,
+  };
+  // uint64 player_id = 1 [json_name = "playerId"];
+  void clear_player_id() ;
+  [[nodiscard]] ::uint64_t player_id() const;
+  void set_player_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_player_id() const;
+  void _internal_set_player_id(::uint64_t value);
+
+  public:
+  // uint64 target_player_id = 2 [json_name = "targetPlayerId"];
+  void clear_target_player_id() ;
+  [[nodiscard]] ::uint64_t target_player_id() const;
+  void set_target_player_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_target_player_id() const;
+  void _internal_set_target_player_id(::uint64_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.friend.v1.UnblockRequest)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<1, 2,
+                          0, 0,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const UnblockRequest& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::uint64_t player_id_;
+    ::uint64_t target_player_id_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2ffriend_2fv1_2ffriend_2eproto;
+};
+// -------------------------------------------------------------------
+
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED RemoveFriendResponse final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.friend.v1.RemoveFriendResponse) */ {
+ public:
+  inline RemoveFriendResponse() : RemoveFriendResponse(nullptr) {}
+  ~RemoveFriendResponse() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(RemoveFriendResponse* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(RemoveFriendResponse));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr RemoveFriendResponse(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline RemoveFriendResponse(const RemoveFriendResponse& from) : RemoveFriendResponse(nullptr, from) {}
+  inline RemoveFriendResponse(RemoveFriendResponse&& from) noexcept : RemoveFriendResponse(nullptr, ::std::move(from)) {}
+  inline RemoveFriendResponse& operator=(const RemoveFriendResponse& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RemoveFriendResponse& operator=(RemoveFriendResponse&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const RemoveFriendResponse& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<RemoveFriendResponse>(&RemoveFriendResponse_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 13;
+  friend void swap(RemoveFriendResponse& a, RemoveFriendResponse& b) { a.Swap(&b); }
+  inline void Swap(RemoveFriendResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RemoveFriendResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] RemoveFriendResponse* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<RemoveFriendResponse>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const RemoveFriendResponse& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const RemoveFriendResponse& from) { RemoveFriendResponse::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(RemoveFriendResponse* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.friend.v1.RemoveFriendResponse"; }
+
+  explicit RemoveFriendResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  RemoveFriendResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const RemoveFriendResponse& from);
+  RemoveFriendResponse(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, RemoveFriendResponse&& from) noexcept
+      : RemoveFriendResponse(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kCodeFieldNumber = 1,
+  };
+  // .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
+  void clear_code() ;
+  [[nodiscard]] ::pandora::common::v1::ErrCode code() const;
+  void set_code(::pandora::common::v1::ErrCode value);
+
+  private:
+  ::pandora::common::v1::ErrCode _internal_code() const;
+  void _internal_set_code(::pandora::common::v1::ErrCode value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.friend.v1.RemoveFriendResponse)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<0, 1,
+                          0, 0,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const RemoveFriendResponse& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    int code_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2ffriend_2fv1_2ffriend_2eproto;
+};
+// -------------------------------------------------------------------
+
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED RemoveFriendRequest final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.friend.v1.RemoveFriendRequest) */ {
+ public:
+  inline RemoveFriendRequest() : RemoveFriendRequest(nullptr) {}
+  ~RemoveFriendRequest() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(RemoveFriendRequest* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(RemoveFriendRequest));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr RemoveFriendRequest(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline RemoveFriendRequest(const RemoveFriendRequest& from) : RemoveFriendRequest(nullptr, from) {}
+  inline RemoveFriendRequest(RemoveFriendRequest&& from) noexcept : RemoveFriendRequest(nullptr, ::std::move(from)) {}
+  inline RemoveFriendRequest& operator=(const RemoveFriendRequest& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RemoveFriendRequest& operator=(RemoveFriendRequest&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const RemoveFriendRequest& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<RemoveFriendRequest>(&RemoveFriendRequest_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 12;
+  friend void swap(RemoveFriendRequest& a, RemoveFriendRequest& b) { a.Swap(&b); }
+  inline void Swap(RemoveFriendRequest* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RemoveFriendRequest* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] RemoveFriendRequest* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<RemoveFriendRequest>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const RemoveFriendRequest& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const RemoveFriendRequest& from) { RemoveFriendRequest::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(RemoveFriendRequest* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.friend.v1.RemoveFriendRequest"; }
+
+  explicit RemoveFriendRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  RemoveFriendRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const RemoveFriendRequest& from);
+  RemoveFriendRequest(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, RemoveFriendRequest&& from) noexcept
+      : RemoveFriendRequest(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kPlayerIdFieldNumber = 1,
+    kTargetPlayerIdFieldNumber = 2,
+  };
+  // uint64 player_id = 1 [json_name = "playerId"];
+  void clear_player_id() ;
+  [[nodiscard]] ::uint64_t player_id() const;
+  void set_player_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_player_id() const;
+  void _internal_set_player_id(::uint64_t value);
+
+  public:
+  // uint64 target_player_id = 2 [json_name = "targetPlayerId"];
+  void clear_target_player_id() ;
+  [[nodiscard]] ::uint64_t target_player_id() const;
+  void set_target_player_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_target_player_id() const;
+  void _internal_set_target_player_id(::uint64_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.friend.v1.RemoveFriendRequest)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<1, 2,
+                          0, 0,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const RemoveFriendRequest& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::uint64_t player_id_;
+    ::uint64_t target_player_id_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2ffriend_2fv1_2ffriend_2eproto;
+};
+// -------------------------------------------------------------------
+
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED RejectFriendResponse final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.friend.v1.RejectFriendResponse) */ {
+ public:
+  inline RejectFriendResponse() : RejectFriendResponse(nullptr) {}
+  ~RejectFriendResponse() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(RejectFriendResponse* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(RejectFriendResponse));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr RejectFriendResponse(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline RejectFriendResponse(const RejectFriendResponse& from) : RejectFriendResponse(nullptr, from) {}
+  inline RejectFriendResponse(RejectFriendResponse&& from) noexcept : RejectFriendResponse(nullptr, ::std::move(from)) {}
+  inline RejectFriendResponse& operator=(const RejectFriendResponse& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RejectFriendResponse& operator=(RejectFriendResponse&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const RejectFriendResponse& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<RejectFriendResponse>(&RejectFriendResponse_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 6;
+  friend void swap(RejectFriendResponse& a, RejectFriendResponse& b) { a.Swap(&b); }
+  inline void Swap(RejectFriendResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RejectFriendResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] RejectFriendResponse* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<RejectFriendResponse>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const RejectFriendResponse& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const RejectFriendResponse& from) { RejectFriendResponse::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(RejectFriendResponse* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.friend.v1.RejectFriendResponse"; }
+
+  explicit RejectFriendResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  RejectFriendResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const RejectFriendResponse& from);
+  RejectFriendResponse(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, RejectFriendResponse&& from) noexcept
+      : RejectFriendResponse(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kCodeFieldNumber = 1,
+  };
+  // .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
+  void clear_code() ;
+  [[nodiscard]] ::pandora::common::v1::ErrCode code() const;
+  void set_code(::pandora::common::v1::ErrCode value);
+
+  private:
+  ::pandora::common::v1::ErrCode _internal_code() const;
+  void _internal_set_code(::pandora::common::v1::ErrCode value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.friend.v1.RejectFriendResponse)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<0, 1,
+                          0, 0,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const RejectFriendResponse& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    int code_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2ffriend_2fv1_2ffriend_2eproto;
+};
+// -------------------------------------------------------------------
+
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED RejectFriendRequest final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.friend.v1.RejectFriendRequest) */ {
+ public:
+  inline RejectFriendRequest() : RejectFriendRequest(nullptr) {}
+  ~RejectFriendRequest() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(RejectFriendRequest* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(RejectFriendRequest));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr RejectFriendRequest(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline RejectFriendRequest(const RejectFriendRequest& from) : RejectFriendRequest(nullptr, from) {}
+  inline RejectFriendRequest(RejectFriendRequest&& from) noexcept : RejectFriendRequest(nullptr, ::std::move(from)) {}
+  inline RejectFriendRequest& operator=(const RejectFriendRequest& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RejectFriendRequest& operator=(RejectFriendRequest&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const RejectFriendRequest& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<RejectFriendRequest>(&RejectFriendRequest_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 5;
+  friend void swap(RejectFriendRequest& a, RejectFriendRequest& b) { a.Swap(&b); }
+  inline void Swap(RejectFriendRequest* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RejectFriendRequest* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] RejectFriendRequest* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<RejectFriendRequest>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const RejectFriendRequest& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const RejectFriendRequest& from) { RejectFriendRequest::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(RejectFriendRequest* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.friend.v1.RejectFriendRequest"; }
+
+  explicit RejectFriendRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  RejectFriendRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const RejectFriendRequest& from);
+  RejectFriendRequest(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, RejectFriendRequest&& from) noexcept
+      : RejectFriendRequest(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kPlayerIdFieldNumber = 1,
+    kRequestIdFieldNumber = 2,
+  };
+  // uint64 player_id = 1 [json_name = "playerId"];
+  void clear_player_id() ;
+  [[nodiscard]] ::uint64_t player_id() const;
+  void set_player_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_player_id() const;
+  void _internal_set_player_id(::uint64_t value);
+
+  public:
+  // uint64 request_id = 2 [json_name = "requestId"];
+  void clear_request_id() ;
+  [[nodiscard]] ::uint64_t request_id() const;
+  void set_request_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_request_id() const;
+  void _internal_set_request_id(::uint64_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.friend.v1.RejectFriendRequest)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<1, 2,
+                          0, 0,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const RejectFriendRequest& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::uint64_t player_id_;
+    ::uint64_t request_id_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2ffriend_2fv1_2ffriend_2eproto;
+};
+// -------------------------------------------------------------------
+
 class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListFriendsRequest final : public ::google::protobuf::Message
 /* @@protoc_insertion_point(class_definition:pandora.friend.v1.ListFriendsRequest) */ {
  public:
@@ -307,7 +1645,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListFriendsRequest final : public :
   [[nodiscard]] static const ListFriendsRequest& default_instance() {
     return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<ListFriendsRequest>(&ListFriendsRequest_globals_);
   }
-  static constexpr int kIndexInFileMessages = 5;
+  static constexpr int kIndexInFileMessages = 10;
   friend void swap(ListFriendsRequest& a, ListFriendsRequest& b) { a.Swap(&b); }
   inline void Swap(ListFriendsRequest* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -445,6 +1783,650 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListFriendsRequest final : public :
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::uint64_t player_id_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2ffriend_2fv1_2ffriend_2eproto;
+};
+// -------------------------------------------------------------------
+
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListFriendRequestsRequest final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.friend.v1.ListFriendRequestsRequest) */ {
+ public:
+  inline ListFriendRequestsRequest() : ListFriendRequestsRequest(nullptr) {}
+  ~ListFriendRequestsRequest() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(ListFriendRequestsRequest* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(ListFriendRequestsRequest));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr ListFriendRequestsRequest(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline ListFriendRequestsRequest(const ListFriendRequestsRequest& from) : ListFriendRequestsRequest(nullptr, from) {}
+  inline ListFriendRequestsRequest(ListFriendRequestsRequest&& from) noexcept : ListFriendRequestsRequest(nullptr, ::std::move(from)) {}
+  inline ListFriendRequestsRequest& operator=(const ListFriendRequestsRequest& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ListFriendRequestsRequest& operator=(ListFriendRequestsRequest&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const ListFriendRequestsRequest& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<ListFriendRequestsRequest>(&ListFriendRequestsRequest_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 8;
+  friend void swap(ListFriendRequestsRequest& a, ListFriendRequestsRequest& b) { a.Swap(&b); }
+  inline void Swap(ListFriendRequestsRequest* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ListFriendRequestsRequest* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] ListFriendRequestsRequest* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<ListFriendRequestsRequest>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const ListFriendRequestsRequest& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const ListFriendRequestsRequest& from) { ListFriendRequestsRequest::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(ListFriendRequestsRequest* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.friend.v1.ListFriendRequestsRequest"; }
+
+  explicit ListFriendRequestsRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  ListFriendRequestsRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const ListFriendRequestsRequest& from);
+  ListFriendRequestsRequest(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, ListFriendRequestsRequest&& from) noexcept
+      : ListFriendRequestsRequest(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kPlayerIdFieldNumber = 1,
+  };
+  // uint64 player_id = 1 [json_name = "playerId"];
+  void clear_player_id() ;
+  [[nodiscard]] ::uint64_t player_id() const;
+  void set_player_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_player_id() const;
+  void _internal_set_player_id(::uint64_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.friend.v1.ListFriendRequestsRequest)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<0, 1,
+                          0, 0,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const ListFriendRequestsRequest& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::uint64_t player_id_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2ffriend_2fv1_2ffriend_2eproto;
+};
+// -------------------------------------------------------------------
+
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListBlocksRequest final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.friend.v1.ListBlocksRequest) */ {
+ public:
+  inline ListBlocksRequest() : ListBlocksRequest(nullptr) {}
+  ~ListBlocksRequest() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(ListBlocksRequest* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(ListBlocksRequest));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr ListBlocksRequest(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline ListBlocksRequest(const ListBlocksRequest& from) : ListBlocksRequest(nullptr, from) {}
+  inline ListBlocksRequest(ListBlocksRequest&& from) noexcept : ListBlocksRequest(nullptr, ::std::move(from)) {}
+  inline ListBlocksRequest& operator=(const ListBlocksRequest& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ListBlocksRequest& operator=(ListBlocksRequest&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const ListBlocksRequest& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<ListBlocksRequest>(&ListBlocksRequest_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 19;
+  friend void swap(ListBlocksRequest& a, ListBlocksRequest& b) { a.Swap(&b); }
+  inline void Swap(ListBlocksRequest* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ListBlocksRequest* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] ListBlocksRequest* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<ListBlocksRequest>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const ListBlocksRequest& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const ListBlocksRequest& from) { ListBlocksRequest::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(ListBlocksRequest* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.friend.v1.ListBlocksRequest"; }
+
+  explicit ListBlocksRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  ListBlocksRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const ListBlocksRequest& from);
+  ListBlocksRequest(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, ListBlocksRequest&& from) noexcept
+      : ListBlocksRequest(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kPlayerIdFieldNumber = 1,
+  };
+  // uint64 player_id = 1 [json_name = "playerId"];
+  void clear_player_id() ;
+  [[nodiscard]] ::uint64_t player_id() const;
+  void set_player_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_player_id() const;
+  void _internal_set_player_id(::uint64_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.friend.v1.ListBlocksRequest)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<0, 1,
+                          0, 0,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const ListBlocksRequest& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::uint64_t player_id_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2ffriend_2fv1_2ffriend_2eproto;
+};
+// -------------------------------------------------------------------
+
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED FriendRequestInfo final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.friend.v1.FriendRequestInfo) */ {
+ public:
+  inline FriendRequestInfo() : FriendRequestInfo(nullptr) {}
+  ~FriendRequestInfo() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(FriendRequestInfo* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(FriendRequestInfo));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr FriendRequestInfo(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline FriendRequestInfo(const FriendRequestInfo& from) : FriendRequestInfo(nullptr, from) {}
+  inline FriendRequestInfo(FriendRequestInfo&& from) noexcept : FriendRequestInfo(nullptr, ::std::move(from)) {}
+  inline FriendRequestInfo& operator=(const FriendRequestInfo& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline FriendRequestInfo& operator=(FriendRequestInfo&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const FriendRequestInfo& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<FriendRequestInfo>(&FriendRequestInfo_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 7;
+  friend void swap(FriendRequestInfo& a, FriendRequestInfo& b) { a.Swap(&b); }
+  inline void Swap(FriendRequestInfo* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(FriendRequestInfo* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] FriendRequestInfo* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<FriendRequestInfo>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const FriendRequestInfo& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const FriendRequestInfo& from) { FriendRequestInfo::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(FriendRequestInfo* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.friend.v1.FriendRequestInfo"; }
+
+  explicit FriendRequestInfo(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  FriendRequestInfo(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const FriendRequestInfo& from);
+  FriendRequestInfo(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, FriendRequestInfo&& from) noexcept
+      : FriendRequestInfo(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kFromNicknameFieldNumber = 3,
+    kRequestIdFieldNumber = 1,
+    kFromPlayerIdFieldNumber = 2,
+    kCreatedMsFieldNumber = 4,
+  };
+  // string from_nickname = 3 [json_name = "fromNickname"];
+  void clear_from_nickname() ;
+  [[nodiscard]] const ::std::string& from_nickname() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_from_nickname(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_from_nickname();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_from_nickname();
+  void set_allocated_from_nickname(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_from_nickname() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_from_nickname(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_from_nickname();
+
+  public:
+  // uint64 request_id = 1 [json_name = "requestId"];
+  void clear_request_id() ;
+  [[nodiscard]] ::uint64_t request_id() const;
+  void set_request_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_request_id() const;
+  void _internal_set_request_id(::uint64_t value);
+
+  public:
+  // uint64 from_player_id = 2 [json_name = "fromPlayerId"];
+  void clear_from_player_id() ;
+  [[nodiscard]] ::uint64_t from_player_id() const;
+  void set_from_player_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_from_player_id() const;
+  void _internal_set_from_player_id(::uint64_t value);
+
+  public:
+  // int64 created_ms = 4 [json_name = "createdMs"];
+  void clear_created_ms() ;
+  [[nodiscard]] ::int64_t created_ms() const;
+  void set_created_ms(::int64_t value);
+
+  private:
+  ::int64_t _internal_created_ms() const;
+  void _internal_set_created_ms(::int64_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.friend.v1.FriendRequestInfo)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<2, 4,
+                          0, 57,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const FriendRequestInfo& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::internal::ArenaStringPtr from_nickname_;
+    ::uint64_t request_id_;
+    ::uint64_t from_player_id_;
+    ::int64_t created_ms_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -762,7 +2744,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED FriendEvent final : public ::google
   [[nodiscard]] static const FriendEvent& default_instance() {
     return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<FriendEvent>(&FriendEvent_globals_);
   }
-  static constexpr int kIndexInFileMessages = 9;
+  static constexpr int kIndexInFileMessages = 21;
   friend void swap(FriendEvent& a, FriendEvent& b) { a.Swap(&b); }
   inline void Swap(FriendEvent* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -1011,7 +2993,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED BlockResponse final : public ::goog
   [[nodiscard]] static const BlockResponse& default_instance() {
     return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<BlockResponse>(&BlockResponse_globals_);
   }
-  static constexpr int kIndexInFileMessages = 8;
+  static constexpr int kIndexInFileMessages = 15;
   friend void swap(BlockResponse& a, BlockResponse& b) { a.Swap(&b); }
   inline void Swap(BlockResponse* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -1212,7 +3194,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED BlockRequest final : public ::googl
   [[nodiscard]] static const BlockRequest& default_instance() {
     return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<BlockRequest>(&BlockRequest_globals_);
   }
-  static constexpr int kIndexInFileMessages = 7;
+  static constexpr int kIndexInFileMessages = 14;
   friend void swap(BlockRequest& a, BlockRequest& b) { a.Swap(&b); }
   inline void Swap(BlockRequest* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -1362,6 +3344,236 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED BlockRequest final : public ::googl
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::uint64_t player_id_;
     ::uint64_t target_player_id_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2ffriend_2fv1_2ffriend_2eproto;
+};
+// -------------------------------------------------------------------
+
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED BlockInfo final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.friend.v1.BlockInfo) */ {
+ public:
+  inline BlockInfo() : BlockInfo(nullptr) {}
+  ~BlockInfo() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(BlockInfo* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(BlockInfo));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr BlockInfo(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline BlockInfo(const BlockInfo& from) : BlockInfo(nullptr, from) {}
+  inline BlockInfo(BlockInfo&& from) noexcept : BlockInfo(nullptr, ::std::move(from)) {}
+  inline BlockInfo& operator=(const BlockInfo& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline BlockInfo& operator=(BlockInfo&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const BlockInfo& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<BlockInfo>(&BlockInfo_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 18;
+  friend void swap(BlockInfo& a, BlockInfo& b) { a.Swap(&b); }
+  inline void Swap(BlockInfo* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(BlockInfo* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] BlockInfo* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<BlockInfo>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const BlockInfo& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const BlockInfo& from) { BlockInfo::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(BlockInfo* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.friend.v1.BlockInfo"; }
+
+  explicit BlockInfo(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  BlockInfo(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const BlockInfo& from);
+  BlockInfo(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, BlockInfo&& from) noexcept
+      : BlockInfo(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kNicknameFieldNumber = 2,
+    kPlayerIdFieldNumber = 1,
+    kSinceMsFieldNumber = 3,
+  };
+  // string nickname = 2 [json_name = "nickname"];
+  void clear_nickname() ;
+  [[nodiscard]] const ::std::string& nickname() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_nickname(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_nickname();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_nickname();
+  void set_allocated_nickname(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_nickname() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_nickname(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_nickname();
+
+  public:
+  // uint64 player_id = 1 [json_name = "playerId"];
+  void clear_player_id() ;
+  [[nodiscard]] ::uint64_t player_id() const;
+  void set_player_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_player_id() const;
+  void _internal_set_player_id(::uint64_t value);
+
+  public:
+  // int64 since_ms = 3 [json_name = "sinceMs"];
+  void clear_since_ms() ;
+  [[nodiscard]] ::int64_t since_ms() const;
+  void set_since_ms(::int64_t value);
+
+  private:
+  ::int64_t _internal_since_ms() const;
+  void _internal_set_since_ms(::int64_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.friend.v1.BlockInfo)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<2, 3,
+                          0, 44,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const BlockInfo& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::internal::ArenaStringPtr nickname_;
+    ::uint64_t player_id_;
+    ::int64_t since_ms_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -2265,7 +4477,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListFriendsResponse final : public 
   [[nodiscard]] static const ListFriendsResponse& default_instance() {
     return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<ListFriendsResponse>(&ListFriendsResponse_globals_);
   }
-  static constexpr int kIndexInFileMessages = 6;
+  static constexpr int kIndexInFileMessages = 11;
   friend void swap(ListFriendsResponse& a, ListFriendsResponse& b) { a.Swap(&b); }
   inline void Swap(ListFriendsResponse* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -2425,6 +4637,454 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListFriendsResponse final : public 
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::RepeatedPtrField< ::pandora::friend_::v1::FriendInfo > friends_;
+    int code_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2ffriend_2fv1_2ffriend_2eproto;
+};
+// -------------------------------------------------------------------
+
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListFriendRequestsResponse final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.friend.v1.ListFriendRequestsResponse) */ {
+ public:
+  inline ListFriendRequestsResponse() : ListFriendRequestsResponse(nullptr) {}
+  ~ListFriendRequestsResponse() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(ListFriendRequestsResponse* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(ListFriendRequestsResponse));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr ListFriendRequestsResponse(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline ListFriendRequestsResponse(const ListFriendRequestsResponse& from) : ListFriendRequestsResponse(nullptr, from) {}
+  inline ListFriendRequestsResponse(ListFriendRequestsResponse&& from) noexcept : ListFriendRequestsResponse(nullptr, ::std::move(from)) {}
+  inline ListFriendRequestsResponse& operator=(const ListFriendRequestsResponse& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ListFriendRequestsResponse& operator=(ListFriendRequestsResponse&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const ListFriendRequestsResponse& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<ListFriendRequestsResponse>(&ListFriendRequestsResponse_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 9;
+  friend void swap(ListFriendRequestsResponse& a, ListFriendRequestsResponse& b) { a.Swap(&b); }
+  inline void Swap(ListFriendRequestsResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ListFriendRequestsResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] ListFriendRequestsResponse* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<ListFriendRequestsResponse>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const ListFriendRequestsResponse& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const ListFriendRequestsResponse& from) { ListFriendRequestsResponse::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(ListFriendRequestsResponse* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.friend.v1.ListFriendRequestsResponse"; }
+
+  explicit ListFriendRequestsResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  ListFriendRequestsResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const ListFriendRequestsResponse& from);
+  ListFriendRequestsResponse(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, ListFriendRequestsResponse&& from) noexcept
+      : ListFriendRequestsResponse(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kRequestsFieldNumber = 2,
+    kCodeFieldNumber = 1,
+  };
+  // repeated .pandora.friend.v1.FriendRequestInfo requests = 2 [json_name = "requests"];
+  [[nodiscard]] int requests_size()
+      const;
+  private:
+  int _internal_requests_size() const;
+
+  public:
+  void clear_requests() ;
+  [[nodiscard]] const ::pandora::friend_::v1::FriendRequestInfo& requests(int index) const;
+  [[nodiscard]] ::pandora::friend_::v1::FriendRequestInfo* PROTOBUF_NONNULL mutable_requests(int index);
+  ::pandora::friend_::v1::FriendRequestInfo* PROTOBUF_NONNULL add_requests();
+  [[nodiscard]] const ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::FriendRequestInfo>&
+  requests() const;
+  [[nodiscard]] ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::FriendRequestInfo>* PROTOBUF_NONNULL
+  mutable_requests();
+
+  private:
+  const ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::FriendRequestInfo>& _internal_requests() const;
+  ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::FriendRequestInfo>* PROTOBUF_NONNULL _internal_mutable_requests();
+
+  public:
+  // .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
+  void clear_code() ;
+  [[nodiscard]] ::pandora::common::v1::ErrCode code() const;
+  void set_code(::pandora::common::v1::ErrCode value);
+
+  private:
+  ::pandora::common::v1::ErrCode _internal_code() const;
+  void _internal_set_code(::pandora::common::v1::ErrCode value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.friend.v1.ListFriendRequestsResponse)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<1, 2,
+                          1, 0,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const ListFriendRequestsResponse& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::RepeatedPtrField< ::pandora::friend_::v1::FriendRequestInfo > requests_;
+    int code_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_pandora_2ffriend_2fv1_2ffriend_2eproto;
+};
+// -------------------------------------------------------------------
+
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListBlocksResponse final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:pandora.friend.v1.ListBlocksResponse) */ {
+ public:
+  inline ListBlocksResponse() : ListBlocksResponse(nullptr) {}
+  ~ListBlocksResponse() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(ListBlocksResponse* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(ListBlocksResponse));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr ListBlocksResponse(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline ListBlocksResponse(const ListBlocksResponse& from) : ListBlocksResponse(nullptr, from) {}
+  inline ListBlocksResponse(ListBlocksResponse&& from) noexcept : ListBlocksResponse(nullptr, ::std::move(from)) {}
+  inline ListBlocksResponse& operator=(const ListBlocksResponse& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ListBlocksResponse& operator=(ListBlocksResponse&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const ListBlocksResponse& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<ListBlocksResponse>(&ListBlocksResponse_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 20;
+  friend void swap(ListBlocksResponse& a, ListBlocksResponse& b) { a.Swap(&b); }
+  inline void Swap(ListBlocksResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ListBlocksResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] ListBlocksResponse* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<ListBlocksResponse>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const ListBlocksResponse& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const ListBlocksResponse& from) { ListBlocksResponse::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(ListBlocksResponse* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "pandora.friend.v1.ListBlocksResponse"; }
+
+  explicit ListBlocksResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  ListBlocksResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const ListBlocksResponse& from);
+  ListBlocksResponse(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, ListBlocksResponse&& from) noexcept
+      : ListBlocksResponse(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kBlocksFieldNumber = 2,
+    kCodeFieldNumber = 1,
+  };
+  // repeated .pandora.friend.v1.BlockInfo blocks = 2 [json_name = "blocks"];
+  [[nodiscard]] int blocks_size()
+      const;
+  private:
+  int _internal_blocks_size() const;
+
+  public:
+  void clear_blocks() ;
+  [[nodiscard]] const ::pandora::friend_::v1::BlockInfo& blocks(int index) const;
+  [[nodiscard]] ::pandora::friend_::v1::BlockInfo* PROTOBUF_NONNULL mutable_blocks(int index);
+  ::pandora::friend_::v1::BlockInfo* PROTOBUF_NONNULL add_blocks();
+  [[nodiscard]] const ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::BlockInfo>&
+  blocks() const;
+  [[nodiscard]] ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::BlockInfo>* PROTOBUF_NONNULL
+  mutable_blocks();
+
+  private:
+  const ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::BlockInfo>& _internal_blocks() const;
+  ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::BlockInfo>* PROTOBUF_NONNULL _internal_mutable_blocks();
+
+  public:
+  // .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
+  void clear_code() ;
+  [[nodiscard]] ::pandora::common::v1::ErrCode code() const;
+  void set_code(::pandora::common::v1::ErrCode value);
+
+  private:
+  ::pandora::common::v1::ErrCode _internal_code() const;
+  void _internal_set_code(::pandora::common::v1::ErrCode value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:pandora.friend.v1.ListBlocksResponse)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<1, 2,
+                          1, 0,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const ListBlocksResponse& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::RepeatedPtrField< ::pandora::friend_::v1::BlockInfo > blocks_;
     int code_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
@@ -2794,6 +5454,337 @@ inline void AcceptFriendResponse::_internal_set_code(::pandora::common::v1::ErrC
 
 // -------------------------------------------------------------------
 
+// RejectFriendRequest
+
+// uint64 player_id = 1 [json_name = "playerId"];
+inline void RejectFriendRequest::clear_player_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline ::uint64_t RejectFriendRequest::player_id() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.RejectFriendRequest.player_id)
+  return _internal_player_id();
+}
+inline void RejectFriendRequest::set_player_id(::uint64_t value) {
+  _internal_set_player_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.RejectFriendRequest.player_id)
+}
+inline ::uint64_t RejectFriendRequest::_internal_player_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.player_id_;
+}
+inline void RejectFriendRequest::_internal_set_player_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = value;
+}
+
+// uint64 request_id = 2 [json_name = "requestId"];
+inline void RejectFriendRequest::clear_request_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.request_id_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+}
+inline ::uint64_t RejectFriendRequest::request_id() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.RejectFriendRequest.request_id)
+  return _internal_request_id();
+}
+inline void RejectFriendRequest::set_request_id(::uint64_t value) {
+  _internal_set_request_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.RejectFriendRequest.request_id)
+}
+inline ::uint64_t RejectFriendRequest::_internal_request_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.request_id_;
+}
+inline void RejectFriendRequest::_internal_set_request_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.request_id_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// RejectFriendResponse
+
+// .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
+inline void RejectFriendResponse::clear_code() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.code_ = 0;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline ::pandora::common::v1::ErrCode RejectFriendResponse::code() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.RejectFriendResponse.code)
+  return _internal_code();
+}
+inline void RejectFriendResponse::set_code(::pandora::common::v1::ErrCode value) {
+  _internal_set_code(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.RejectFriendResponse.code)
+}
+inline ::pandora::common::v1::ErrCode RejectFriendResponse::_internal_code() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return static_cast<::pandora::common::v1::ErrCode>(_impl_.code_);
+}
+inline void RejectFriendResponse::_internal_set_code(::pandora::common::v1::ErrCode value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.code_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// FriendRequestInfo
+
+// uint64 request_id = 1 [json_name = "requestId"];
+inline void FriendRequestInfo::clear_request_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.request_id_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+}
+inline ::uint64_t FriendRequestInfo::request_id() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.FriendRequestInfo.request_id)
+  return _internal_request_id();
+}
+inline void FriendRequestInfo::set_request_id(::uint64_t value) {
+  _internal_set_request_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.FriendRequestInfo.request_id)
+}
+inline ::uint64_t FriendRequestInfo::_internal_request_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.request_id_;
+}
+inline void FriendRequestInfo::_internal_set_request_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.request_id_ = value;
+}
+
+// uint64 from_player_id = 2 [json_name = "fromPlayerId"];
+inline void FriendRequestInfo::clear_from_player_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.from_player_id_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+}
+inline ::uint64_t FriendRequestInfo::from_player_id() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.FriendRequestInfo.from_player_id)
+  return _internal_from_player_id();
+}
+inline void FriendRequestInfo::set_from_player_id(::uint64_t value) {
+  _internal_set_from_player_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.FriendRequestInfo.from_player_id)
+}
+inline ::uint64_t FriendRequestInfo::_internal_from_player_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.from_player_id_;
+}
+inline void FriendRequestInfo::_internal_set_from_player_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.from_player_id_ = value;
+}
+
+// string from_nickname = 3 [json_name = "fromNickname"];
+inline void FriendRequestInfo::clear_from_nickname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.from_nickname_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline const ::std::string& FriendRequestInfo::from_nickname() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.FriendRequestInfo.from_nickname)
+  return _internal_from_nickname();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void FriendRequestInfo::set_from_nickname(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  _impl_.from_nickname_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.FriendRequestInfo.from_nickname)
+}
+inline ::std::string* PROTOBUF_NONNULL FriendRequestInfo::mutable_from_nickname()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  ::std::string* _s = _internal_mutable_from_nickname();
+  // @@protoc_insertion_point(field_mutable:pandora.friend.v1.FriendRequestInfo.from_nickname)
+  return _s;
+}
+inline const ::std::string& FriendRequestInfo::_internal_from_nickname() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.from_nickname_.Get();
+}
+inline void FriendRequestInfo::_internal_set_from_nickname(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.from_nickname_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL FriendRequestInfo::_internal_mutable_from_nickname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.from_nickname_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE FriendRequestInfo::release_from_nickname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:pandora.friend.v1.FriendRequestInfo.from_nickname)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000001U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  auto* released = _impl_.from_nickname_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.from_nickname_.Set("", GetArena());
+  }
+  return released;
+}
+inline void FriendRequestInfo::set_allocated_from_nickname(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  }
+  _impl_.from_nickname_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.from_nickname_.IsDefault()) {
+    _impl_.from_nickname_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:pandora.friend.v1.FriendRequestInfo.from_nickname)
+}
+
+// int64 created_ms = 4 [json_name = "createdMs"];
+inline void FriendRequestInfo::clear_created_ms() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.created_ms_ = ::int64_t{0};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+}
+inline ::int64_t FriendRequestInfo::created_ms() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.FriendRequestInfo.created_ms)
+  return _internal_created_ms();
+}
+inline void FriendRequestInfo::set_created_ms(::int64_t value) {
+  _internal_set_created_ms(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.FriendRequestInfo.created_ms)
+}
+inline ::int64_t FriendRequestInfo::_internal_created_ms() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.created_ms_;
+}
+inline void FriendRequestInfo::_internal_set_created_ms(::int64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.created_ms_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// ListFriendRequestsRequest
+
+// uint64 player_id = 1 [json_name = "playerId"];
+inline void ListFriendRequestsRequest::clear_player_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline ::uint64_t ListFriendRequestsRequest::player_id() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.ListFriendRequestsRequest.player_id)
+  return _internal_player_id();
+}
+inline void ListFriendRequestsRequest::set_player_id(::uint64_t value) {
+  _internal_set_player_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.ListFriendRequestsRequest.player_id)
+}
+inline ::uint64_t ListFriendRequestsRequest::_internal_player_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.player_id_;
+}
+inline void ListFriendRequestsRequest::_internal_set_player_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// ListFriendRequestsResponse
+
+// .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
+inline void ListFriendRequestsResponse::clear_code() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.code_ = 0;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+}
+inline ::pandora::common::v1::ErrCode ListFriendRequestsResponse::code() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.ListFriendRequestsResponse.code)
+  return _internal_code();
+}
+inline void ListFriendRequestsResponse::set_code(::pandora::common::v1::ErrCode value) {
+  _internal_set_code(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.ListFriendRequestsResponse.code)
+}
+inline ::pandora::common::v1::ErrCode ListFriendRequestsResponse::_internal_code() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return static_cast<::pandora::common::v1::ErrCode>(_impl_.code_);
+}
+inline void ListFriendRequestsResponse::_internal_set_code(::pandora::common::v1::ErrCode value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.code_ = value;
+}
+
+// repeated .pandora.friend.v1.FriendRequestInfo requests = 2 [json_name = "requests"];
+inline int ListFriendRequestsResponse::_internal_requests_size() const {
+  return _internal_requests().size();
+}
+inline int ListFriendRequestsResponse::requests_size() const {
+  return _internal_requests_size();
+}
+inline void ListFriendRequestsResponse::clear_requests() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.requests_.Clear();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline const ::pandora::friend_::v1::FriendRequestInfo& ListFriendRequestsResponse::requests(int index) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.ListFriendRequestsResponse.requests)
+  return _internal_requests().Get(index);
+}
+inline ::pandora::friend_::v1::FriendRequestInfo* PROTOBUF_NONNULL ListFriendRequestsResponse::mutable_requests(int index)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable:pandora.friend.v1.ListFriendRequestsResponse.requests)
+  return _internal_mutable_requests()->Mutable(index);
+}
+inline ::pandora::friend_::v1::FriendRequestInfo* PROTOBUF_NONNULL ListFriendRequestsResponse::add_requests()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::pandora::friend_::v1::FriendRequestInfo* _add =
+      _internal_mutable_requests()->InternalAddWithArena(
+          ::google::protobuf::MessageLite::internal_visibility(), GetArena());
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_add:pandora.friend.v1.ListFriendRequestsResponse.requests)
+  return _add;
+}
+inline const ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::FriendRequestInfo>& ListFriendRequestsResponse::requests() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_list:pandora.friend.v1.ListFriendRequestsResponse.requests)
+  return _internal_requests();
+}
+inline ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::FriendRequestInfo>* PROTOBUF_NONNULL
+ListFriendRequestsResponse::mutable_requests() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_mutable_list:pandora.friend.v1.ListFriendRequestsResponse.requests)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _internal_mutable_requests();
+}
+inline const ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::FriendRequestInfo>&
+ListFriendRequestsResponse::_internal_requests() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.requests_;
+}
+inline ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::FriendRequestInfo>* PROTOBUF_NONNULL
+ListFriendRequestsResponse::_internal_mutable_requests() {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return &_impl_.requests_;
+}
+
+// -------------------------------------------------------------------
+
 // ListFriendsRequest
 
 // uint64 player_id = 1 [json_name = "playerId"];
@@ -2905,6 +5896,86 @@ ListFriendsResponse::_internal_mutable_friends() {
 
 // -------------------------------------------------------------------
 
+// RemoveFriendRequest
+
+// uint64 player_id = 1 [json_name = "playerId"];
+inline void RemoveFriendRequest::clear_player_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline ::uint64_t RemoveFriendRequest::player_id() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.RemoveFriendRequest.player_id)
+  return _internal_player_id();
+}
+inline void RemoveFriendRequest::set_player_id(::uint64_t value) {
+  _internal_set_player_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.RemoveFriendRequest.player_id)
+}
+inline ::uint64_t RemoveFriendRequest::_internal_player_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.player_id_;
+}
+inline void RemoveFriendRequest::_internal_set_player_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = value;
+}
+
+// uint64 target_player_id = 2 [json_name = "targetPlayerId"];
+inline void RemoveFriendRequest::clear_target_player_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_player_id_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+}
+inline ::uint64_t RemoveFriendRequest::target_player_id() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.RemoveFriendRequest.target_player_id)
+  return _internal_target_player_id();
+}
+inline void RemoveFriendRequest::set_target_player_id(::uint64_t value) {
+  _internal_set_target_player_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.RemoveFriendRequest.target_player_id)
+}
+inline ::uint64_t RemoveFriendRequest::_internal_target_player_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.target_player_id_;
+}
+inline void RemoveFriendRequest::_internal_set_target_player_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_player_id_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// RemoveFriendResponse
+
+// .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
+inline void RemoveFriendResponse::clear_code() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.code_ = 0;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline ::pandora::common::v1::ErrCode RemoveFriendResponse::code() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.RemoveFriendResponse.code)
+  return _internal_code();
+}
+inline void RemoveFriendResponse::set_code(::pandora::common::v1::ErrCode value) {
+  _internal_set_code(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.RemoveFriendResponse.code)
+}
+inline ::pandora::common::v1::ErrCode RemoveFriendResponse::_internal_code() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return static_cast<::pandora::common::v1::ErrCode>(_impl_.code_);
+}
+inline void RemoveFriendResponse::_internal_set_code(::pandora::common::v1::ErrCode value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.code_ = value;
+}
+
+// -------------------------------------------------------------------
+
 // BlockRequest
 
 // uint64 player_id = 1 [json_name = "playerId"];
@@ -2981,6 +6052,313 @@ inline ::pandora::common::v1::ErrCode BlockResponse::_internal_code() const {
 inline void BlockResponse::_internal_set_code(::pandora::common::v1::ErrCode value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.code_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// UnblockRequest
+
+// uint64 player_id = 1 [json_name = "playerId"];
+inline void UnblockRequest::clear_player_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline ::uint64_t UnblockRequest::player_id() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.UnblockRequest.player_id)
+  return _internal_player_id();
+}
+inline void UnblockRequest::set_player_id(::uint64_t value) {
+  _internal_set_player_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.UnblockRequest.player_id)
+}
+inline ::uint64_t UnblockRequest::_internal_player_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.player_id_;
+}
+inline void UnblockRequest::_internal_set_player_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = value;
+}
+
+// uint64 target_player_id = 2 [json_name = "targetPlayerId"];
+inline void UnblockRequest::clear_target_player_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_player_id_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+}
+inline ::uint64_t UnblockRequest::target_player_id() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.UnblockRequest.target_player_id)
+  return _internal_target_player_id();
+}
+inline void UnblockRequest::set_target_player_id(::uint64_t value) {
+  _internal_set_target_player_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.UnblockRequest.target_player_id)
+}
+inline ::uint64_t UnblockRequest::_internal_target_player_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.target_player_id_;
+}
+inline void UnblockRequest::_internal_set_target_player_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_player_id_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// UnblockResponse
+
+// .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
+inline void UnblockResponse::clear_code() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.code_ = 0;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline ::pandora::common::v1::ErrCode UnblockResponse::code() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.UnblockResponse.code)
+  return _internal_code();
+}
+inline void UnblockResponse::set_code(::pandora::common::v1::ErrCode value) {
+  _internal_set_code(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.UnblockResponse.code)
+}
+inline ::pandora::common::v1::ErrCode UnblockResponse::_internal_code() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return static_cast<::pandora::common::v1::ErrCode>(_impl_.code_);
+}
+inline void UnblockResponse::_internal_set_code(::pandora::common::v1::ErrCode value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.code_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// BlockInfo
+
+// uint64 player_id = 1 [json_name = "playerId"];
+inline void BlockInfo::clear_player_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+}
+inline ::uint64_t BlockInfo::player_id() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.BlockInfo.player_id)
+  return _internal_player_id();
+}
+inline void BlockInfo::set_player_id(::uint64_t value) {
+  _internal_set_player_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.BlockInfo.player_id)
+}
+inline ::uint64_t BlockInfo::_internal_player_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.player_id_;
+}
+inline void BlockInfo::_internal_set_player_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = value;
+}
+
+// string nickname = 2 [json_name = "nickname"];
+inline void BlockInfo::clear_nickname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.nickname_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline const ::std::string& BlockInfo::nickname() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.BlockInfo.nickname)
+  return _internal_nickname();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void BlockInfo::set_nickname(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  _impl_.nickname_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.BlockInfo.nickname)
+}
+inline ::std::string* PROTOBUF_NONNULL BlockInfo::mutable_nickname()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  ::std::string* _s = _internal_mutable_nickname();
+  // @@protoc_insertion_point(field_mutable:pandora.friend.v1.BlockInfo.nickname)
+  return _s;
+}
+inline const ::std::string& BlockInfo::_internal_nickname() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.nickname_.Get();
+}
+inline void BlockInfo::_internal_set_nickname(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.nickname_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL BlockInfo::_internal_mutable_nickname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.nickname_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE BlockInfo::release_nickname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:pandora.friend.v1.BlockInfo.nickname)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000001U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  auto* released = _impl_.nickname_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.nickname_.Set("", GetArena());
+  }
+  return released;
+}
+inline void BlockInfo::set_allocated_nickname(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  }
+  _impl_.nickname_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.nickname_.IsDefault()) {
+    _impl_.nickname_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:pandora.friend.v1.BlockInfo.nickname)
+}
+
+// int64 since_ms = 3 [json_name = "sinceMs"];
+inline void BlockInfo::clear_since_ms() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.since_ms_ = ::int64_t{0};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+}
+inline ::int64_t BlockInfo::since_ms() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.BlockInfo.since_ms)
+  return _internal_since_ms();
+}
+inline void BlockInfo::set_since_ms(::int64_t value) {
+  _internal_set_since_ms(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.BlockInfo.since_ms)
+}
+inline ::int64_t BlockInfo::_internal_since_ms() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.since_ms_;
+}
+inline void BlockInfo::_internal_set_since_ms(::int64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.since_ms_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// ListBlocksRequest
+
+// uint64 player_id = 1 [json_name = "playerId"];
+inline void ListBlocksRequest::clear_player_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline ::uint64_t ListBlocksRequest::player_id() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.ListBlocksRequest.player_id)
+  return _internal_player_id();
+}
+inline void ListBlocksRequest::set_player_id(::uint64_t value) {
+  _internal_set_player_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.ListBlocksRequest.player_id)
+}
+inline ::uint64_t ListBlocksRequest::_internal_player_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.player_id_;
+}
+inline void ListBlocksRequest::_internal_set_player_id(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.player_id_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// ListBlocksResponse
+
+// .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
+inline void ListBlocksResponse::clear_code() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.code_ = 0;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+}
+inline ::pandora::common::v1::ErrCode ListBlocksResponse::code() const {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.ListBlocksResponse.code)
+  return _internal_code();
+}
+inline void ListBlocksResponse::set_code(::pandora::common::v1::ErrCode value) {
+  _internal_set_code(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  // @@protoc_insertion_point(field_set:pandora.friend.v1.ListBlocksResponse.code)
+}
+inline ::pandora::common::v1::ErrCode ListBlocksResponse::_internal_code() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return static_cast<::pandora::common::v1::ErrCode>(_impl_.code_);
+}
+inline void ListBlocksResponse::_internal_set_code(::pandora::common::v1::ErrCode value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.code_ = value;
+}
+
+// repeated .pandora.friend.v1.BlockInfo blocks = 2 [json_name = "blocks"];
+inline int ListBlocksResponse::_internal_blocks_size() const {
+  return _internal_blocks().size();
+}
+inline int ListBlocksResponse::blocks_size() const {
+  return _internal_blocks_size();
+}
+inline void ListBlocksResponse::clear_blocks() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.blocks_.Clear();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline const ::pandora::friend_::v1::BlockInfo& ListBlocksResponse::blocks(int index) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:pandora.friend.v1.ListBlocksResponse.blocks)
+  return _internal_blocks().Get(index);
+}
+inline ::pandora::friend_::v1::BlockInfo* PROTOBUF_NONNULL ListBlocksResponse::mutable_blocks(int index)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable:pandora.friend.v1.ListBlocksResponse.blocks)
+  return _internal_mutable_blocks()->Mutable(index);
+}
+inline ::pandora::friend_::v1::BlockInfo* PROTOBUF_NONNULL ListBlocksResponse::add_blocks()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::pandora::friend_::v1::BlockInfo* _add =
+      _internal_mutable_blocks()->InternalAddWithArena(
+          ::google::protobuf::MessageLite::internal_visibility(), GetArena());
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_add:pandora.friend.v1.ListBlocksResponse.blocks)
+  return _add;
+}
+inline const ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::BlockInfo>& ListBlocksResponse::blocks() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_list:pandora.friend.v1.ListBlocksResponse.blocks)
+  return _internal_blocks();
+}
+inline ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::BlockInfo>* PROTOBUF_NONNULL
+ListBlocksResponse::mutable_blocks() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_mutable_list:pandora.friend.v1.ListBlocksResponse.blocks)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _internal_mutable_blocks();
+}
+inline const ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::BlockInfo>&
+ListBlocksResponse::_internal_blocks() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.blocks_;
+}
+inline ::google::protobuf::RepeatedPtrField<::pandora::friend_::v1::BlockInfo>* PROTOBUF_NONNULL
+ListBlocksResponse::_internal_mutable_blocks() {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return &_impl_.blocks_;
 }
 
 // -------------------------------------------------------------------

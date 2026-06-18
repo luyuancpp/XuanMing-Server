@@ -142,6 +142,56 @@ func (u *FriendUsecase) AcceptFriend(ctx context.Context, playerID, requestID ui
 	return nil
 }
 
+// RejectFriend 拒绝好友请求。player 必须是请求的 target 本人(R5)。
+// 不推送给 requester(避免"被拒绝"的尴尬,业界惯例);pending→rejected 后该 requester 仍可再次发起。
+func (u *FriendUsecase) RejectFriend(ctx context.Context, playerID, requestID uint64) error {
+	if playerID == 0 || requestID == 0 {
+		return errcode.New(errcode.ErrInvalidArg, "player / request_id required")
+	}
+
+	req, found, err := u.repo.GetRequest(ctx, requestID)
+	if err != nil {
+		return err
+	}
+	// 预检(fail-fast,非权威):不存在 / 不是发给本人 / 已非 pending → 找不到。
+	if !found || req.TargetID != playerID || req.Status != requestStatusPending {
+		return errcode.New(errcode.ErrFriendNotFound, "no rejectable request: %d", requestID)
+	}
+
+	// 权威:事务内锁行 + target 校验 + 状态校验 + 置 rejected。
+	rejected, err := u.repo.RejectRequest(ctx, requestID, playerID)
+	if err != nil {
+		return err
+	}
+	if !rejected {
+		return errcode.New(errcode.ErrFriendNotFound, "no rejectable request: %d", requestID)
+	}
+	return nil
+}
+
+// ListFriendRequests 列出"发给本人且仍 pending"的好友请求(客户端可见结构 FriendRequestInfo)。
+//
+// 离线玩家错过 kafka push 后,靠本接口补拉待处理请求。from_nickname 留空,
+// 由客户端按 from_player_id 向 player 服务解析(CLAUDE.md §5.8 最小数据单位)。
+func (u *FriendUsecase) ListFriendRequests(ctx context.Context, playerID uint64) ([]*friendv1.FriendRequestInfo, error) {
+	if playerID == 0 {
+		return nil, errcode.New(errcode.ErrInvalidArg, "player_id required")
+	}
+	rows, err := u.repo.ListIncomingRequests(ctx, playerID)
+	if err != nil {
+		return nil, err
+	}
+	infos := make([]*friendv1.FriendRequestInfo, 0, len(rows))
+	for _, r := range rows {
+		infos = append(infos, &friendv1.FriendRequestInfo{
+			RequestId:    r.RequestID,
+			FromPlayerId: r.RequesterID,
+			CreatedMs:    r.CreatedMs,
+		})
+	}
+	return infos, nil
+}
+
 // ListFriends 列好友(客户端可见结构 FriendInfo)。
 //
 // nickname 留空:由客户端按 player_id 向 player 服务批量解析展示名(CLAUDE.md §5.8
@@ -191,6 +241,48 @@ func (u *FriendUsecase) Block(ctx context.Context, playerID, targetID uint64) er
 		return errcode.New(errcode.ErrInvalidArg, "cannot block self")
 	}
 	return u.repo.Block(ctx, playerID, targetID)
+}
+
+// RemoveFriend 删好友(双向边,幂等)。不动黑名单。
+func (u *FriendUsecase) RemoveFriend(ctx context.Context, playerID, targetID uint64) error {
+	if playerID == 0 || targetID == 0 {
+		return errcode.New(errcode.ErrInvalidArg, "player / target required")
+	}
+	if playerID == targetID {
+		return errcode.New(errcode.ErrInvalidArg, "cannot remove self")
+	}
+	return u.repo.RemoveFriend(ctx, playerID, targetID)
+}
+
+// Unblock 取消拉黑 target(幂等)。不自动恢复好友关系,玩家需重新加好友。
+func (u *FriendUsecase) Unblock(ctx context.Context, playerID, targetID uint64) error {
+	if playerID == 0 || targetID == 0 {
+		return errcode.New(errcode.ErrInvalidArg, "player / target required")
+	}
+	if playerID == targetID {
+		return errcode.New(errcode.ErrInvalidArg, "cannot unblock self")
+	}
+	return u.repo.Unblock(ctx, playerID, targetID)
+}
+
+// ListBlocks 列出本人拉黑的人(客户端可见结构 BlockInfo)。
+// nickname 留空,由客户端按 player_id 向 player 服务解析(CLAUDE.md §5.8)。
+func (u *FriendUsecase) ListBlocks(ctx context.Context, playerID uint64) ([]*friendv1.BlockInfo, error) {
+	if playerID == 0 {
+		return nil, errcode.New(errcode.ErrInvalidArg, "player_id required")
+	}
+	rows, err := u.repo.ListBlocks(ctx, playerID)
+	if err != nil {
+		return nil, err
+	}
+	infos := make([]*friendv1.BlockInfo, 0, len(rows))
+	for _, r := range rows {
+		infos = append(infos, &friendv1.BlockInfo{
+			PlayerId: r.BlockedID,
+			SinceMs:  r.SinceMs,
+		})
+	}
+	return infos, nil
 }
 
 // pushEvent 弱依赖推送:pusher 为 nil 或发送失败只 warn,不影响主流程成功。

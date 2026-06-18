@@ -115,11 +115,16 @@ InvalidateCache(player_id) → ok
 ```
 AddFriend(player_id, target_id) → request_id
 AcceptFriend(player_id, request_id) → ok
+RejectFriend(player_id, request_id) → ok
+ListFriendRequests(player_id) → []FriendRequestInfo   // 待处理(收到的)请求
 ListFriends(player_id) → []FriendInfo
+RemoveFriend(player_id, target_player_id) → ok          // 删好友(双向,幂等)
 Block(player_id, target_id) → ok
+Unblock(player_id, target_player_id) → ok               // 取消拉黑(幂等)
+ListBlocks(player_id) → []BlockInfo
 ```
 
-**实现说明**：request_id 用 snowflake uint64（不变量 §9.11）；player_id 均以 JWT ctx 为准（R5）覆盖请求体。
+**实现说明**：request_id 用 snowflake uint64（不变量 §9.11）；player_id 均以 JWT ctx 为准（R5）覆盖请求体。RejectFriend / RemoveFriend / Unblock 幂等；删好友不写黑名单(可重加)，取消拉黑不自动恢复好友关系(需重新加)。ListFriendRequests / ListBlocks 只回客户端可见结构(FriendRequestInfo / BlockInfo)，nickname 留空由客户端按 player_id 解析(§5.8)。
 
 **2026-06-06 排期决策**（已提前）：friend 原定暂缓到最后。
 
@@ -138,6 +143,8 @@ Block(player_id, target_id) → ok
 - 好友图权威主存仍推荐分片 MySQL（按 owner `player_id` 分片），Redis 只做在线玩家 / 热好友列表缓存，不做十亿级好友边权威存储。
 
 迁移边界：当前 W5 以内继续保留单 MySQL 事务实现；进入全服社交扩展前，必须先补 `friend` 的 outbox / 事件消费 / 补偿幂等键设计，再拆分 `AcceptFriend`。该迁移属于服务级架构改造，不允许只改存储连接串。
+
+**2026-06-18 闭环补全**：补 RejectFriend / ListFriendRequests / RemoveFriend / Unblock / ListBlocks 五个 RPC，关闭"离线玩家无法处理请求(无待处理查询)、无法拒绝/删好友/取消拉黑"的功能缺口。RejectFriend 不向请求方推送(避免被拒尴尬)。存储切 TiDB,跨节点好友 A/B 仍由 Percolator 2PC 保证强一致(见 friend-distributed-scaling.md §8.5)。
 
 ---
 

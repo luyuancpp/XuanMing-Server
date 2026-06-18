@@ -1,0 +1,42 @@
+# Pandora friend 服务配置 —— TiDB 版(好友图迁 TiDB,2026-06-18)。
+#
+# 与 friend-dev.yaml 唯一差异:node.mysql_client.dsn 指向 TiDB(默认 :4000),
+# 其余完全一致。TiDB 兼容 MySQL 协议,pkg/mysqlx + database/sql + go-sql-driver/mysql
+# 零改动直连;friend_repo.go 的事务 / FOR UPDATE / INSERT IGNORE 在 TiDB 悲观事务
+# 下跨节点原生可跑(docs/design/friend-distributed-scaling.md §8.1)。
+#
+# 启用方式(TiDB 集群就绪后,由 Codex / 人):
+#   先用 deploy/tidb-init/01-social-tidb.sql 建库表,再:
+#   friend --conf services/social/friend/etc/friend-dev-tidb.yaml
+#
+# ⚠️ DSN host/port/账号按实际 TiDB 集群填;下方 4000 是 TiDB Server 默认端口占位。
+
+server:
+  grpc:
+    network: tcp
+    addr: ":50004"
+    timeout: "15s"
+    enable_reflection: true
+  http:
+    network: tcp
+    addr: ":51004"
+
+node:
+  zone_id: 1
+  # TiDB:MySQL 协议兼容,DSN 形态与 MySQL 一致,仅 host:port 指向 TiDB Server。
+  # 连接池 max_open_conns 可比单 MySQL 略大(TiDB Server 可横向扩);此处保守沿用。
+  mysql_client:
+    dsn: "pandora:pandora_dev_pwd@tcp(127.0.0.1:4000)/pandora_social?parseTime=true&loc=UTC&charset=utf8mb4&collation=utf8mb4_bin"
+    max_open_conns: 32
+    max_idle_conns: 8
+    conn_max_lifetime: "30m"
+    ping_timeout: "3s"
+
+kafka:
+  brokers: ["127.0.0.1:9093"]
+  group_id: "pandora-friend"
+  partition_cnt: 4
+
+friend:
+  max_friends: 200
+  locator_addr: "127.0.0.1:50006"

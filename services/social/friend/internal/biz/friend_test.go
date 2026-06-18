@@ -145,6 +145,56 @@ func (f *fakeRepo) Block(_ context.Context, playerID, targetID uint64) error {
 	return nil
 }
 
+func (f *fakeRepo) RejectRequest(_ context.Context, requestID, rejecterID uint64) (bool, error) {
+	r, ok := f.requests[requestID]
+	if !ok {
+		return false, errcode.New(errcode.ErrFriendNotFound, "not found")
+	}
+	if r.TargetID != rejecterID {
+		return false, errcode.New(errcode.ErrFriendNotFound, "not for rejecter")
+	}
+	if r.Status != requestStatusPending {
+		return false, nil // 已被并发处理
+	}
+	r.Status = 3 // rejected
+	return true, nil
+}
+
+func (f *fakeRepo) ListIncomingRequests(_ context.Context, playerID uint64) ([]data.IncomingRequestRow, error) {
+	var out []data.IncomingRequestRow
+	for _, r := range f.requests {
+		if r.TargetID == playerID && r.Status == requestStatusPending {
+			out = append(out, data.IncomingRequestRow{
+				RequestID:   r.RequestID,
+				RequesterID: r.RequesterID,
+				CreatedMs:   1000,
+			})
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeRepo) RemoveFriend(_ context.Context, playerID, targetID uint64) error {
+	delete(f.friends[playerID], targetID)
+	delete(f.friends[targetID], playerID)
+	return nil
+}
+
+func (f *fakeRepo) Unblock(_ context.Context, playerID, targetID uint64) error {
+	delete(f.blocks[playerID], targetID)
+	return nil
+}
+
+func (f *fakeRepo) ListBlocks(_ context.Context, playerID uint64) ([]data.BlockRow, error) {
+	var out []data.BlockRow
+	for bid, on := range f.blocks[playerID] {
+		if on {
+			out = append(out, data.BlockRow{BlockedID: bid, SinceMs: 2000})
+		}
+	}
+	return out, nil
+}
+
 // fakePusher 记录推送事件。
 type fakePusher struct {
 	events []*friendv1.FriendEvent
@@ -425,5 +475,171 @@ func TestBlock_Self(t *testing.T) {
 	err := uc.Block(context.Background(), 100, 100)
 	if errcode.As(err) != errcode.ErrInvalidArg {
 		t.Fatalf("want ErrInvalidArg, got %v", err)
+	}
+}
+
+// ── RejectFriend ──────────────────────────────────────────────────────────────
+
+func TestRejectFriend_OK_NoPush(t *testing.T) {
+	repo := newFakeRepo()
+	pusher := &fakePusher{}
+	uc := newUC(repo, pusher, nil)
+	reqID, _ := uc.AddFriend(context.Background(), 100, 200, 999)
+	pusher.events = nil // 清掉 REQUEST_RECEIVED
+
+	if err := uc.RejectFriend(context.Background(), 200, reqID); err != nil {
+		t.Fatalf("RejectFriend err: %v", err)
+	}
+	// 不建好友边、不推送(避免"被拒绝"尴尬)
+	if ok, _ := repo.AreFriends(context.Background(), 100, 200); ok {
+		t.Fatal("reject must not create friendship")
+	}
+	if len(pusher.events) != 0 {
+		t.Fatalf("reject must not push, got %d", len(pusher.events))
+	}
+	// 请求已不再 pending
+	if reqs, _ := uc.ListFriendRequests(context.Background(), 200); len(reqs) != 0 {
+		t.Fatalf("rejected request should not be pending, got %d", len(reqs))
+	}
+}
+
+func TestRejectFriend_NotTarget(t *testing.T) {
+	repo := newFakeRepo()
+	uc := newUC(repo, &fakePusher{}, nil)
+	reqID, _ := uc.AddFriend(context.Background(), 100, 200, 999)
+	// 第三者 300 试图拒绝 → 找不到
+	if err := uc.RejectFriend(context.Background(), 300, reqID); errcode.As(err) != errcode.ErrFriendNotFound {
+		t.Fatalf("want ErrFriendNotFound, got %v", err)
+	}
+}
+
+func TestRejectFriend_NoRequest(t *testing.T) {
+	uc := newUC(newFakeRepo(), &fakePusher{}, nil)
+	if err := uc.RejectFriend(context.Background(), 200, 555); errcode.As(err) != errcode.ErrFriendNotFound {
+		t.Fatalf("want ErrFriendNotFound, got %v", err)
+	}
+}
+
+// ── ListFriendRequests ────────────────────────────────────────────────────────
+
+func TestListFriendRequests_OnlyPendingIncoming(t *testing.T) {
+	repo := newFakeRepo()
+	uc := newUC(repo, &fakePusher{}, nil)
+	// 两个人给 200 发请求
+	r1, _ := uc.AddFriend(context.Background(), 100, 200, 111)
+	_, _ = uc.AddFriend(context.Background(), 300, 200, 222)
+	// 200 也给别人发了请求(出站,不应出现在自己的待处理里)
+	_, _ = uc.AddFriend(context.Background(), 200, 400, 333)
+
+	reqs, err := uc.ListFriendRequests(context.Background(), 200)
+	if err != nil {
+		t.Fatalf("ListFriendRequests err: %v", err)
+	}
+	if len(reqs) != 2 {
+		t.Fatalf("want 2 incoming pending, got %d", len(reqs))
+	}
+	// 接受其中一个后,只剩 1 条 pending
+	if err := uc.AcceptFriend(context.Background(), 200, r1); err != nil {
+		t.Fatalf("AcceptFriend err: %v", err)
+	}
+	reqs, _ = uc.ListFriendRequests(context.Background(), 200)
+	if len(reqs) != 1 {
+		t.Fatalf("want 1 pending after accept, got %d", len(reqs))
+	}
+	if reqs[0].GetFromPlayerId() != 300 {
+		t.Fatalf("want remaining from 300, got %d", reqs[0].GetFromPlayerId())
+	}
+}
+
+// ── RemoveFriend ──────────────────────────────────────────────────────────────
+
+func TestRemoveFriend_OK(t *testing.T) {
+	repo := newFakeRepo()
+	repo.addFriendEdge(100, 200)
+	repo.addFriendEdge(200, 100)
+	uc := newUC(repo, &fakePusher{}, nil)
+
+	if err := uc.RemoveFriend(context.Background(), 100, 200); err != nil {
+		t.Fatalf("RemoveFriend err: %v", err)
+	}
+	if ok, _ := repo.AreFriends(context.Background(), 100, 200); ok {
+		t.Fatal("100-200 edge should be removed")
+	}
+	if ok, _ := repo.AreFriends(context.Background(), 200, 100); ok {
+		t.Fatal("200-100 edge should be removed")
+	}
+	// 删好友不写黑名单,可重新加
+	if _, err := uc.AddFriend(context.Background(), 100, 200, 1); err != nil {
+		t.Fatalf("should be able to re-add after remove: %v", err)
+	}
+}
+
+func TestRemoveFriend_Idempotent(t *testing.T) {
+	uc := newUC(newFakeRepo(), &fakePusher{}, nil)
+	// 不是好友也不报错(幂等)
+	if err := uc.RemoveFriend(context.Background(), 100, 200); err != nil {
+		t.Fatalf("remove non-friend should be idempotent, got %v", err)
+	}
+}
+
+func TestRemoveFriend_Self(t *testing.T) {
+	uc := newUC(newFakeRepo(), &fakePusher{}, nil)
+	if err := uc.RemoveFriend(context.Background(), 100, 100); errcode.As(err) != errcode.ErrInvalidArg {
+		t.Fatalf("want ErrInvalidArg, got %v", err)
+	}
+}
+
+// ── Unblock / ListBlocks ──────────────────────────────────────────────────────
+
+func TestUnblock_OK_AllowsReAdd(t *testing.T) {
+	repo := newFakeRepo()
+	uc := newUC(repo, &fakePusher{}, nil)
+	if err := uc.Block(context.Background(), 100, 200); err != nil {
+		t.Fatalf("Block err: %v", err)
+	}
+	if err := uc.Unblock(context.Background(), 100, 200); err != nil {
+		t.Fatalf("Unblock err: %v", err)
+	}
+	if blocked, _ := repo.IsBlocked(context.Background(), 100, 200); blocked {
+		t.Fatal("100 should no longer block 200")
+	}
+	// 解黑后可重新加好友
+	if _, err := uc.AddFriend(context.Background(), 100, 200, 1); err != nil {
+		t.Fatalf("should be able to add after unblock: %v", err)
+	}
+}
+
+func TestUnblock_Idempotent(t *testing.T) {
+	uc := newUC(newFakeRepo(), &fakePusher{}, nil)
+	if err := uc.Unblock(context.Background(), 100, 200); err != nil {
+		t.Fatalf("unblock non-blocked should be idempotent, got %v", err)
+	}
+}
+
+func TestListBlocks_OK(t *testing.T) {
+	repo := newFakeRepo()
+	uc := newUC(repo, &fakePusher{}, nil)
+	_ = uc.Block(context.Background(), 100, 200)
+	_ = uc.Block(context.Background(), 100, 300)
+
+	blocks, err := uc.ListBlocks(context.Background(), 100)
+	if err != nil {
+		t.Fatalf("ListBlocks err: %v", err)
+	}
+	if len(blocks) != 2 {
+		t.Fatalf("want 2 blocks, got %d", len(blocks))
+	}
+	ids := map[uint64]bool{}
+	for _, b := range blocks {
+		ids[b.GetPlayerId()] = true
+	}
+	if !ids[200] || !ids[300] {
+		t.Fatalf("want blocks 200,300; got %+v", ids)
+	}
+	// 解黑 200 后只剩 1
+	_ = uc.Unblock(context.Background(), 100, 200)
+	blocks, _ = uc.ListBlocks(context.Background(), 100)
+	if len(blocks) != 1 || blocks[0].GetPlayerId() != 300 {
+		t.Fatalf("want only 300 left, got %+v", blocks)
 	}
 }

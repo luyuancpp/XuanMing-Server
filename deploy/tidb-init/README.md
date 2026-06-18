@@ -1,0 +1,64 @@
+# Pandora TiDB 初始化(好友图迁 TiDB)
+
+好友图扩容存储路线拍板 = **(A) TiDB**(`docs/design/friend-distributed-scaling.md` §8 / §14)。
+本目录是 friend(及同库 chat)迁 TiDB 的 schema,**与单 MySQL 的
+`deploy/mysql-init/` 是两条独立线**,不互相覆盖。
+
+## 文件
+
+- `01-social-tidb.sql` —— `pandora_social` 库表的 TiDB 版 DDL(已做 §8.2 雪花主键热点处理)。
+- `../docker-compose.tidb.yml` —— 本地 TiDB 集群（PD + TiKV + TiDB，单副本，与单 MySQL 并存）。
+- `../../tools/scripts/tidb_up.ps1` —— 一键起集群 + 建账号 + 装载 DDL。
+
+## 一条命令起（推荐）
+
+```pwsh
+pwsh tools/scripts/tidb_up.ps1          # 起集群 + 建 pandora 账号 + 装载 01-social-tidb.sql
+friend --conf services/social/friend/etc/friend-dev-tidb.yaml   # friend 连 TiDB
+```
+
+停：`pwsh tools/scripts/tidb_up.ps1 -Down`（加 `-Volumes` 清数据）。
+
+诊断：`docker compose -p pandora-tidb -f deploy/docker-compose.tidb.yml ps`。脚本固定使用
+`pandora-tidb` 作为 Compose project name，避免与 `deploy/docker-compose.dev.yml` 的默认
+`deploy` project 混在一起。
+
+## 落地状态(2026-06-18)
+
+| 部分 | 谁做 | 状态 |
+|---|---|---|
+| TiDB 版 DDL(热点调优) | Claude | ✅ 本目录 |
+| friend 服务 TiDB 连接配置 | Claude | ✅ `services/social/friend/etc/friend-dev-tidb.yaml` |
+| Go 业务代码改动 | —— | ✅ 零改动(TiDB 兼容 MySQL 协议,§8.1) |
+| TiDB compose + 一键起脚本（含建账号 / 装载 DDL） | Claude | ✅ `docker-compose.tidb.yml` + `tidb_up.ps1` |
+| 起 TiDB 集群（跑 `tidb_up.ps1`，拉镜像） | **Codex / 人** | ✅ Codex 已跑通（2026-06-18） |
+| 单 MySQL → TiDB 数据迁移(如已有数据) | **Codex / 人** | ⏳ 待办 |
+
+## Codex 实跑结果(2026-06-18)
+
+- `pwsh tools/scripts/tidb_up.ps1` 已成功起 `pd` / `tikv` / `tidb` 并装载 DDL。
+- `SHOW TABLES` 已确认 `blocks` / `chat_private_messages` / `friend_requests` / `friendships` 存在。
+- friend 使用 `friend-dev-tidb.yaml` 连 `127.0.0.1:4000` 启动成功。
+- grpcurl 以 `x-pandora-player-id` 模拟 Envoy 鉴权注入，验收 `AddFriend` / `AcceptFriend` /
+  `ListFriends` / `Block` 通过；TiDB 回查确认 accepted 请求、双向好友边、拉黑后删边均符合预期。
+- 验收结束后已清理 1001/1002 测试数据，`friend_requests` / `friendships` / `blocks` 为空。
+
+## Codex / 人 交接步骤
+
+**首选一键脚本**：`pwsh tools/scripts/tidb_up.ps1`（自动完成下面 1~3）。
+
+手动等价步骤（脚本不可用时）：
+
+1. 起 TiDB 集群：`docker compose -p pandora-tidb -f deploy/docker-compose.tidb.yml up -d`
+   （或 `tiup playground`；生产用 TiUP / Operator）。默认 TiDB Server 端口 `4000`。
+2. 建账号并授权 `pandora_social`（对齐 dsn 里的 `pandora` 用户）。
+3. 装载 schema：`mysql -h 127.0.0.1 -P 4000 -u root < deploy/tidb-init/01-social-tidb.sql`。
+4. （如已有单 MySQL 数据）用 Dumpling + Lightning（或 DM）迁移，在线双写灰度。
+5. friend 服务改用 `friend-dev-tidb.yaml` 启动验证。
+
+## TiDB 必知代价(§8.2)
+
+- 雪花单调主键写热点:`friend_requests` / `chat_private_messages` 已用
+  `NONCLUSTERED PK + SHARD_ROW_ID_BITS + PRE_SPLIT_REGIONS` 打散;
+  `friendships` / `blocks` 代理主键用 `AUTO_RANDOM`。
+- 跨节点 2PC 热路径延迟;PD + TiKV + TiDB Server 运维成本重一个量级。

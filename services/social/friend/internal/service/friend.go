@@ -71,6 +71,36 @@ func (s *FriendService) AcceptFriend(ctx context.Context, req *friendv1.AcceptFr
 	return &friendv1.AcceptFriendResponse{Code: commonv1.ErrCode_OK}, nil
 }
 
+// RejectFriend 拒绝好友请求。拒绝者以 JWT ctx 为准(R5)。
+func (s *FriendService) RejectFriend(ctx context.Context, req *friendv1.RejectFriendRequest) (*friendv1.RejectFriendResponse, error) {
+	playerID := callerID(ctx)
+	if playerID == 0 {
+		return &friendv1.RejectFriendResponse{Code: commonv1.ErrCode_ERR_UNAUTHORIZED}, nil
+	}
+	if req.GetRequestId() == 0 {
+		return &friendv1.RejectFriendResponse{Code: commonv1.ErrCode_ERR_INVALID_ARG}, nil
+	}
+
+	if err := s.uc.RejectFriend(ctx, playerID, req.GetRequestId()); err != nil {
+		return &friendv1.RejectFriendResponse{Code: toProtoCode(err)}, nil
+	}
+	return &friendv1.RejectFriendResponse{Code: commonv1.ErrCode_OK}, nil
+}
+
+// ListFriendRequests 列待处理(收到的)好友请求。player_id 以 JWT ctx 为准(R5)。
+func (s *FriendService) ListFriendRequests(ctx context.Context, _ *friendv1.ListFriendRequestsRequest) (*friendv1.ListFriendRequestsResponse, error) {
+	playerID := callerID(ctx)
+	if playerID == 0 {
+		return &friendv1.ListFriendRequestsResponse{Code: commonv1.ErrCode_ERR_UNAUTHORIZED}, nil
+	}
+
+	requests, err := s.uc.ListFriendRequests(ctx, playerID)
+	if err != nil {
+		return &friendv1.ListFriendRequestsResponse{Code: toProtoCode(err)}, nil
+	}
+	return &friendv1.ListFriendRequestsResponse{Code: commonv1.ErrCode_OK, Requests: requests}, nil
+}
+
 // ListFriends 列好友。player_id 以 JWT ctx 为准(R5)。
 func (s *FriendService) ListFriends(ctx context.Context, _ *friendv1.ListFriendsRequest) (*friendv1.ListFriendsResponse, error) {
 	playerID := callerID(ctx)
@@ -83,6 +113,22 @@ func (s *FriendService) ListFriends(ctx context.Context, _ *friendv1.ListFriends
 		return &friendv1.ListFriendsResponse{Code: toProtoCode(err)}, nil
 	}
 	return &friendv1.ListFriendsResponse{Code: commonv1.ErrCode_OK, Friends: friends}, nil
+}
+
+// RemoveFriend 删好友。player_id 以 JWT ctx 为准(R5)。
+func (s *FriendService) RemoveFriend(ctx context.Context, req *friendv1.RemoveFriendRequest) (*friendv1.RemoveFriendResponse, error) {
+	playerID := callerID(ctx)
+	if playerID == 0 {
+		return &friendv1.RemoveFriendResponse{Code: commonv1.ErrCode_ERR_UNAUTHORIZED}, nil
+	}
+	if req.GetTargetPlayerId() == 0 {
+		return &friendv1.RemoveFriendResponse{Code: commonv1.ErrCode_ERR_INVALID_ARG}, nil
+	}
+
+	if err := s.uc.RemoveFriend(ctx, playerID, req.GetTargetPlayerId()); err != nil {
+		return &friendv1.RemoveFriendResponse{Code: toProtoCode(err)}, nil
+	}
+	return &friendv1.RemoveFriendResponse{Code: commonv1.ErrCode_OK}, nil
 }
 
 // Block 拉黑 target。player_id 以 JWT ctx 为准(R5)。
@@ -99,6 +145,36 @@ func (s *FriendService) Block(ctx context.Context, req *friendv1.BlockRequest) (
 		return &friendv1.BlockResponse{Code: toProtoCode(err)}, nil
 	}
 	return &friendv1.BlockResponse{Code: commonv1.ErrCode_OK}, nil
+}
+
+// Unblock 取消拉黑。player_id 以 JWT ctx 为准(R5)。
+func (s *FriendService) Unblock(ctx context.Context, req *friendv1.UnblockRequest) (*friendv1.UnblockResponse, error) {
+	playerID := callerID(ctx)
+	if playerID == 0 {
+		return &friendv1.UnblockResponse{Code: commonv1.ErrCode_ERR_UNAUTHORIZED}, nil
+	}
+	if req.GetTargetPlayerId() == 0 {
+		return &friendv1.UnblockResponse{Code: commonv1.ErrCode_ERR_INVALID_ARG}, nil
+	}
+
+	if err := s.uc.Unblock(ctx, playerID, req.GetTargetPlayerId()); err != nil {
+		return &friendv1.UnblockResponse{Code: toProtoCode(err)}, nil
+	}
+	return &friendv1.UnblockResponse{Code: commonv1.ErrCode_OK}, nil
+}
+
+// ListBlocks 列黑名单。player_id 以 JWT ctx 为准(R5)。
+func (s *FriendService) ListBlocks(ctx context.Context, _ *friendv1.ListBlocksRequest) (*friendv1.ListBlocksResponse, error) {
+	playerID := callerID(ctx)
+	if playerID == 0 {
+		return &friendv1.ListBlocksResponse{Code: commonv1.ErrCode_ERR_UNAUTHORIZED}, nil
+	}
+
+	blocks, err := s.uc.ListBlocks(ctx, playerID)
+	if err != nil {
+		return &friendv1.ListBlocksResponse{Code: toProtoCode(err)}, nil
+	}
+	return &friendv1.ListBlocksResponse{Code: commonv1.ErrCode_OK, Blocks: blocks}, nil
 }
 
 // ── 辅助 ──────────────────────────────────────────────────────────────────────

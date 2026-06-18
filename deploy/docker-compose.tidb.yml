@@ -1,0 +1,94 @@
+# Pandora TiDB 集群(好友图迁 TiDB,2026-06-18)
+#
+# 好友图扩容存储路线 = (A) TiDB(docs/design/friend-distributed-scaling.md §8 / §14)。
+# 本 compose 是 friend(及同库 chat)迁 TiDB 的**本地开发集群**,与单 MySQL
+# (docker-compose.dev.yml 的 mysql 服务)并存、互不影响。
+#
+# 拓扑(最小单副本,开发够用;生产用 TiUP / Operator 多副本):
+#   pd   :2379  集群元数据 / 调度(Placement Driver)
+#   tikv :20160 行存储(Raft,开发单副本)
+#   tidb :4000  SQL 层(MySQL 协议入口,friend 服务连这个)
+#
+# 端口对宿主只暴露 TiDB :4000(+ :10080 status),PD/TiKV 只在 pandora-tidb-net
+# 内部互通,避免与 docker-compose.dev.yml 的 etcd :2380 等冲突。
+#
+# 用法(由 Codex / 人执行,§11.1 Claude 不起重服务):
+#   pwsh tools/scripts/tidb_up.ps1            # 起集群 + 自动装载 01-social-tidb.sql
+#   pwsh tools/scripts/tidb_up.ps1 -Down      # 停集群(保留数据卷)
+#   pwsh tools/scripts/tidb_up.ps1 -Down -Volumes  # 停 + 清数据
+#
+# friend 服务连法:friend --conf services/social/friend/etc/friend-dev-tidb.yaml
+#   (DSN 已指向 127.0.0.1:4000 / pandora_social)。
+#
+# ⚠️ 首次起会拉 pingcap/{pd,tikv,tidb} 镜像(数百 MB),需联网。
+
+services:
+  pd:
+    image: pingcap/pd:v8.5.1
+    container_name: pandora-tidb-pd
+    restart: unless-stopped
+    command:
+      - --name=pd
+      - --data-dir=/data/pd
+      - --client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://pd:2379
+      - --peer-urls=http://0.0.0.0:2380
+      - --advertise-peer-urls=http://pd:2380
+      - --initial-cluster=pd=http://pd:2380
+    volumes:
+      - tidb-pd-data:/data/pd
+    healthcheck:
+      test: ["CMD", "/pd-ctl", "-u", "http://127.0.0.1:2379", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [pandora-tidb-net]
+
+  tikv:
+    image: pingcap/tikv:v8.5.1
+    container_name: pandora-tidb-tikv
+    restart: unless-stopped
+    depends_on:
+      pd:
+        condition: service_started
+    command:
+      - --addr=0.0.0.0:20160
+      - --advertise-addr=tikv:20160
+      - --status-addr=0.0.0.0:20180
+      - --data-dir=/data/tikv
+      - --pd=pd:2379
+    volumes:
+      - tidb-tikv-data:/data/tikv
+    networks: [pandora-tidb-net]
+
+  tidb:
+    image: pingcap/tidb:v8.5.1
+    container_name: pandora-tidb-server
+    restart: unless-stopped
+    depends_on:
+      tikv:
+        condition: service_started
+    command:
+      - --store=tikv
+      - --path=pd:2379
+      - --advertise-address=tidb
+    ports:
+      - "4000:4000"    # MySQL 协议入口(friend 服务连这个)
+      - "10080:10080"  # status / metrics
+    healthcheck:
+      test: ["CMD-SHELL", "/tidb-server -V > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [pandora-tidb-net]
+
+networks:
+  pandora-tidb-net:
+    name: pandora-tidb-net
+    driver: bridge
+
+volumes:
+  tidb-pd-data:   { name: pandora-tidb-pd-data }
+  tidb-tikv-data: { name: pandora-tidb-tikv-data }

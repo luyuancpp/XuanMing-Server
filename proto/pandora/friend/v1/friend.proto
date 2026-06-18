@@ -1,6 +1,9 @@
 // Pandora FriendService 协议。
 //
-// 职责(docs/design/go-services.md §2.4):好友 / 黑名单 / 拒绝列表。
+// 职责(docs/design/go-services.md §2.4):好友 / 黑名单 / 待处理请求。
+// 闭环 RPC:请求(AddFriend)/ 查待处理(ListFriendRequests)/ 接受(AcceptFriend)/
+//   拒绝(RejectFriend)/ 列表(ListFriends)/ 删除(RemoveFriend)/
+//   拉黑(Block)/ 取消拉黑(Unblock)/ 查黑名单(ListBlocks)。
 //
 // 数据落地:pandora_social 库(friendships / friend_requests / blocks),
 // 结构化列直接映射 proto 字段(CLAUDE.md §5.9 关系型表不强制 proto 化 blob)。
@@ -15,8 +18,13 @@ import "pandora/common/v1/errcode.proto";
 service FriendService {
   rpc AddFriend(AddFriendRequest) returns (AddFriendResponse);
   rpc AcceptFriend(AcceptFriendRequest) returns (AcceptFriendResponse);
+  rpc RejectFriend(RejectFriendRequest) returns (RejectFriendResponse);
+  rpc ListFriendRequests(ListFriendRequestsRequest) returns (ListFriendRequestsResponse);
   rpc ListFriends(ListFriendsRequest) returns (ListFriendsResponse);
+  rpc RemoveFriend(RemoveFriendRequest) returns (RemoveFriendResponse);
   rpc Block(BlockRequest) returns (BlockResponse);
+  rpc Unblock(UnblockRequest) returns (UnblockResponse);
+  rpc ListBlocks(ListBlocksRequest) returns (ListBlocksResponse);
 }
 
 enum FriendRequestStatus {
@@ -59,6 +67,38 @@ message AcceptFriendResponse {
   pandora.common.v1.ErrCode code = 1;
 }
 
+message RejectFriendRequest {
+  // player_id 由服务端以 JWT ctx 为准覆盖(R5),请求体可不填。
+  // 只有请求的 target 本人能拒绝;pending→rejected。不推送给 requester(避免尴尬)。
+  uint64 player_id  = 1;
+  uint64 request_id = 2;
+}
+
+message RejectFriendResponse {
+  pandora.common.v1.ErrCode code = 1;
+}
+
+// FriendRequestInfo 是客户端可见的「收到的待处理好友请求」视图(CLAUDE.md §5.8)。
+// 只暴露 pending 状态的入站请求(target = 查询者);不暴露内部 status 枚举。
+// from_nickname 留空,由客户端按 from_player_id 向 player 服务解析显示名(§5.8 最小数据单位)。
+message FriendRequestInfo {
+  uint64 request_id     = 1;
+  uint64 from_player_id = 2;  // 发起方(requester)
+  string from_nickname  = 3;
+  int64  created_ms     = 4;
+}
+
+message ListFriendRequestsRequest {
+  // player_id 由服务端以 JWT ctx 为准覆盖(R5),请求体可不填。
+  uint64 player_id = 1;
+}
+
+message ListFriendRequestsResponse {
+  pandora.common.v1.ErrCode code = 1;
+  // 发给本人且仍 pending 的好友请求(离线错过 push 后靠本接口补拉)。
+  repeated FriendRequestInfo requests = 2;
+}
+
 message ListFriendsRequest {
   // player_id 由服务端以 JWT ctx 为准覆盖(R5),请求体可不填。
   uint64 player_id = 1;
@@ -69,6 +109,16 @@ message ListFriendsResponse {
   repeated FriendInfo friends = 2;
 }
 
+message RemoveFriendRequest {
+  // player_id 由服务端以 JWT ctx 为准覆盖(R5),请求体可不填。
+  uint64 player_id        = 1;
+  uint64 target_player_id = 2;
+}
+
+message RemoveFriendResponse {
+  pandora.common.v1.ErrCode code = 1;
+}
+
 message BlockRequest {
   // player_id 由服务端以 JWT ctx 为准覆盖(R5),请求体可不填。
   uint64 player_id        = 1;
@@ -77,6 +127,34 @@ message BlockRequest {
 
 message BlockResponse {
   pandora.common.v1.ErrCode code = 1;
+}
+
+message UnblockRequest {
+  // player_id 由服务端以 JWT ctx 为准覆盖(R5),请求体可不填。
+  uint64 player_id        = 1;
+  uint64 target_player_id = 2;
+}
+
+message UnblockResponse {
+  pandora.common.v1.ErrCode code = 1;
+}
+
+// BlockInfo 是客户端可见的黑名单条目视图(CLAUDE.md §5.8)。
+// nickname 留空,由客户端按 player_id 解析显示名。
+message BlockInfo {
+  uint64 player_id = 1;  // 被拉黑玩家
+  string nickname  = 2;
+  int64  since_ms  = 3;
+}
+
+message ListBlocksRequest {
+  // player_id 由服务端以 JWT ctx 为准覆盖(R5),请求体可不填。
+  uint64 player_id = 1;
+}
+
+message ListBlocksResponse {
+  pandora.common.v1.ErrCode code = 1;
+  repeated BlockInfo blocks = 2;
 }
 
 // ===== 推送事件(kafka pandora.friend.event)=====

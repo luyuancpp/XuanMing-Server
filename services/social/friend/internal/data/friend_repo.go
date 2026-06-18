@@ -40,6 +40,19 @@ type FriendRow struct {
 	SinceMs  int64
 }
 
+// IncomingRequestRow 是一条「发给本人且仍 pending」的好友请求(供 biz 组装 FriendRequestInfo)。
+type IncomingRequestRow struct {
+	RequestID   uint64
+	RequesterID uint64
+	CreatedMs   int64
+}
+
+// BlockRow 是一条黑名单条目(被拉黑玩家 + 拉黑时间,供 biz 组装 BlockInfo)。
+type BlockRow struct {
+	BlockedID uint64
+	SinceMs   int64
+}
+
 // FriendRepo 是 friend 数据层抽象。biz 层只依赖此接口,不依赖 *sql.DB。
 type FriendRepo interface {
 	// AreFriends 判断 a / b 是否已是好友(查一行即可,双向落库)。
@@ -66,10 +79,23 @@ type FriendRepo interface {
 	//   - accepted=false, err=nil:请求已被并发处理(Block 改 rejected / 另一次 accept),
 	//     biz 不得推送、不得报"成功"(避免假成功)。
 	AcceptRequest(ctx context.Context, requestID, accepterID uint64, maxFriends int) (accepted bool, err error)
+	// RejectRequest 在事务里拒绝好友请求:锁请求行(FOR UPDATE)→ 校验 target 本人 →
+	// 确认仍 pending → 置 rejected。返回 rejected 表示本次是否真正把 pending→rejected:
+	//   - rejected=true:本次完成;
+	//   - rejected=false, err=nil:请求已被并发处理(已 accept / Block 改 rejected),biz 报找不到。
+	RejectRequest(ctx context.Context, requestID, rejecterID uint64) (rejected bool, err error)
+	// ListIncomingRequests 列出「发给 playerID 且仍 pending」的好友请求(离线补拉用)。
+	ListIncomingRequests(ctx context.Context, playerID uint64) ([]IncomingRequestRow, error)
 	// ListFriends 列出玩家的好友(friend_id + since_ms)。
 	ListFriends(ctx context.Context, playerID uint64) ([]FriendRow, error)
+	// RemoveFriend 删双向好友边(幂等:不存在也不报错)。不动黑名单 / 请求。
+	RemoveFriend(ctx context.Context, playerID, targetID uint64) error
 	// Block 在一个事务里:写黑名单 + 删双向好友边 + 取消两人之间的 pending 请求。
 	Block(ctx context.Context, playerID, targetID uint64) error
+	// Unblock 从黑名单移除(幂等:不存在也不报错)。不自动恢复好友关系。
+	Unblock(ctx context.Context, playerID, targetID uint64) error
+	// ListBlocks 列出玩家拉黑的人(blocked_id + since_ms)。
+	ListBlocks(ctx context.Context, playerID uint64) ([]BlockRow, error)
 }
 
 // MySQLFriendRepo 是基于 database/sql 的 FriendRepo 实现。
@@ -264,6 +290,68 @@ WHERE (player_id = ? AND blocked_id = ?) OR (player_id = ? AND blocked_id = ?) L
 	return true, nil
 }
 
+func (r *MySQLFriendRepo) RejectRequest(ctx context.Context, requestID, rejecterID uint64) (bool, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, errcode.New(errcode.ErrInternal, "begin tx: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// 锁请求行,确认仍是 pending(防并发:accept / 另一次 reject / Block 改状态)
+	var targetID uint64
+	var status int32
+	err = tx.QueryRowContext(ctx,
+		`SELECT target_id, status FROM friend_requests
+WHERE request_id = ? FOR UPDATE`, requestID).Scan(&targetID, &status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, errcode.New(errcode.ErrFriendNotFound, "request not found: %d", requestID)
+	}
+	if err != nil {
+		return false, errcode.New(errcode.ErrInternal, "lock request %d: %v", requestID, err)
+	}
+	// R5 权威校验:只有请求的 target 本人能拒绝(放进事务,杜绝 TOCTOU)
+	if targetID != rejecterID {
+		return false, errcode.New(errcode.ErrFriendNotFound, "request %d not for %d", requestID, rejecterID)
+	}
+	// 并发下请求已被处理(accept / Block)→ 本次未真正完成 pending→rejected
+	if status != requestStatusPending {
+		return false, nil
+	}
+
+	if _, uerr := tx.ExecContext(ctx,
+		`UPDATE friend_requests SET status = ?, updated_at = NOW() WHERE request_id = ?`,
+		requestStatusRejected, requestID); uerr != nil {
+		return false, errcode.New(errcode.ErrInternal, "reject request %d: %v", requestID, uerr)
+	}
+	if cerr := tx.Commit(); cerr != nil {
+		return false, errcode.New(errcode.ErrInternal, "commit reject %d: %v", requestID, cerr)
+	}
+	return true, nil
+}
+
+func (r *MySQLFriendRepo) ListIncomingRequests(ctx context.Context, playerID uint64) ([]IncomingRequestRow, error) {
+	const q = `SELECT request_id, requester_id, UNIX_TIMESTAMP(created_at)*1000
+FROM friend_requests WHERE target_id = ? AND status = ? ORDER BY created_at DESC`
+	rows, err := r.db.QueryContext(ctx, q, playerID, requestStatusPending)
+	if err != nil {
+		return nil, errcode.New(errcode.ErrInternal, "query incoming requests player=%d: %v", playerID, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []IncomingRequestRow
+	for rows.Next() {
+		var rr IncomingRequestRow
+		if serr := rows.Scan(&rr.RequestID, &rr.RequesterID, &rr.CreatedMs); serr != nil {
+			return nil, errcode.New(errcode.ErrInternal, "scan incoming request player=%d: %v", playerID, serr)
+		}
+		out = append(out, rr)
+	}
+	if rerr := rows.Err(); rerr != nil {
+		return nil, errcode.New(errcode.ErrInternal, "iterate incoming requests player=%d: %v", playerID, rerr)
+	}
+	return out, nil
+}
+
 func (r *MySQLFriendRepo) ListFriends(ctx context.Context, playerID uint64) ([]FriendRow, error) {
 	const q = `SELECT friend_id, UNIX_TIMESTAMP(created_at)*1000
 FROM friendships WHERE player_id = ? ORDER BY created_at DESC`
@@ -319,4 +407,46 @@ WHERE status = ? AND ((requester_id = ? AND target_id = ?) OR (requester_id = ? 
 		return errcode.New(errcode.ErrInternal, "commit block %d->%d: %v", playerID, targetID, cerr)
 	}
 	return nil
+}
+
+func (r *MySQLFriendRepo) RemoveFriend(ctx context.Context, playerID, targetID uint64) error {
+	// 删双向好友边(幂等:删不到行不报错)。单条 DELETE 覆盖两个方向,天然原子。
+	if _, derr := r.db.ExecContext(ctx,
+		`DELETE FROM friendships WHERE (player_id = ? AND friend_id = ?) OR (player_id = ? AND friend_id = ?)`,
+		playerID, targetID, targetID, playerID); derr != nil {
+		return errcode.New(errcode.ErrInternal, "remove friendship %d-%d: %v", playerID, targetID, derr)
+	}
+	return nil
+}
+
+func (r *MySQLFriendRepo) Unblock(ctx context.Context, playerID, targetID uint64) error {
+	// 从黑名单移除(幂等:删不到行不报错)。不自动恢复好友关系。
+	if _, derr := r.db.ExecContext(ctx,
+		`DELETE FROM blocks WHERE player_id = ? AND blocked_id = ?`, playerID, targetID); derr != nil {
+		return errcode.New(errcode.ErrInternal, "unblock %d->%d: %v", playerID, targetID, derr)
+	}
+	return nil
+}
+
+func (r *MySQLFriendRepo) ListBlocks(ctx context.Context, playerID uint64) ([]BlockRow, error) {
+	const q = `SELECT blocked_id, UNIX_TIMESTAMP(created_at)*1000
+FROM blocks WHERE player_id = ? ORDER BY created_at DESC`
+	rows, err := r.db.QueryContext(ctx, q, playerID)
+	if err != nil {
+		return nil, errcode.New(errcode.ErrInternal, "query blocks player=%d: %v", playerID, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []BlockRow
+	for rows.Next() {
+		var br BlockRow
+		if serr := rows.Scan(&br.BlockedID, &br.SinceMs); serr != nil {
+			return nil, errcode.New(errcode.ErrInternal, "scan block player=%d: %v", playerID, serr)
+		}
+		out = append(out, br)
+	}
+	if rerr := rows.Err(); rerr != nil {
+		return nil, errcode.New(errcode.ErrInternal, "iterate blocks player=%d: %v", playerID, rerr)
+	}
+	return out, nil
 }
