@@ -5,7 +5,7 @@
 #   2) 把两个真 UE Linux DS 镜像(精确 tag,从 Fleet yaml 动态解析)load 进 minikube
 #   3) 起宿主 Envoy 桥接(kubectl port-forward 所有 envoy upstream + docker envoy :8443/:8444)
 #   4) 等 pandora-battle / pandora-hub Fleet Ready
-#   5) (可选)后台拉起 UDP 回程中继(docker driver 下客户端连 DS 必需)
+#   5) (可选)起容器版 UDP 回程中继(--network minikube;docker driver 下客户端连 DS 必需)
 #   6) 打印端到端验收清单(用真 UE 客户端验:登录→hub→战斗→结算回 hub)
 #
 # 前置(由 start.ps1 -Mode k8s 完成):minikube 起、Agones 装好、RBAC/Fleet apply、16 个后端服务部署。
@@ -14,14 +14,14 @@
 #
 # 用法:
 #   pwsh tools/scripts/e2e_k8s.ps1                 # 校验 + load 镜像 + 等 Fleet + 起中继(后台)
-#   pwsh tools/scripts/e2e_k8s.ps1 -NoRelay        # 不自动起中继(自己另开终端跑 udp_relay.ps1)
+#   pwsh tools/scripts/e2e_k8s.ps1 -NoRelay        # 不自动起容器版中继(自己按提示起 pandora/udp-relay:dev 容器)
 #   pwsh tools/scripts/e2e_k8s.ps1 -SkipImageLoad  # 镜像已 load 过,跳过
 #   pwsh tools/scripts/e2e_k8s.ps1 -TimeoutSec 300 # 等 Fleet Ready 的超时(默认 240s)
 #   pwsh tools/scripts/e2e_k8s.ps1 -BridgeForce    # 500xx 端口被本地/compose 旧服务占用时,杀掉后重建 port-forward
 
 [CmdletBinding()]
 param(
-    [switch]$NoRelay,        # 不自动后台起 UDP 中继
+    [switch]$NoRelay,        # 不自动起容器版 UDP 中继
     [switch]$SkipImageLoad,  # 跳过 minikube image load
     [switch]$BridgeForce,    # 端口被非 bridge 进程占用时,杀掉占用者后重建 port-forward
     [int]$TimeoutSec = 240   # 等 Fleet Ready 超时秒
@@ -147,21 +147,84 @@ if (-not $bOk -or -not $hOk) {
     exit 1
 }
 
-# ── 4) UDP 回程中继(docker driver 必需) ────────────────────────────────
-Write-Step "[4/6] UDP 回程中继"
-if ($NoRelay) {
-    Write-Warn "已传 -NoRelay,未自动起中继。docker driver 下请另开终端跑:pwsh tools/scripts/udp_relay.ps1"
-} else {
-    Write-Info "后台拉起 UDP 中继(转发 127.0.0.1:<port> -> minikube 节点)..."
-    $relay = Start-Process pwsh -PassThru -ArgumentList @(
-        '-NoProfile', '-File', (Join-Path $ScriptDir 'udp_relay.ps1')
-    )
-    Start-Sleep -Seconds 2
-    if ($relay.HasExited) {
-        Write-Warn "中继进程已退出(可能 minikube ip 解析失败)。请手动跑 udp_relay.ps1 看报错。"
-    } else {
-        Write-Ok "UDP 中继已后台启动(PID=$($relay.Id))。停止:Stop-Process -Id $($relay.Id)"
+# ── 4) UDP 回程中继(docker driver 必需:容器版,挂 minikube 网络) ──────────
+# 为什么必须用容器版而不是 Windows 进程版:
+#   Windows + Docker Desktop + minikube docker driver 下,minikube 节点是跑在 Docker Desktop
+#   Linux VM 里的容器,IP 在 docker 网络 minikube(如 192.168.49.0/24)。Windows 宿主进程的
+#   UDP 直发 192.168.49.2:<port> 不可路由 —— relay 收到包但 minikube 节点 hostPort DNAT 不增长,
+#   DS 收不到连接。把 relay 跑成容器并 `--network minikube`,它才能直连 192.168.49.x;再用
+#   `-p 127.0.0.1:7000-8000:.../udp` 让 Docker Desktop 把宿主 127.0.0.1 的 UDP 转进容器。
+#     client -> 127.0.0.1:<port>(Win) -[Docker Desktop]-> relay 容器 -[minikube net]-> 192.168.49.2:<port> -> DS
+Write-Step "[4/6] UDP 回程中继(dockerized,--network minikube)"
+
+function Stop-HostUdpRelay {
+    # 杀掉旧的 Windows 进程版中继(udp_relay.ps1 / go run tools/udp-relay),避免占 127.0.0.1:7000-8000
+    $procs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -and ($_.CommandLine -match 'udp_relay\.ps1' -or $_.CommandLine -match 'udp-relay') }
+    foreach ($p in $procs) {
+        # 别误杀本脚本自己/编辑器
+        if ($p.ProcessId -eq $PID) { continue }
+        Write-Warn "  停掉旧 Windows 进程版中继 PID=$($p.ProcessId)"
+        Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
     }
+}
+
+if ($NoRelay) {
+    Write-Warn "已传 -NoRelay,未自动起中继。需手动起【容器版】中继(挂 minikube 网络):"
+    Write-Warn "  docker build -t pandora/udp-relay:dev tools/udp-relay"
+    Write-Warn "  docker run -d --name pandora-udp-relay --network minikube -p 127.0.0.1:7000-8000:7000-8000/udp -e TARGET_HOST=`$(minikube ip) -e PORT_RANGE=7000-8000 pandora/udp-relay:dev"
+} else {
+    $relayImage = 'pandora/udp-relay:dev'
+    $relayName  = 'pandora-udp-relay'
+    $relayRange = '7000-8000'
+    $relayDir   = Join-Path $ProjectRoot 'tools/udp-relay'
+
+    # 4.1 清理:旧 Windows 进程版中继 + 旧容器(都是 127.0.0.1:7000-8000 端口冲突来源)
+    Stop-HostUdpRelay
+    docker rm -f $relayName *> $null
+
+    # 4.2 解析 minikube 节点 IP 作为转发目标(容器在 minikube 网络内可达)
+    $relayTarget = (& minikube ip 2>$null | Out-String).Trim()
+    if ([string]::IsNullOrWhiteSpace($relayTarget)) {
+        Write-Err "无法解析 minikube ip,容器版中继无法确定 TARGET_HOST。先确认 minikube 在跑。"
+        exit 1
+    }
+    Write-Info "  TARGET_HOST(minikube 节点)= $relayTarget"
+
+    # 4.3 确认 minikube docker 网络存在(--network 目标)
+    docker network inspect minikube *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "未找到 docker 网络 'minikube' —— 当前 minikube 可能不是 docker driver。容器版中继不适用。"
+        exit 1
+    }
+
+    # 4.4 构建中继镜像(纯标准库,很快)
+    Write-Info "  docker build $relayImage ..."
+    docker build -t $relayImage $relayDir
+    if ($LASTEXITCODE -ne 0) { Write-Err "中继镜像构建失败"; exit 1 }
+
+    # 4.5 起容器:挂 minikube 网络 + 发布宿主 127.0.0.1:7000-8000/udp
+    Write-Info "  docker run --network minikube -p 127.0.0.1:${relayRange}:${relayRange}/udp(发布 1001 个 UDP 端口,稍慢)..."
+    docker run -d --name $relayName --network minikube `
+        -p "127.0.0.1:${relayRange}:${relayRange}/udp" `
+        -e "TARGET_HOST=$relayTarget" `
+        -e "PORT_RANGE=$relayRange" `
+        $relayImage *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "中继容器启动失败(端口被占用 / minikube 网络不存在)。日志:"
+        docker logs $relayName 2>$null
+        exit 1
+    }
+    Start-Sleep -Seconds 2
+    $relayRunning = (docker inspect -f '{{.State.Running}}' $relayName 2>$null)
+    if ($relayRunning -ne 'true') {
+        Write-Err "中继容器未处于 Running。日志:"
+        docker logs $relayName 2>$null
+        exit 1
+    }
+    Write-Ok "UDP 中继(dockerized)已启动:容器 $relayName,--network minikube,转发 127.0.0.1:$relayRange/udp -> ${relayTarget}:$relayRange"
+    Write-Info "  停止:docker rm -f $relayName    查看:docker logs -f $relayName"
+    Write-Info "  验证:发 UDP 到 127.0.0.1:<port> 后,minikube ssh 里 'sudo iptables -t nat -L -n -v | grep dpt:<port>' 的 DNAT 计数应增长。"
 }
 
 # ── 5) 现状打印 ────────────────────────────────────────────────────────

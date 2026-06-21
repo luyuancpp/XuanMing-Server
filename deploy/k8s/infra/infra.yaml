@@ -113,6 +113,9 @@ kind: Deployment
 metadata: { name: kafka, namespace: pandora, labels: { app: kafka } }
 spec:
   replicas: 1
+  # 单 broker(BROKER_ID=1):更新时必须先停旧 Pod 再起新 Pod。默认 RollingUpdate 会让新旧
+  # 同时在跑,新 Pod 注册 ZK /brokers/ids/1 时被旧 Pod 占住 -> NodeExistsException -> CrashLoop。
+  strategy: { type: Recreate }
   selector: { matchLabels: { app: kafka } }
   template:
     metadata: { labels: { app: kafka } }
