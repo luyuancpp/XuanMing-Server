@@ -141,12 +141,12 @@ func (r *RedisMatchRepo) AddTicket(ctx context.Context, ticket *matchv1.MatchTic
 	if err != nil {
 		return err
 	}
-	_, err = r.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		pipe.Set(ctx, ticketKey(ticket.TicketId), payload, ticketTTL)
-		pipe.ZAdd(ctx, queueKey, redis.Z{Score: float64(ticket.AvgMmr), Member: ticket.TicketId})
-		return nil
-	})
-	return err
+	// Cluster 兼容(同 trade decision-revisit-trade-crossslot.md):ticketKey 与全局 queueKey 分属不同 slot,
+	// 不能捆同一事务(否则 CROSSSLOT)。① ticketKey 单键 SET 权威落库;② queueKey 独立 ZADD 入池。均幂等。
+	if err := r.rdb.Set(ctx, ticketKey(ticket.TicketId), payload, ticketTTL).Err(); err != nil {
+		return err
+	}
+	return r.rdb.ZAdd(ctx, queueKey, redis.Z{Score: float64(ticket.AvgMmr), Member: ticket.TicketId}).Err()
 }
 
 func (r *RedisMatchRepo) GetTicket(ctx context.Context, ticketID uint64) (*matchv1.MatchTicketStorageRecord, bool, error) {
@@ -169,12 +169,12 @@ func (r *RedisMatchRepo) ReserveTicket(ctx context.Context, ticket *matchv1.Matc
 	if err != nil {
 		return err
 	}
-	_, err = r.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		pipe.Set(ctx, ticketKey(ticket.TicketId), payload, ticketTTL)
-		pipe.ZRem(ctx, queueKey, ticket.TicketId)
-		return nil
-	})
-	return err
+	// Cluster 兼容:① ticketKey 单键 SET 写回带 match_id 的权威状态;② queueKey 独立 ZREM 移出池。
+	// 若 ZREM 失败残留队列项,matchOnce 加载时 t.MatchId != 0 会跳过(防重复撞合),不影响正确性。
+	if err := r.rdb.Set(ctx, ticketKey(ticket.TicketId), payload, ticketTTL).Err(); err != nil {
+		return err
+	}
+	return r.rdb.ZRem(ctx, queueKey, ticket.TicketId).Err()
 }
 
 func (r *RedisMatchRepo) RequeueTicket(ctx context.Context, ticket *matchv1.MatchTicketStorageRecord, ticketTTL time.Duration) error {
@@ -182,12 +182,12 @@ func (r *RedisMatchRepo) RequeueTicket(ctx context.Context, ticket *matchv1.Matc
 }
 
 func (r *RedisMatchRepo) DeleteTicket(ctx context.Context, ticketID uint64) error {
-	_, err := r.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		pipe.Del(ctx, ticketKey(ticketID))
-		pipe.ZRem(ctx, queueKey, ticketID)
-		return nil
-	})
-	return err
+	// Cluster 兼容:ticketKey 与 queueKey 不同 slot,拆为独立命令。均幂等;若 ZREM 失败残留队列项,
+	// matchOnce 加载时 GetTicket miss 跳过并 best-effort 补清(自愈)。
+	if err := r.rdb.Del(ctx, ticketKey(ticketID)).Err(); err != nil {
+		return err
+	}
+	return r.rdb.ZRem(ctx, queueKey, ticketID).Err()
 }
 
 func (r *RedisMatchRepo) RangeQueueTickets(ctx context.Context) ([]uint64, error) {
@@ -213,12 +213,17 @@ func (r *RedisMatchRepo) CreateMatch(ctx context.Context, match *matchv1.MatchSt
 	if err != nil {
 		return err
 	}
-	_, err = r.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		pipe.Set(ctx, matchKey(match.MatchId), payload, matchTTL)
-		pipe.ZAdd(ctx, activeKey, redis.Z{Score: float64(match.ConfirmDeadlineMs), Member: match.MatchId})
-		return nil
-	})
-	return err
+	// Cluster 兼容:matchKey{id} 与全局 activeKey 不同 slot。① matchKey 单键 SET 权威落库;
+	// ② activeKey 独立 ZADD 登记确认期超时扫描。ZADD 失败时 best-effort 删掉刚写入的
+	// matchKey,让上层 rollbackReservations 后不留下「match 已建但票据已回队列」的悬空记录。
+	if err := r.rdb.Set(ctx, matchKey(match.MatchId), payload, matchTTL).Err(); err != nil {
+		return err
+	}
+	if err := r.rdb.ZAdd(ctx, activeKey, redis.Z{Score: float64(match.ConfirmDeadlineMs), Member: match.MatchId}).Err(); err != nil {
+		_ = r.rdb.Del(ctx, matchKey(match.MatchId)).Err()
+		return err
+	}
+	return nil
 }
 
 func (r *RedisMatchRepo) GetMatch(ctx context.Context, matchID uint64) (*matchv1.MatchStorageRecord, bool, error) {
@@ -293,12 +298,11 @@ func (r *RedisMatchRepo) RemoveActive(ctx context.Context, matchID uint64) error
 }
 
 func (r *RedisMatchRepo) ExpireMatch(ctx context.Context, matchID uint64, ttl time.Duration) error {
-	_, err := r.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		pipe.Expire(ctx, matchKey(matchID), ttl)
-		pipe.ZRem(ctx, activeKey, matchID)
-		return nil
-	})
-	return err
+	// Cluster 兼容:matchKey 与 activeKey 不同 slot,拆为独立命令。
+	if err := r.rdb.Expire(ctx, matchKey(matchID), ttl).Err(); err != nil {
+		return err
+	}
+	return r.rdb.ZRem(ctx, activeKey, matchID).Err()
 }
 
 func (r *RedisMatchRepo) RangeExpiredMatches(ctx context.Context, nowMs int64) ([]uint64, error) {

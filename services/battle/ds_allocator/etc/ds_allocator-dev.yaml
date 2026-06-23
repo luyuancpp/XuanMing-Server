@@ -10,7 +10,7 @@ server:
   grpc:
     network: tcp
     addr: ":50020"
-    timeout: "15s"              # demo:弱网/本机抖动下 unary RPC 放宽;prod 再按接口收紧
+    timeout: "20s"              # AllocateBattle 阻塞等 allocate(5s)+ready_wait(10s)+余量;勿低于 20s
     enable_reflection: true     # dev 开;prod 关(零值=false)
   http:
     network: tcp

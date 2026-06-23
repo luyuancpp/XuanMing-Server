@@ -410,13 +410,37 @@ func (u *MatchUsecase) onAllConfirmed(ctx context.Context, m *matchv1.MatchStora
 
 // ── RPC 4:GetMatchProgress ───────────────────────────────────────────────────
 
-// GetMatchProgress 查询进度。id 可能是 match_id(已撮合)或 ticket_id(排队中)。
-// callerID 是发起查询的玩家(JWT 注入，0=未鉴权)。READY 阶段且 caller 是本局成员时，
-// 给他现签一张新 battle DSTicket(新 jti)下发，支持换手机 / 掉线重连(见 refreshBattleTicket)。
+// GetMatchProgress 查询进度。
+//   - id 是客户端句柄:match_id(已撮合)或 ticket_id(排队中)。重新登录 / 换设备丢了句柄时
+//     传 0,服务端用 callerID 反查其当前所在票据(GetPlayerTicket),解决"重连拿不到自己进度"。
+//   - 鉴权(不变量 §14 / 反外挂):callerID 必须是该 match/ticket 的成员才返回进度;否则按
+//     "不存在"处理(ErrMatchNotFound),不暴露他人对局的存在性,杜绝外挂用任意 match_id 拉别人
+//     的双方名单 / DS 地址。match_id 不是秘密,绝不能再当授权凭证。
+//   - READY 阶段且 caller 是本局成员时,给他现签一张新 battle DSTicket(新 jti)下发,支持
+//     换手机 / 掉线重连(见 refreshBattleTicket)。
 func (u *MatchUsecase) GetMatchProgress(ctx context.Context, callerID, id uint64) (*matchv1.MatchProgress, error) {
+	if callerID == 0 {
+		return nil, errcode.New(errcode.ErrUnauthorized, "missing caller identity")
+	}
+
+	// 重连兜底:句柄丢失(id==0)时用 callerID 反查自己当前所在票据。
+	if id == 0 {
+		tid, found, err := u.repo.GetPlayerTicket(ctx, callerID)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			return nil, errcode.New(errcode.ErrMatchNotFound, "player %d not in any queue", callerID)
+		}
+		id = tid
+	}
+
 	if m, found, err := u.repo.GetMatch(ctx, id); err != nil {
 		return nil, err
 	} else if found {
+		if memberIndex(m.Members, callerID) < 0 {
+			return nil, errcode.New(errcode.ErrMatchNotFound, "match/ticket %d not found", id)
+		}
 		prog := matchToProgress(m)
 		u.refreshBattleTicket(ctx, m, callerID, prog)
 		return prog, nil
@@ -424,10 +448,14 @@ func (u *MatchUsecase) GetMatchProgress(ctx context.Context, callerID, id uint64
 	if t, found, err := u.repo.GetTicket(ctx, id); err != nil {
 		return nil, err
 	} else if found {
+		if memberIndex(t.Members, callerID) < 0 {
+			return nil, errcode.New(errcode.ErrMatchNotFound, "match/ticket %d not found", id)
+		}
 		if t.MatchId != 0 {
 			if m, found, err := u.repo.GetMatch(ctx, t.MatchId); err != nil {
 				return nil, err
 			} else if found {
+				// 票据已撮合进 match,caller 既是票据成员即本局成员,直接给 match 进度。
 				prog := matchToProgress(m)
 				u.refreshBattleTicket(ctx, m, callerID, prog)
 				return prog, nil
@@ -499,7 +527,16 @@ func (u *MatchUsecase) matchOnce(ctx context.Context) error {
 	tickets := make([]*matchv1.MatchTicketStorageRecord, 0, len(ticketIDs))
 	for _, tid := range ticketIDs {
 		t, found, gerr := u.repo.GetTicket(ctx, tid)
-		if gerr != nil || !found || t.MatchId != 0 {
+		if gerr != nil {
+			continue
+		}
+		if !found {
+			// 票据 record 已过期/删除但 queue ZSET 残留(Redis Cluster 拆事务后索引漂移的天然兜底):
+			// best-effort 补清,避免 queue 无界堆积。失败无妨,下一轮再补。
+			_ = u.repo.DeleteTicket(ctx, tid)
+			continue
+		}
+		if t.MatchId != 0 {
 			continue
 		}
 		tickets = append(tickets, t)

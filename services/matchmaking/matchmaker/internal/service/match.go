@@ -83,12 +83,16 @@ func (s *MatchService) ConfirmMatch(ctx context.Context, req *matchv1.ConfirmMat
 	return &matchv1.ConfirmMatchResponse{Code: commonv1.ErrCode_OK}, nil
 }
 
-// GetMatchProgress 查询匹配进度。match_id 即授权；READY 阶段额外按 callerID 给本人现签新 battle 票（重连用）。
+// GetMatchProgress 查询匹配进度。
+//   - 身份以 JWT ctx 为准:callerID==0 直接拒(防伪造 / 未鉴权)。
+//   - match_id 可为 0:重新登录 / 换设备丢句柄时,biz 按 callerID 反查本人票据(重连兜底)。
+//   - 鉴权下沉 biz:caller 必须是该 match/ticket 成员,否则按"不存在"处理,防外挂拉别人对局。
 func (s *MatchService) GetMatchProgress(ctx context.Context, req *matchv1.GetMatchProgressRequest) (*matchv1.GetMatchProgressResponse, error) {
-	if req.GetMatchId() == 0 {
-		return &matchv1.GetMatchProgressResponse{Code: commonv1.ErrCode_ERR_INVALID_ARG}, nil
+	caller := callerID(ctx)
+	if caller == 0 {
+		return &matchv1.GetMatchProgressResponse{Code: commonv1.ErrCode_ERR_UNAUTHORIZED}, nil
 	}
-	prog, err := s.uc.GetMatchProgress(ctx, callerID(ctx), req.GetMatchId())
+	prog, err := s.uc.GetMatchProgress(ctx, caller, req.GetMatchId())
 	if err != nil {
 		return &matchv1.GetMatchProgressResponse{Code: toProtoCode(err)}, nil
 	}

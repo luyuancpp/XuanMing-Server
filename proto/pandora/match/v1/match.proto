@@ -61,6 +61,9 @@ message ConfirmMatchResponse {
 }
 
 message GetMatchProgressRequest {
+  // 客户端句柄:match_id(已撮合)或 ticket_id(排队中)。
+  // 重新登录 / 换设备丢了句柄时填 0,服务端按 JWT player_id 反查本人当前票据(重连兜底)。
+  // 鉴权以 JWT player_id 为准:仅本局成员可查,match_id 不是授权凭证。
   uint64 match_id = 1;
 }
 
