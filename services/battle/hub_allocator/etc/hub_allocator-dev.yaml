@@ -56,7 +56,7 @@ mode: "local"
 
 hub:
   # heartbeat_timeout: Hub DS 心跳超时阈值(不变量 §4),超过没收到 Heartbeat → 分片 draining 停止分配
-  heartbeat_timeout: "15s"
+  heartbeat_timeout: "30s"
   # sweep_interval: 后台心跳超时扫描间隔
   sweep_interval: "5s"
   # shard_ttl: 分片镜像 Redis key TTL(每次 Assign/Heartbeat 刷新)

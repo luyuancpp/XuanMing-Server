@@ -80,7 +80,7 @@ UE 客户端 + DS                  # 独立仓库，工程统一为 Pandora
 1. **玩家在线只能在一个 DS**(player_locator 强制)
 2. **战斗结果幂等**(同一 match_id 只落库一次)
 3. **DS 票据短时效**(JWT exp 5min)
-4. **DS 崩溃必有补偿**(15s 心跳超时 → abandoned → 段位回滚)
+4. **DS 崩溃必有补偿**(Battle DS 15s 心跳超时 → abandoned → 段位回滚;Hub DS 默认 30s 超时 → draining/停止分配)
 5. **proto 字段编号上线后不复用**;开发期间已删除字段可复用编号,但必须重新生成 proto 并完整编译所有已启用 module
 6. **MMR 计算在 battle_result**(DS 不可信)
 7. **交易资源扣减必须原子 + 有补偿幂等键**

@@ -40,7 +40,7 @@ kafka:
   idempotent: true
 
 hub:
-  heartbeat_timeout: "15s"        # 不变量 §4
+  heartbeat_timeout: "30s"        # 不变量 §4:Hub 默认 30s;Battle DS 仍为 15s
   sweep_interval: "5s"
   shard_ttl: "30m"
   assignment_ttl: "30m"

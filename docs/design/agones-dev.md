@@ -214,7 +214,7 @@
 - **无空闲 DS**:Fleet 池被占满(`state != Allocated`)→ `ErrDSNoAvailable(5001)` → matchmaker
   `onAllConfirmed` 收到错误 → `onMatchFailed` 整场失败、票据退回队列。生产需配 FleetAutoscaler
   或足够 `replicas` 兜底。
-- **故障补偿**:DS 崩溃/心跳超时(15s)→ `ds_allocator` `RunHeartbeatSweep` 标 `abandoned` +
+- **故障补偿**:Battle DS 崩溃/心跳超时(15s)→ `ds_allocator` `RunHeartbeatSweep` 标 `abandoned` +
   `GameServerAllocation` 对应 GameServer Release + 发 `pandora.ds.lifecycle` 给 battle_result 段位
   回滚(不变量 §4,W4 ⑧ at-least-once)。
 
@@ -379,7 +379,7 @@ Installed Build 不是天然不兼容。它从源码版引擎产出,默认会继
 
 响应 `command`：`""`=继续；`"stop"`=自行停机（孤儿 DS）。
 
-> **心跳超时（默认 15s）→ allocator sweep 标记 abandoned/draining**，Battle DS abandoned 经
+> **心跳超时（Battle 默认 15s,Hub 默认 30s）→ allocator sweep 标记 abandoned/draining**，Battle DS abandoned 经
 > `pandora.ds.lifecycle` 触发 battle_result 段位回滚补偿（W4 ⑧ at-least-once 闭环）。
 >
 > 补偿链两段都可在 UE DS 就绪前用 stub 端到端验：

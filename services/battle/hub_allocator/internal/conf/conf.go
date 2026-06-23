@@ -134,7 +134,7 @@ type JWTConf struct {
 
 // HubConf 是 hub_allocator 服务私有配置。
 type HubConf struct {
-	// HeartbeatTimeout Hub DS 心跳超时阈值(默认 15s,不变量 §4)。
+	// HeartbeatTimeout Hub DS 心跳超时阈值(默认 30s,不变量 §4)。
 	// 超过此时长没收到 Heartbeat → 分片标记 draining 并移出可分配集。
 	HeartbeatTimeout config.Duration `yaml:"heartbeat_timeout,omitempty" json:"heartbeat_timeout,omitempty"`
 
@@ -205,7 +205,7 @@ func (c *Config) Defaults() {
 		}
 	}
 	if c.Hub.HeartbeatTimeout == 0 {
-		c.Hub.HeartbeatTimeout = config.Duration(15 * time.Second)
+		c.Hub.HeartbeatTimeout = config.Duration(30 * time.Second)
 	}
 	if c.Hub.SweepInterval == 0 {
 		c.Hub.SweepInterval = config.Duration(5 * time.Second)

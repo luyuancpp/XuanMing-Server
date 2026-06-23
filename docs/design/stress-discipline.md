@@ -178,3 +178,70 @@ Pandora 是分布式后端 + UE DS,压测时额外关注:
 | 关键瓶颈 | matchmaker MMR / Replication Graph / Iris |
 | 必看指标 | match.found 链路 / hub_player_count / ds_pod_ready_p99 |
 | 清理重点 | redis lock / kafka offset / k8s GameServer / Agones Fleet |
+
+## 9. UE 机器人压测分层
+
+UE 侧压测必须按目标分层,不要把不同压力来源混成一个结论:
+
+| 层级 | 工具形态 | 主要验证 | 不适合验证 |
+|---|---|---|---|
+| 服务端 Bot | DS 内 `AIController + Pawn` / `StressBotManager` 批量生成 | 单 DS tick、AI、GAS、技能、Actor 数、内存、CPU | 真实客户端连接数、NetDriver 握手、客户端带宽 |
+| 无渲染 UE Client Bot | 批量启动打包客户端,带 `-nullrhi -nosound -unattended` | 真实登录、匹配、进房、NetDriver 连接、Replication、RPC、服务端带宽 | 大规模后端 API QPS 极限 |
+| 轻量协议 Robot | Go / 脚本直接压 gRPC-Web / gRPC / HTTP 入口 | login、matchmaker、push、商城、队伍等后端链路 QPS | UE Replication / GAS / 客户端渲染相关问题 |
+
+### 9.1 服务端 Bot
+
+用于先把玩法服务器自身压力打满。推荐在 Hub DS / Battle DS 内做 `StressBotManager`,通过 GM 指令或启动参数生成 N 个 Bot,行为包含移动、寻路、攻击、释放技能、拾取、死亡复活、交互等真实玩法路径。
+
+示例控制命令:
+
+```text
+SpawnStressBots 500
+ClearStressBots
+```
+
+结论只允许表述为"DS 内部玩法负载 / AI / GAS / Actor 承载",不能等同于"真实 500 玩家在线"。
+
+### 9.2 无渲染 UE Client Bot
+
+用于验证真实客户端链路。机器人客户端必须走完整登录、匹配、DS ticket、连接 Hub/Battle DS 的流程,并尽量复用真实客户端代码路径。
+
+Windows 批量启动示例:
+
+```powershell
+1..50 | ForEach-Object {
+  Start-Process .\Pandora.exe -ArgumentList "127.0.0.1 -game -nullrhi -nosound -unattended -nopause -log -botId=$_"
+}
+```
+
+常用参数:
+
+```text
+-nullrhi
+-nosound
+-unattended
+-nopause
+-log
+```
+
+单机能跑的 UE Client Bot 数量通常有限,不要用一台机器的上限反推服务器真实上限。需要更高并发时,按压测机器横向分摊,并在结果文档记录压测机 CPU / 内存 / 网卡 / Bot 数。
+
+### 9.3 后端协议压测
+
+登录、匹配、组队、商城、推送等后端链路优先用轻量 robot 压测,不要用 UE 客户端硬怼接口 QPS。UE Client Bot 只用于端到端链路与 NetDriver / Replication 验证。
+
+### 9.4 指标与结论口径
+
+每轮 UE 机器人压测必须同时记录:
+
+1. Bot 类型:服务端 Bot / UE Client Bot / 轻量协议 Robot。
+2. Bot 数量、ramp 时长、稳态时长、压测机规格。
+3. DS 指标:`stat unit`、`stat game`、`stat net`、`stat memory`、CSV profile、Unreal Insights trace。
+4. 后端指标:login / matchmaker / ds_allocator / battle_result 的 summarize 输出。
+5. 结论边界:本轮结论能说明什么,不能说明什么。
+
+推荐路线:
+
+1. 先用服务端 Bot 测单 DS 玩法承载。
+2. 再用无渲染 UE Client Bot 测真实连接、Replication、进出 DS。
+3. 最后用轻量协议 Robot 单独压后端接口极限。

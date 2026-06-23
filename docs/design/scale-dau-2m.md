@@ -144,7 +144,7 @@ go func() { <-holder.Lost(); log.Error("nodeID lease lost"); os.Exit(1) }()
 2. **镜像与启动**:DS 镜像分层瘦身 + 节点本地预拉(DaemonSet 预热),消除冷启动镜像拉取尖峰。
 3. **分配吞吐**:`AllocateBattle` / hub `Assign` 走 Agones Allocator gRPC(批量 + 重试 + 背压),**专门压测分配 QPS**;`ds_allocator` 状态镜像 + 心跳超时补偿(已有,见 `PROGRESS.md` W4②)保持。
 4. **节点弹性**:cluster-autoscaler 多节点池(battle 计算型 / hub 常驻型分离),按 GameServer 水位扩缩;留逐出保护避免在局中回收。
-5. **不变量保持**:DS 票据短时效 JWT exp 5min、DS 崩溃 15s 心跳超时 → abandoned 补偿(`CLAUDE.md` §9 不变量 3/4)在大规模下仍须成立,压测覆盖 DS 批量崩溃场景。
+5. **不变量保持**:DS 票据短时效 JWT exp 5min、Battle DS 崩溃 15s 心跳超时 → abandoned 补偿、Hub DS 默认 30s 心跳超时 → draining/停止分配(`CLAUDE.md` §9 不变量 3/4)在大规模下仍须成立,压测覆盖 DS 批量崩溃场景。
 
 > 本块主要是 k8s / Agones 配置 + 压测,落地与上线由 Codex / 人执行(`AGENTS.md` §11.1);go 侧改动集中在两个 allocator 的池化与批量分配。
 

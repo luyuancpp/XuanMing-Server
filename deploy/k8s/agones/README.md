@@ -116,6 +116,9 @@ pwsh tools/scripts/start.ps1 -Mode online -Env prod `
 >
 > DS 镜像本身仍由 UE 侧 `deploy/ds/build-image.sh` 构建后,由人手动 `docker push` 到 registry
 > (与 Go 服务镜像分开,脚本不替你 push DS 镜像)。
+>
+> 线上 DS 崩溃、`kubectl logs --previous`、Release 符号归档、Prometheus/Grafana 指标与
+> profiler 排查见 [`docs/ops/linux-ds-observability.md`](../../../docs/ops/linux-ds-observability.md)。
 
 ---
 

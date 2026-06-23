@@ -258,7 +258,7 @@ Client A          Hub DS                Client B (在 A 50 米内)
 1. **玩家在线只能在一个 DS**(hub 或 battle,不能两个)— player_locator 强制
 2. **战斗结果幂等**(同一 match_id 只能落库一次)— battle_result 用 mysql unique key
 3. **DS 票据短时效**(JWT exp 5 分钟,防止泄漏)— login 颁发,DS 校验
-4. **DS 崩溃必有补偿**(15s 心跳超时 → ds_allocator 标记 abandoned → 玩家段位回滚)
+4. **DS 崩溃必有补偿**(Battle DS 15s 心跳超时 → `ds_allocator` 标记 abandoned → 玩家段位回滚;Hub DS 默认 30s 超时 → `hub_allocator` 标记 draining/停止分配)
 5. **proto 字段编号上线后不复用**(上线后 deprecate 不删除;开发期间已删除字段可复用编号,但必须重新生成 proto 并完整编译所有已启用 module)
 6. **MMR 计算在 battle_result**(不在 DS 算,DS 不可信)
 7. **Snowflake 业务 ID 一律 uint64,配置表 ID 默认 uint32,proto enum / 状态常量保持生成 enum 类型或 int32 语义**;ID unsigned 规则不扩展到 `TEAM_STATE_*` / `STATE_*` / `*_REASON_*` 等枚举常量
