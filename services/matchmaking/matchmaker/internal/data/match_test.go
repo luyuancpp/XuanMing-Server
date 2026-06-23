@@ -196,3 +196,32 @@ func TestActiveRangeAndExpire(t *testing.T) {
 		t.Fatal("match 2 record should remain queryable")
 	}
 }
+
+func TestDeleteMatchRemovesRecordAndActive(t *testing.T) {
+	ctx := context.Background()
+	repo, _ := newRepo(t)
+
+	now := time.Now().UnixMilli()
+	match := &matchv1.MatchStorageRecord{
+		MatchId:           3,
+		Stage:             matchv1.MatchStage_MATCH_STAGE_CONFIRM,
+		ConfirmDeadlineMs: now - 1000,
+	}
+	if err := repo.CreateMatch(ctx, match, testTTL); err != nil {
+		t.Fatalf("create match: %v", err)
+	}
+
+	if err := repo.DeleteMatch(ctx, 3); err != nil {
+		t.Fatalf("delete match: %v", err)
+	}
+	if _, found, _ := repo.GetMatch(ctx, 3); found {
+		t.Fatal("match record should be deleted")
+	}
+	expired, err := repo.RangeExpiredMatches(ctx, now)
+	if err != nil {
+		t.Fatalf("range expired: %v", err)
+	}
+	if len(expired) != 0 {
+		t.Fatalf("expired after delete = %v, want []", expired)
+	}
+}

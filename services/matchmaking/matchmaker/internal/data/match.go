@@ -13,6 +13,7 @@ package data
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -329,11 +330,13 @@ func (r *RedisMatchRepo) ExpireMatch(ctx context.Context, matchID uint64, ttl ti
 }
 
 func (r *RedisMatchRepo) DeleteMatch(ctx context.Context, matchID uint64) error {
-	// Cluster 兼容:matchKey 与 activeKey 不同 slot,拆为独立命令。均幂等。
-	if err := r.rdb.Del(ctx, matchKey(matchID)).Err(); err != nil {
-		return err
-	}
-	return r.rdb.ZRem(ctx, activeKey, matchID).Err()
+	// Cluster 兼容:matchKey 与 activeKey 不同 slot,无法 MULTI 原子,拆为独立命令。两步均幂等。
+	// 先 ZRem 把 match 移出确认期扫描索引(避免删了镜像后 RangeExpiredMatches 仍命中已空的
+	// match_id),再 Del 镜像;两步都执行(不在前一步失败时 early-return,否则会残留另一半),
+	// 用 errors.Join 聚合上报。任一步残留均可由 RangeExpiredMatches→GetMatch miss 自愈。
+	zerr := r.rdb.ZRem(ctx, activeKey, matchID).Err()
+	derr := r.rdb.Del(ctx, matchKey(matchID)).Err()
+	return errors.Join(zerr, derr)
 }
 
 func (r *RedisMatchRepo) RangeExpiredMatches(ctx context.Context, nowMs int64) ([]uint64, error) {
