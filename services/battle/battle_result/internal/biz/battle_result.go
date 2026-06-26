@@ -24,6 +24,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	plog "github.com/luyuancpp/pandora/pkg/log"
 	battlev1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/battle/v1"
@@ -96,6 +97,12 @@ type BattleResultUsecase struct {
 	releaser   MatchReleaser
 	dsReleaser DSReleaser
 	cfg        conf.BattleConf
+
+	// router 是确定性 region/cell 路由器(scale-cellular-20m.md §4.2)。
+	// 可为 nil:单 Cell / dev / 阶段 1~2 不分区,结算回流落点观测退化为不打日志(行为不变)。
+	// 多 Region 部署(阶段 3)由 main 经 SetCellRouter 注入,ReportResult 落库后额外打一条
+	// 跨 region 回流落点观测(overflow 对局 region_count>1 → 需多 region 回流)。nil-safe。
+	router *cellroute.Router
 }
 
 // NewBattleResultUsecase 构造。pusher 可为 nil:player.update 已写事务出箱,
@@ -107,6 +114,15 @@ func NewBattleResultUsecase(repo data.BattleRepo, mmr MMRReader, pusher PlayerUp
 		mmr = NewStaticMMRReader(cfg.BaseMMR)
 	}
 	return &BattleResultUsecase{repo: repo, mmr: mmr, pusher: pusher, releaser: releaser, dsReleaser: dsReleaser, cfg: cfg}
+}
+
+// SetCellRouter 注入确定性 region/cell 路由器(scale-cellular-20m.md §4.2 两级架构)。
+//
+// nil-safe:不调用 / 传 nil 时(单 Cell / dev / 阶段 1~2),ReportResult 不做结算回流落点观测,
+// 行为与历史一致。用 setter 而非构造参数,避免单 Cell 阶段调用点被迫改签名(与 matchmaker /
+// auction 一致)。Router 内部读路径无锁,并发安全。
+func (u *BattleResultUsecase) SetCellRouter(r *cellroute.Router) {
+	u.router = r
 }
 
 // releaseMatch 落库成功后通知 matchmaker 释放本局撮合状态。best-effort:实现缺省 / 失败
@@ -189,6 +205,10 @@ func (u *BattleResultUsecase) ReportResult(ctx context.Context, result *battlev1
 	plog.With(ctx).Infow("msg", "battle_result_recorded",
 		"match_id", result.GetMatchId(), "winner_team", result.GetWinnerTeam(),
 		"outcome", result.GetOutcome().String(), "players", len(result.GetStats()))
+
+	// 多 region:观测本局结算回流落点分布(overflow 对局 region_count>1 → 需回流多 region)。
+	// router 为 nil(单 Cell)→ 不打,行为不变;跨 region 桥 / 多 region topic 回流路径属 infra(§11.1)。
+	u.logSettlementRouting(ctx, result)
 
 	// 结算落库成功 → 通知 matchmaker 释放本局撮合状态(玩家回 Hub 可立刻再匹配)。
 	u.releaseMatch(ctx, result)

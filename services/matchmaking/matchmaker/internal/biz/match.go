@@ -158,6 +158,16 @@ func (u *MatchUsecase) ticketTier(t *matchv1.MatchTicketStorageRecord) int {
 	return u.regionPolicy.MmrTier(t.AvgMmr)
 }
 
+// ticketMmrBucket 返回一张票据的 MMR 桶(以 avg_mmr 经 regionPolicy.MmrBucket 计算)。
+// 判 localCandidatesEnough 的分组口径:同 region 内须落同一 MMR 桶才算彼此可成局的本地候选
+// (溢出池 key,decision-revisit-global-matchmaker.md §2.3)。
+func (u *MatchUsecase) ticketMmrBucket(t *matchv1.MatchTicketStorageRecord) uint32 {
+	if t == nil {
+		return 0
+	}
+	return u.regionPolicy.MmrBucket(t.AvgMmr)
+}
+
 // battlePlacement 计算 battle DS 应落的 (region, cell):参战玩家多数所在落点
 // (scale-cellular-20m.md §4.4/§5,让多数玩家就近连入)。
 // router 为 nil(单 Cell / dev)或全部玩家路由失败时返回 ok=false,调用方退化为不带放置提示
@@ -742,7 +752,6 @@ func (u *MatchUsecase) matchOnce(ctx context.Context) error {
 	//  ② 跨 region 溢出:本 region 凑不齐且等待超阈值的剩余票据,进跨 region 兜底贪心,
 	//     且每局受"跨 region 玩家比例软上限"约束(WithinCrossRegionCap)。
 	buckets, order := partitionTicketsByRegion(tickets, u.ticketRegion)
-	regionTotals := regionPlayerTotals(buckets)
 	for _, region := range order {
 		u.greedyFormMatches(ctx, buckets[region], used, now, nil)
 	}
@@ -754,7 +763,10 @@ func (u *MatchUsecase) matchOnce(ctx context.Context) error {
 			leftover = append(leftover, t)
 		}
 	}
-	overflow := selectOverflowTickets(leftover, u.ticketRegion, regionTotals, need, u.regionPolicy, u.ticketTier, now)
+	// 本地候选是否充足须基于 region 内撮合**后**的 leftover、按 (region, MMR 桶) 细分判定:
+	// region 总人数足够但本轮同段位/MMR 窗口剩余不足时,久等票据仍应放开跨 region(§2.2)。
+	leftoverTotals := leftoverRegionBucketTotals(leftover, u.ticketRegion, u.ticketMmrBucket)
+	overflow := selectOverflowTickets(leftover, u.ticketRegion, leftoverTotals, u.ticketMmrBucket, need, u.regionPolicy, u.ticketTier, now)
 	if len(overflow) > 0 {
 		u.greedyFormMatches(ctx, overflow, used, now, u.withinCrossRegionCap)
 	}

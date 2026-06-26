@@ -247,15 +247,36 @@ func partitionTicketsByRegion(tickets []*matchv1.MatchTicketStorageRecord, regio
 	return buckets, order
 }
 
-// regionPlayerTotals 统计每个 region 桶的总人数(判 localCandidatesEnough 用)。
-func regionPlayerTotals(buckets map[uint32][]*matchv1.MatchTicketStorageRecord) map[uint32]int {
-	totals := make(map[uint32]int, len(buckets))
-	for region, ts := range buckets {
-		sum := 0
-		for _, t := range ts {
-			sum += len(t.Members)
+// regionBucketKey 标识"某 region 内某 MMR/段位桶"的本地候选分组。
+// 判 localCandidatesEnough 必须按 region + MMR 窗口细分:同 region 总人数足够,
+// 但分散在不同 MMR 桶时,任一窗口剩余仍可能不足成局,需放开跨 region(§2.2)。
+type regionBucketKey struct {
+	region uint32
+	bucket uint32
+}
+
+// leftoverRegionBucketTotals 统计 region 内撮合**之后**的剩余(leftover)票据,
+// 按 (region, MMR 桶) 分组的总人数,供 selectOverflowTickets 判断"本 region 同 MMR 窗口"是否够成局。
+//
+// 必须用 leftover(撮合后)而非 region 内撮合前的总人数:撮合前总人数足够 ≠ 撮合后某窗口还够,
+// 否则会因"全 region 人多"误判本地充足,卡住本该跨 region 兜底的久等票据(decision-revisit-global-matchmaker.md §2.2)。
+// bucketOf 为 nil 时所有票据落桶 0(单 MMR 桶,退化为按 region 统计)。
+func leftoverRegionBucketTotals(
+	leftover []*matchv1.MatchTicketStorageRecord,
+	regionOf RegionResolver,
+	bucketOf func(*matchv1.MatchTicketStorageRecord) uint32,
+) map[regionBucketKey]int {
+	totals := make(map[regionBucketKey]int, len(leftover))
+	for _, t := range leftover {
+		var region uint32
+		if regionOf != nil {
+			region = regionOf(t)
 		}
-		totals[region] = sum
+		var bucket uint32
+		if bucketOf != nil {
+			bucket = bucketOf(t)
+		}
+		totals[regionBucketKey{region: region, bucket: bucket}] += len(t.Members)
 	}
 	return totals
 }
@@ -263,14 +284,19 @@ func regionPlayerTotals(buckets map[uint32][]*matchv1.MatchTicketStorageRecord) 
 // selectOverflowTickets 从各 region 剩余(本 region 内未成局)票据里挑出"可跨 region 溢出"的票据。
 //
 // 决策(decision-revisit-global-matchmaker.md §2.2,经 RegionMatchPolicy.ShouldOverflow):
-//   - 等待时长已过该段位溢出阈值,且本 region 同段位候选不足成局(总人数 < need)→ 放开跨 region。
+//   - 等待时长已过该段位溢出阈值,且本 region 同段位/MMR 窗口候选不足成局 → 放开跨 region。
+//   - localCandidatesEnough 基于 region 内撮合**后**的 leftover、按 (region, MMR 桶) 判定:
+//     leftoverTotals[(region, bucketOf(t))] >= need 才算本地充足。这样 region 总人数够、
+//     但本轮同段位/MMR 窗口剩余不足时,久等票据仍能跨 region 兜底。
 //   - tierOf 给票据段位档(高分段早溢出);为 nil 时恒按 tier 0(单档,留待段位表接入)。
+//   - bucketOf 给票据 MMR 桶(本地候选分组口径);为 nil 时恒按桶 0(退化为按 region 统计)。
 //
 // 返回的票据保持入参(MMR 升序)顺序,供跨 region 贪心装箱复用同一撮合路径。
 func selectOverflowTickets(
 	leftover []*matchv1.MatchTicketStorageRecord,
 	regionOf RegionResolver,
-	regionTotals map[uint32]int,
+	leftoverTotals map[regionBucketKey]int,
+	bucketOf func(*matchv1.MatchTicketStorageRecord) uint32,
 	need int,
 	policy RegionMatchPolicy,
 	tierOf func(*matchv1.MatchTicketStorageRecord) int,
@@ -282,7 +308,11 @@ func selectOverflowTickets(
 		if regionOf != nil {
 			region = regionOf(t)
 		}
-		localEnough := regionTotals[region] >= need
+		var bucket uint32
+		if bucketOf != nil {
+			bucket = bucketOf(t)
+		}
+		localEnough := leftoverTotals[regionBucketKey{region: region, bucket: bucket}] >= need
 		tier := 0
 		if tierOf != nil {
 			tier = tierOf(t)

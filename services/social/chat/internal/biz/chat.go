@@ -20,6 +20,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	plog "github.com/luyuancpp/pandora/pkg/log"
 	chatv1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/chat/v1"
@@ -44,9 +45,15 @@ type TeamReader interface {
 // ChatUsecase 是 chat 服务业务逻辑核心。
 type ChatUsecase struct {
 	repo   data.PrivateRepo
-	pusher ChatPusher      // 弱依赖,可为 nil
-	team   TeamReader      // 弱依赖,可为 nil
+	pusher ChatPusher // 弱依赖,可为 nil
+	team   TeamReader // 弱依赖,可为 nil
 	cfg    conf.ChatConf
+
+	// router 是确定性 region/cell 路由器(scale-cellular-20m.md §4.2)。
+	// 可为 nil:单 Cell / dev / 阶段 1~2 不分区,私聊跨 region 投递落点观测退化为不打日志(行为不变)。
+	// 区域总线部署时由 main 经 SetCellRouter 注入,sendPrivate 落库后额外打一条私聊跨 region
+	// 投递落点观测(跨 region 走全局桥,同 region 走区域总线)。nil-safe。
+	router *cellroute.Router
 }
 
 // NewChatUsecase 构造。pusher / team 允许为 nil(弱依赖未配置时降级)。
@@ -58,6 +65,15 @@ func NewChatUsecase(repo data.PrivateRepo, pusher ChatPusher, team TeamReader, c
 		cfg.HistoryLimit = 50
 	}
 	return &ChatUsecase{repo: repo, pusher: pusher, team: team, cfg: cfg}
+}
+
+// SetCellRouter 注入确定性 region/cell 路由器(scale-cellular-20m.md §4.2 两级架构)。
+//
+// nil-safe:不调用 / 传 nil 时(单 Cell / dev / 阶段 1~2),sendPrivate 不做私聊跨 region 投递落点
+// 观测,行为与历史一致。用 setter 而非构造参数,避免单 Cell 阶段调用点被迫改签名
+// (与 matchmaker / auction / battle_result / friend 一致)。Router 内部读路径无锁,并发安全。
+func (u *ChatUsecase) SetCellRouter(r *cellroute.Router) {
+	u.router = r
 }
 
 // SendMessage 发一条聊天消息。senderID 由 service 从 JWT ctx 得到(R5)。
@@ -136,6 +152,10 @@ func (u *ChatUsecase) sendPrivate(ctx context.Context, msg *chatv1.ChatMessage) 
 				"to_player_id", msg.GetTargetId(), "message_id", msg.GetMessageId(), "err", err)
 		}
 	}
+
+	// 多 region:观测本条私聊的跨 region 投递落点(跨 region → 走全局桥,同 region → 走区域总线)。
+	// router 为 nil(单 Cell)→ 不打,行为不变;跨 region Kafka 桥 / 区域总线拆分属 infra(§11.1)。
+	u.logPrivateRouting(ctx, msg.GetSenderId(), msg.GetTargetId())
 	return msg.GetMessageId(), nil
 }
 

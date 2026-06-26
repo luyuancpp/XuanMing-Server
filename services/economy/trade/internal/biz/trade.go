@@ -25,6 +25,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	plog "github.com/luyuancpp/pandora/pkg/log"
 	tradev1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/trade/v1"
@@ -69,6 +70,12 @@ type TradeUsecase struct {
 	audit  TradeAuditPusher // 弱依赖,可为 nil
 	sf     snowflakeGen
 	cfg    conf.TradeConf
+
+	// router 是确定性 region/cell 路由器(scale-cellular-20m.md §4.2)。
+	// 可为 nil:单 Cell / dev / 阶段 1~2 不分片,结算跨分片落点观测退化为不打日志(行为不变)。
+	// 分片部署时由 main 经 SetCellRouter 注入,ConfirmOrder 结算成功后额外打一条结算跨分片
+	// 落点观测(买卖双方跨 region → 走最小跨 region 通道)。nil-safe。
+	router *cellroute.Router
 }
 
 // NewTradeUsecase 构造。ledger 为 nil 时退化为 NoopResourceLedger;audit 允许 nil。
@@ -83,6 +90,15 @@ func NewTradeUsecase(repo data.TradeRepo, ledger ResourceLedger, audit TradeAudi
 		cfg.MaxItemsPerOrder = 20
 	}
 	return &TradeUsecase{repo: repo, ledger: ledger, audit: audit, sf: sf, cfg: cfg}
+}
+
+// SetCellRouter 注入确定性 region/cell 路由器(scale-cellular-20m.md §4.2 两级架构)。
+//
+// nil-safe:不调用 / 传 nil 时(单 Cell / dev / 阶段 1~2),ConfirmOrder 不做结算跨分片落点观测,
+// 行为与历史一致。用 setter 而非构造参数,避免单 Cell 阶段调用点被迫改签名(与 matchmaker /
+// auction / battle_result / friend / chat 一致)。Router 内部读路径无锁,并发安全。
+func (u *TradeUsecase) SetCellRouter(r *cellroute.Router) {
+	u.router = r
 }
 
 // CreateOrder 卖方挂单。sellerID 由 service 从 JWT ctx 得到(R5)。
@@ -201,11 +217,17 @@ func (u *TradeUsecase) ConfirmOrder(ctx context.Context, playerID, orderID uint6
 		// 写成功但读回失败:返回我们已知的推进结果(settled 或 buyer_confirmed)。
 		if settled != nil {
 			u.pushAudit(ctx, settled)
+			u.logSettlementRouting(ctx, settled.GetOrderId(), settled.GetBuyerId(), settled.GetSellerId())
 			return tradev1.OrderState_ORDER_STATE_COMPLETED, nil
 		}
 		return tradev1.OrderState_ORDER_STATE_BUYER_CONFIRMED, nil
 	}
 	u.pushAudit(ctx, o)
+	// 分片:结算成功(进入 COMPLETED)时观测本笔结算的跨分片落点(买卖双方跨 Cell → 跨分片
+	// 结算,拆 Kafka 出箱幂等消费;跨 region → 走最小跨 region 通道)。router 为 nil(单 Cell)→ 不打。
+	if settled != nil {
+		u.logSettlementRouting(ctx, settled.GetOrderId(), settled.GetBuyerId(), settled.GetSellerId())
+	}
 	return o.GetState(), nil
 }
 

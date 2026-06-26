@@ -17,6 +17,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	plog "github.com/luyuancpp/pandora/pkg/log"
 	friendv1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/friend/v1"
@@ -37,6 +38,12 @@ type FriendUsecase struct {
 	pusher FriendEventPusher       // 弱依赖,可为 nil
 	online data.OnlineStatusReader // 弱依赖,可为 nil
 	cfg    conf.FriendConf
+
+	// router 是确定性 region/cell 路由器(scale-cellular-20m.md §4.2)。
+	// 可为 nil:单 Cell / dev / 阶段 1~2 不分片,好友边分片落点观测退化为不打日志(行为不变)。
+	// 分片部署时由 main 经 SetCellRouter 注入,AcceptFriend 成功后额外打一条好友边分片
+	// 落点观测(跨 region 好友 → 走 §4.4 最小跨 region 通道)。nil-safe。
+	router *cellroute.Router
 }
 
 // NewFriendUsecase 构造。pusher / online 允许为 nil(弱依赖未配置时降级)。
@@ -45,6 +52,15 @@ func NewFriendUsecase(repo data.FriendRepo, pusher FriendEventPusher, online dat
 		cfg.MaxFriends = 200
 	}
 	return &FriendUsecase{repo: repo, pusher: pusher, online: online, cfg: cfg}
+}
+
+// SetCellRouter 注入确定性 region/cell 路由器(scale-cellular-20m.md §4.2 两级架构)。
+//
+// nil-safe:不调用 / 传 nil 时(单 Cell / dev / 阶段 1~2),AcceptFriend 不做好友边分片落点观测,
+// 行为与历史一致。用 setter 而非构造参数,避免单 Cell 阶段调用点被迫改签名(与 matchmaker /
+// auction / battle_result 一致)。Router 内部读路径无锁,并发安全。
+func (u *FriendUsecase) SetCellRouter(r *cellroute.Router) {
+	u.router = r
 }
 
 // AddFriend 发起好友请求。requester / target 由 service 从 JWT ctx + 请求体得到。
@@ -130,6 +146,10 @@ func (u *FriendUsecase) AcceptFriend(ctx context.Context, playerID, requestID ui
 	if !accepted {
 		return errcode.New(errcode.ErrFriendNotFound, "no acceptable request: %d", requestID)
 	}
+
+	// 分片:观测本条好友边的分片落点(跨分片 → 双向建边拆两个 owner 分片;跨 region → 走最小
+	// 跨 region 通道)。router 为 nil(单 Cell)→ 不打,行为不变;分片 MySQL / Kafka 双向建边属 infra(§11.1)。
+	u.logFriendshipSharding(ctx, requestID, req.RequesterID, playerID)
 
 	// 推送原则 2:接受通知发给发起方 requester
 	u.pushEvent(ctx, req.RequesterID, &friendv1.FriendEvent{

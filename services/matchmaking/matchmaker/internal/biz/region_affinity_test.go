@@ -170,33 +170,49 @@ func TestPartitionTicketsByRegion_NilResolverSingleBucket(t *testing.T) {
 	}
 }
 
-func TestRegionPlayerTotals(t *testing.T) {
-	buckets := map[uint32][]*matchv1.MatchTicketStorageRecord{
-		1: {mkTicket(1, 3, 0, 0), mkTicket(2, 2, 0, 0)}, // 5 人
-		2: {mkTicket(3, 1, 0, 0)},                       // 1 人
+func TestLeftoverRegionBucketTotals(t *testing.T) {
+	regionOf := func(t *matchv1.MatchTicketStorageRecord) uint32 { return uint32(t.CaptainId % 2) }
+	// bucket = avg_mmr / 1000(确定性桩,模拟 MMR 桶分组)。
+	bucketOf := func(t *matchv1.MatchTicketStorageRecord) uint32 { return uint32(t.AvgMmr / 1000) }
+	leftover := []*matchv1.MatchTicketStorageRecord{
+		mkTicket(2, 3, 500, 0),  // region 0,桶 0,3 人
+		mkTicket(4, 2, 800, 0),  // region 0,桶 0,2 人
+		mkTicket(6, 1, 1500, 0), // region 0,桶 1,1 人
+		mkTicket(1, 4, 1200, 0), // region 1,桶 1,4 人
 	}
-	totals := regionPlayerTotals(buckets)
-	if totals[1] != 5 || totals[2] != 1 {
-		t.Fatalf("totals = %v, want {1:5,2:1}", totals)
+	totals := leftoverRegionBucketTotals(leftover, regionOf, bucketOf)
+	if got := totals[regionBucketKey{region: 0, bucket: 0}]; got != 5 {
+		t.Fatalf("(region 0, bucket 0) = %d, want 5", got)
+	}
+	if got := totals[regionBucketKey{region: 0, bucket: 1}]; got != 1 {
+		t.Fatalf("(region 0, bucket 1) = %d, want 1", got)
+	}
+	if got := totals[regionBucketKey{region: 1, bucket: 1}]; got != 4 {
+		t.Fatalf("(region 1, bucket 1) = %d, want 4", got)
 	}
 }
 
 func TestSelectOverflowTickets_DualCondition(t *testing.T) {
 	p := DefaultRegionMatchPolicy() // tier0 阈值 90s
 	regionOf := func(t *matchv1.MatchTicketStorageRecord) uint32 { return uint32(t.CaptainId % 2) }
+	bucketOf := func(t *matchv1.MatchTicketStorageRecord) uint32 { return 0 } // 单桶:退化为按 region 判定
 	now := int64(1_000_000_000)
 	need := 10
 
-	// region 0 人不足(totals < need)→ 久等者可溢出;region 1 人足够 → 不溢出。
-	regionTotals := map[uint32]int{0: 4, 1: 12}
-
-	waited := mkTicket(2, 1, 1000, now-100_000)       // region 0,等 100s ≥ 90s,本区不足 → 溢出
+	waited := mkTicket(2, 1, 1000, now-100_000)       // region 0,等 100s ≥ 90s,本区窗口不足 → 溢出
 	tooFresh := mkTicket(4, 1, 1000, now-10_000)      // region 0,等 10s < 90s → 不溢出
-	enoughRegion := mkTicket(1, 1, 1000, now-100_000) // region 1,等 100s 但本区足够 → 不溢出
+	enoughRegion := mkTicket(1, 1, 1000, now-100_000) // region 1,等 100s 但本区窗口足够 → 不溢出
+
+	leftover := []*matchv1.MatchTicketStorageRecord{waited, tooFresh, enoughRegion}
+	// 用撮合后 leftover 按 (region, 桶) 统计:region 0 桶 0 仅 2 人 < need;region 1 桶 0 凑足 need。
+	leftoverTotals := map[regionBucketKey]int{
+		{region: 0, bucket: 0}: 2,
+		{region: 1, bucket: 0}: 12,
+	}
 
 	got := selectOverflowTickets(
-		[]*matchv1.MatchTicketStorageRecord{waited, tooFresh, enoughRegion},
-		regionOf, regionTotals, need, p, nil, now,
+		leftover,
+		regionOf, leftoverTotals, bucketOf, need, p, nil, now,
 	)
 	if len(got) != 1 || got[0].TicketId != 2 {
 		ids := make([]uint64, len(got))
@@ -204,6 +220,49 @@ func TestSelectOverflowTickets_DualCondition(t *testing.T) {
 			ids[i] = g.TicketId
 		}
 		t.Fatalf("overflow selected = %v, want [2]", ids)
+	}
+}
+
+// TestSelectOverflowTickets_RegionTotalEnoughButWindowShort 覆盖核心修复:
+// region 内总人数足够成局,但久等票据所在的同 MMR 窗口剩余不足 → 仍应放开跨 region 溢出。
+// 若误用 region 内撮合前总人数(旧 bug),会因"全 region 人多"判本地充足而卡住该票据。
+func TestSelectOverflowTickets_RegionTotalEnoughButWindowShort(t *testing.T) {
+	p := DefaultRegionMatchPolicy() // tier0 阈值 90s,MMR 桶宽 200
+	allSameRegion := func(t *matchv1.MatchTicketStorageRecord) uint32 { return 0 }
+	bucketOf := func(t *matchv1.MatchTicketStorageRecord) uint32 { return p.MmrBucket(t.AvgMmr) }
+	now := int64(1_000_000_000)
+	need := 10
+
+	// region 0 撮合后 leftover 共 12 人(总人数 > need),但分散两个 MMR 桶:
+	//  - 桶 5(mmr~1000):久等的孤票据 2 人,< need → 本窗口不足
+	//  - 桶 15(mmr~3000):10 人,>= need → 该窗口本地充足
+	lowMmrWaited := mkTicket(1, 2, 1000, now-100_000)   // 桶 5,等 100s ≥ 90s,本窗口不足 → 应溢出
+	highMmrEnough := mkTicket(2, 10, 3000, now-100_000) // 桶 15,等 100s 但本窗口足够 → 不溢出
+
+	leftover := []*matchv1.MatchTicketStorageRecord{lowMmrWaited, highMmrEnough}
+	leftoverTotals := leftoverRegionBucketTotals(leftover, allSameRegion, bucketOf)
+	// 前置断言:region 0 总人数 12 >= need,确保不是"region 整体不足"才放行。
+	regionSum := 0
+	for _, c := range leftoverTotals {
+		regionSum += c
+	}
+	if regionSum < need {
+		t.Fatalf("region total = %d, want >= need(%d) to exercise the window-short path", regionSum, need)
+	}
+
+	// 高分段(tier > 0)阈值更短,需用 ticketTier 口径;此处统一用 MmrTier 桩保持与生产一致。
+	tierOf := func(t *matchv1.MatchTicketStorageRecord) int { return p.MmrTier(t.AvgMmr) }
+
+	got := selectOverflowTickets(
+		leftover,
+		allSameRegion, leftoverTotals, bucketOf, need, p, tierOf, now,
+	)
+	if len(got) != 1 || got[0].TicketId != lowMmrWaited.TicketId {
+		ids := make([]uint64, len(got))
+		for i, g := range got {
+			ids[i] = g.TicketId
+		}
+		t.Fatalf("overflow selected = %v, want [%d] (low-MMR window short must overflow despite region total enough)", ids, lowMmrWaited.TicketId)
 	}
 }
 
