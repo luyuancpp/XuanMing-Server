@@ -930,6 +930,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED LoginResponse final : public ::goog
     kHubTicketFieldNumber = 5,
     kPlayerIdFieldNumber = 2,
     kCodeFieldNumber = 1,
+    kRegionIdFieldNumber = 6,
+    kCellIdFieldNumber = 7,
   };
   // string session_token = 3 [json_name = "sessionToken"];
   void clear_session_token() ;
@@ -996,11 +998,31 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED LoginResponse final : public ::goog
   void _internal_set_code(::pandora::common::v1::ErrCode value);
 
   public:
+  // uint32 region_id = 6 [json_name = "regionId"];
+  void clear_region_id() ;
+  [[nodiscard]] ::uint32_t region_id() const;
+  void set_region_id(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_region_id() const;
+  void _internal_set_region_id(::uint32_t value);
+
+  public:
+  // uint32 cell_id = 7 [json_name = "cellId"];
+  void clear_cell_id() ;
+  [[nodiscard]] ::uint32_t cell_id() const;
+  void set_cell_id(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_cell_id() const;
+  void _internal_set_cell_id(::uint32_t value);
+
+  public:
   // @@protoc_insertion_point(class_scope:pandora.login.v1.LoginResponse)
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<3, 5,
+      ::google::protobuf::internal::TcParseTable<3, 7,
                           0, 73,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
@@ -1034,6 +1056,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED LoginResponse final : public ::goog
     ::google::protobuf::internal::ArenaStringPtr hub_ticket_;
     ::uint64_t player_id_;
     int code_;
+    ::uint32_t region_id_;
+    ::uint32_t cell_id_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -1956,6 +1980,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED DSTicket final : public ::google::p
     kMatchIdFieldNumber = 2,
     kIssuedAtMsFieldNumber = 3,
     kExpiresAtMsFieldNumber = 4,
+    kRegionIdFieldNumber = 7,
+    kCellIdFieldNumber = 8,
   };
   // string ds_type = 5 [json_name = "dsType"];
   void clear_ds_type() ;
@@ -2027,12 +2053,32 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED DSTicket final : public ::google::p
   void _internal_set_expires_at_ms(::int64_t value);
 
   public:
+  // uint32 region_id = 7 [json_name = "regionId"];
+  void clear_region_id() ;
+  [[nodiscard]] ::uint32_t region_id() const;
+  void set_region_id(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_region_id() const;
+  void _internal_set_region_id(::uint32_t value);
+
+  public:
+  // uint32 cell_id = 8 [json_name = "cellId"];
+  void clear_cell_id() ;
+  [[nodiscard]] ::uint32_t cell_id() const;
+  void set_cell_id(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_cell_id() const;
+  void _internal_set_cell_id(::uint32_t value);
+
+  public:
   // @@protoc_insertion_point(class_scope:pandora.login.v1.DSTicket)
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<3, 6,
-                          0, 44,
+      ::google::protobuf::internal::TcParseTable<3, 8,
+                          0, 52,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
@@ -2066,6 +2112,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED DSTicket final : public ::google::p
     ::uint64_t match_id_;
     ::int64_t issued_at_ms_;
     ::int64_t expires_at_ms_;
+    ::uint32_t region_id_;
+    ::uint32_t cell_id_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -2935,6 +2983,54 @@ inline void LoginResponse::set_allocated_hub_ticket(::std::string* PROTOBUF_NULL
   // @@protoc_insertion_point(field_set_allocated:pandora.login.v1.LoginResponse.hub_ticket)
 }
 
+// uint32 region_id = 6 [json_name = "regionId"];
+inline void LoginResponse::clear_region_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.region_id_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+}
+inline ::uint32_t LoginResponse::region_id() const {
+  // @@protoc_insertion_point(field_get:pandora.login.v1.LoginResponse.region_id)
+  return _internal_region_id();
+}
+inline void LoginResponse::set_region_id(::uint32_t value) {
+  _internal_set_region_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  // @@protoc_insertion_point(field_set:pandora.login.v1.LoginResponse.region_id)
+}
+inline ::uint32_t LoginResponse::_internal_region_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.region_id_;
+}
+inline void LoginResponse::_internal_set_region_id(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.region_id_ = value;
+}
+
+// uint32 cell_id = 7 [json_name = "cellId"];
+inline void LoginResponse::clear_cell_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.cell_id_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+}
+inline ::uint32_t LoginResponse::cell_id() const {
+  // @@protoc_insertion_point(field_get:pandora.login.v1.LoginResponse.cell_id)
+  return _internal_cell_id();
+}
+inline void LoginResponse::set_cell_id(::uint32_t value) {
+  _internal_set_cell_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  // @@protoc_insertion_point(field_set:pandora.login.v1.LoginResponse.cell_id)
+}
+inline ::uint32_t LoginResponse::_internal_cell_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.cell_id_;
+}
+inline void LoginResponse::_internal_set_cell_id(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.cell_id_ = value;
+}
+
 // -------------------------------------------------------------------
 
 // LogoutRequest
@@ -3257,6 +3353,54 @@ inline void DSTicket::set_allocated_jti(::std::string* PROTOBUF_NULLABLE value) 
     _impl_.jti_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:pandora.login.v1.DSTicket.jti)
+}
+
+// uint32 region_id = 7 [json_name = "regionId"];
+inline void DSTicket::clear_region_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.region_id_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+}
+inline ::uint32_t DSTicket::region_id() const {
+  // @@protoc_insertion_point(field_get:pandora.login.v1.DSTicket.region_id)
+  return _internal_region_id();
+}
+inline void DSTicket::set_region_id(::uint32_t value) {
+  _internal_set_region_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  // @@protoc_insertion_point(field_set:pandora.login.v1.DSTicket.region_id)
+}
+inline ::uint32_t DSTicket::_internal_region_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.region_id_;
+}
+inline void DSTicket::_internal_set_region_id(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.region_id_ = value;
+}
+
+// uint32 cell_id = 8 [json_name = "cellId"];
+inline void DSTicket::clear_cell_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.cell_id_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+}
+inline ::uint32_t DSTicket::cell_id() const {
+  // @@protoc_insertion_point(field_get:pandora.login.v1.DSTicket.cell_id)
+  return _internal_cell_id();
+}
+inline void DSTicket::set_cell_id(::uint32_t value) {
+  _internal_set_cell_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  // @@protoc_insertion_point(field_set:pandora.login.v1.DSTicket.cell_id)
+}
+inline ::uint32_t DSTicket::_internal_cell_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.cell_id_;
+}
+inline void DSTicket::_internal_set_cell_id(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.cell_id_ = value;
 }
 
 // -------------------------------------------------------------------

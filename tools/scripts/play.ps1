@@ -36,9 +36,9 @@ $ScriptDir   = $PSScriptRoot
 $ProjectRoot = (Resolve-Path "$ScriptDir/../..").Path
 $StartPs1    = Join-Path $ScriptDir 'start.ps1'
 $DsAllocConf = Join-Path $ProjectRoot 'services/battle/ds_allocator/etc/ds_allocator-dev.yaml'
-$UeProject   = 'F:\work\Pandora-Client-SVN\Pandora\Pandora.uproject'
+$UeProject   = 'C:\work\Pandora-Client-SVN\Pandora\Pandora.uproject'
 $UeEditorExe = 'F:\UnrealEngine-5.8.0-release\Engine\Binaries\Win64\UnrealEditor.exe'
-$PackagedClientExe = 'F:\work\Pandora-Client-SVN\Pandora\Saved\StagedBuilds\Windows\Pandora.exe'
+$PackagedClientExe = 'C:\work\Pandora-Client-SVN\Pandora\Saved\StagedBuilds\Windows\Pandora.exe'
 
 # ===== 输出辅助 =====
 function Write-Info($m) { Write-Host "[INFO] $m" -ForegroundColor Cyan }

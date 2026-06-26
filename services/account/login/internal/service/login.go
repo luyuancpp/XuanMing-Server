@@ -53,6 +53,8 @@ func (s *LoginService) Login(ctx context.Context, req *loginv1.LoginRequest) (*l
 		SessionToken: res.SessionToken,
 		HubDsAddr:    res.HubDSAddr,
 		HubTicket:    res.HubTicket,
+		RegionId:     res.RegionID,
+		CellId:       res.CellID,
 	}, nil
 }
 
@@ -122,6 +124,8 @@ func (s *LoginService) VerifyDSTicket(ctx context.Context, req *loginv1.VerifyDS
 			ExpiresAtMs: claims.ExpiresAtMs,
 			DsType:      claims.DSType,
 			Jti:         claims.JTI,
+			RegionId:    claims.RegionID,
+			CellId:      claims.CellID,
 		},
 	}, nil
 }

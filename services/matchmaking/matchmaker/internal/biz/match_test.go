@@ -12,6 +12,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	matchv1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/match/v1"
 
 	"github.com/luyuancpp/pandora/services/matchmaking/matchmaker/internal/conf"
@@ -532,5 +533,98 @@ func TestMatchOnce_ReserveFails_NoOrphanMatch(t *testing.T) {
 	left, _ := f.repo.RangeQueueTickets(ctx)
 	if len(left) != 10 {
 		t.Fatalf("queue = %d tickets, want 10 (all retryable)", len(left))
+	}
+}
+
+// ── 两级撮合(region 感知)接线 ───────────────────────────────────────────────
+
+// singleRegionRouter 构造一张把所有 logical_cell 都指向 (region, cell) 的路由器,
+// 用于验证 region 感知主循环在"全员同 region"时与单桶行为一致(非回归)。
+func singleRegionRouter(t *testing.T, region, cell uint32) *cellroute.Router {
+	t.Helper()
+	entries, regionOfCell, err := cellroute.BuildBalancedEntries([]cellroute.CellSpec{{RegionID: region, CellID: cell}})
+	if err != nil {
+		t.Fatalf("BuildBalancedEntries: %v", err)
+	}
+	tbl, err := cellroute.NewStaticTable(entries, regionOfCell)
+	if err != nil {
+		t.Fatalf("NewStaticTable: %v", err)
+	}
+	r, err := cellroute.NewRouter(tbl)
+	if err != nil {
+		t.Fatalf("NewRouter: %v", err)
+	}
+	return r
+}
+
+// 设了 Router 且全员同 region 时,matchOnce 仍正常凑成一场 5+5(region 感知主循环非回归)。
+func TestMatchOnce_RegionAware_SingleRegionFormsMatch(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t, 999)
+	f.uc.SetCellRouter(singleRegionRouter(t, 3, 30)) // 所有玩家 → region 3
+
+	for i := uint64(1); i <= 10; i++ {
+		f.seedTicket(t, ctx, 100+i, []uint64{i}, 1000)
+	}
+	if err := f.uc.matchOnce(ctx); err != nil {
+		t.Fatalf("matchOnce: %v", err)
+	}
+
+	m, found, err := f.repo.GetMatch(ctx, 999)
+	if err != nil || !found {
+		t.Fatalf("get match 999: found=%v err=%v", found, err)
+	}
+	if m.Stage != stageConfirm || len(m.Members) != 10 {
+		t.Fatalf("stage=%v members=%d, want CONFIRM/10", m.Stage, len(m.Members))
+	}
+	left, _ := f.repo.RangeQueueTickets(ctx)
+	if len(left) != 0 {
+		t.Fatalf("queue left = %d, want 0", len(left))
+	}
+}
+
+// ticketRegion 在 router 为 nil 时恒返回 0(单 Cell / dev 语义),不阻断撮合。
+func TestTicketRegion_NilRouterZero(t *testing.T) {
+	f := newFixture(t, 999)
+	tk := &matchv1.MatchTicketStorageRecord{TicketId: 1, CaptainId: 12345}
+	if r := f.uc.ticketRegion(tk); r != 0 {
+		t.Fatalf("nil router ticketRegion = %d, want 0", r)
+	}
+}
+
+// battlePlacement 在 router 为 nil 时返回 ok=false(单 Cell / dev:不带放置提示)。
+func TestBattlePlacement_NilRouterNotOk(t *testing.T) {
+	f := newFixture(t, 999)
+	if _, ok := f.uc.battlePlacement([]uint64{1, 2, 3}); ok {
+		t.Fatal("nil router battlePlacement should return ok=false")
+	}
+}
+
+// battlePlacement 在所有玩家落同一 (region, cell) 时返回该落点(单 region 路由非回归)。
+func TestBattlePlacement_SingleRegionAllAgree(t *testing.T) {
+	f := newFixture(t, 999)
+	f.uc.SetCellRouter(singleRegionRouter(t, 7, 70)) // 所有玩家 → region 7 / cell 70
+	got, ok := f.uc.battlePlacement([]uint64{11, 22, 33, 44, 55})
+	if !ok {
+		t.Fatal("expected ok with router set")
+	}
+	if got.RegionID != 7 || got.CellID != 70 {
+		t.Fatalf("placement = %+v, want {7,70}", got)
+	}
+}
+
+// ticketTier 经 regionPolicy.MmrTier 把票据 avg_mmr 映射到段位档(默认策略:普通段 0、高分段更高)。
+func TestTicketTier_FollowsPolicy(t *testing.T) {
+	f := newFixture(t, 999) // 默认 DefaultRegionMatchPolicy
+	low := &matchv1.MatchTicketStorageRecord{TicketId: 1, AvgMmr: 1500}
+	high := &matchv1.MatchTicketStorageRecord{TicketId: 2, AvgMmr: 3300}
+	if tr := f.uc.ticketTier(low); tr != 0 {
+		t.Fatalf("low mmr tier = %d, want 0", tr)
+	}
+	if tr := f.uc.ticketTier(high); tr != 3 {
+		t.Fatalf("high mmr tier = %d, want 3", tr)
+	}
+	if tr := f.uc.ticketTier(nil); tr != 0 {
+		t.Fatalf("nil ticket tier = %d, want 0", tr)
 	}
 }

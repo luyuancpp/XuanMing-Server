@@ -126,6 +126,64 @@ func TestSignAndVerifyDSTicket(t *testing.T) {
 	}
 }
 
+func TestSignDSTicketWithCell_RoundTrip(t *testing.T) {
+	now := time.Unix(1_780_000_000, 0).UTC()
+	s, v := newTestSigner(t, now)
+
+	tok, _, err := s.SignDSTicketWithCell(7777, DSTypeBattle, 9001, 3, 17, "jti-rc")
+	if err != nil {
+		t.Fatalf("SignDSTicketWithCell: %v", err)
+	}
+	c, err := v.VerifyDSTicket(tok)
+	if err != nil {
+		t.Fatalf("VerifyDSTicket: %v", err)
+	}
+	if c.RegionID != 3 || c.CellID != 17 {
+		t.Fatalf("region/cell: got %d/%d, want 3/17", c.RegionID, c.CellID)
+	}
+	if c.DSType != "battle" || c.MatchID != 9001 || c.PlayerID() != 7777 {
+		t.Fatalf("other claims drifted: ds=%q match=%d pid=%d", c.DSType, c.MatchID, c.PlayerID())
+	}
+}
+
+// TestSignDSTicket_DefaultsZeroCell:不带 Cell 的旧入口签出的票据,region/cell = 0
+// (单 Cell / dev 语义),与历史票据完全兼容。
+func TestSignDSTicket_DefaultsZeroCell(t *testing.T) {
+	now := time.Unix(1_780_000_000, 0).UTC()
+	s, v := newTestSigner(t, now)
+
+	tok, _, err := s.SignDSTicket(7777, DSTypeHub, 0, "jti-zero")
+	if err != nil {
+		t.Fatalf("SignDSTicket: %v", err)
+	}
+	c, err := v.VerifyDSTicket(tok)
+	if err != nil {
+		t.Fatalf("VerifyDSTicket: %v", err)
+	}
+	if c.RegionID != 0 || c.CellID != 0 {
+		t.Fatalf("expected zero region/cell, got %d/%d", c.RegionID, c.CellID)
+	}
+}
+
+// TestSignDSTicketWithCell_ZeroOmitsClaims:region/cell=0 时 JSON 不含 region_id/cell_id
+// claim(omitempty),保证与未引入该字段前签发的历史票据二进制兼容(payload 不变)。
+func TestSignDSTicketWithCell_ZeroOmitsClaims(t *testing.T) {
+	now := time.Unix(1_780_000_000, 0).UTC()
+	s, _ := newTestSigner(t, now)
+
+	withZero, _, err := s.SignDSTicketWithCell(7777, DSTypeHub, 0, 0, 0, "jti-omit")
+	if err != nil {
+		t.Fatalf("SignDSTicketWithCell: %v", err)
+	}
+	old, _, err := s.SignDSTicket(7777, DSTypeHub, 0, "jti-omit")
+	if err != nil {
+		t.Fatalf("SignDSTicket: %v", err)
+	}
+	if withZero != old {
+		t.Fatalf("zero-cell ticket should byte-equal legacy SignDSTicket output:\n new=%s\n old=%s", withZero, old)
+	}
+}
+
 func TestSignDSTicketRequiresMatchIDForBattle(t *testing.T) {
 	now := time.Unix(1_780_000_000, 0).UTC()
 	s, _ := newTestSigner(t, now)

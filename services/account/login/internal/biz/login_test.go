@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/luyuancpp/pandora/pkg/auth"
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	"github.com/luyuancpp/pandora/pkg/passwd"
 	"github.com/luyuancpp/pandora/pkg/snowflake"
@@ -160,6 +161,142 @@ func TestLogin_HubAssignerError_FallbackSelfSign(t *testing.T) {
 	}
 	if _, verr := uc.verifier.VerifyDSTicket(res.HubTicket); verr != nil {
 		t.Fatalf("fallback hub ticket not verifiable: %v", verr)
+	}
+}
+
+// ---- cellroute 接线(全服扩容三层化)----
+
+// singleCellRouter 构造一张把所有 logical_cell 都指向 (region, cell) 的路由器,
+// 便于确定性断言登录返回的落点。
+func singleCellRouter(t *testing.T, region, cell uint32) *cellroute.Router {
+	t.Helper()
+	entries, regionOfCell, err := cellroute.BuildBalancedEntries([]cellroute.CellSpec{{RegionID: region, CellID: cell}})
+	if err != nil {
+		t.Fatalf("BuildBalancedEntries: %v", err)
+	}
+	tbl, err := cellroute.NewStaticTable(entries, regionOfCell)
+	if err != nil {
+		t.Fatalf("NewStaticTable: %v", err)
+	}
+	r, err := cellroute.NewRouter(tbl)
+	if err != nil {
+		t.Fatalf("NewRouter: %v", err)
+	}
+	return r
+}
+
+// TestLogin_CellRoute_ReturnsLocation 验证设了 Router 时,登录返回算出的 region/cell。
+func TestLogin_CellRoute_ReturnsLocation(t *testing.T) {
+	uc := newTestUsecase(t, nil)
+	uc.SetCellRouter(singleCellRouter(t, 7, 77))
+
+	res, err := uc.Login(context.Background(), "acc", "pw", "dev-1")
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	if res.RegionID != 7 || res.CellID != 77 {
+		t.Errorf("login region/cell = (%d,%d), want (7,77)", res.RegionID, res.CellID)
+	}
+}
+
+// TestLogin_CellRoute_NilRouterZero 验证未设 Router(单 Cell/dev)时,落点为 0,不阻断登录。
+func TestLogin_CellRoute_NilRouterZero(t *testing.T) {
+	uc := newTestUsecase(t, nil) // 不调 SetCellRouter
+
+	res, err := uc.Login(context.Background(), "acc", "pw", "dev-1")
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	if res.RegionID != 0 || res.CellID != 0 {
+		t.Errorf("nil router login region/cell = (%d,%d), want (0,0)", res.RegionID, res.CellID)
+	}
+}
+
+// TestLogin_CellRoute_HubTicketBindsCell 验证设了 Router 时,自签 hub 票据把 region/cell 盖进
+// JWT(scale-cellular-20m.md §3.3 防跨单元串号);DS 侧据此校验"票据 Cell == 本 DS Cell"。
+func TestLogin_CellRoute_HubTicketBindsCell(t *testing.T) {
+	uc := newTestUsecase(t, nil)
+	uc.SetCellRouter(singleCellRouter(t, 7, 77))
+
+	res, err := uc.Login(context.Background(), "acc", "pw", "dev-1")
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	claims, verr := uc.verifier.VerifyDSTicket(res.HubTicket)
+	if verr != nil {
+		t.Fatalf("hub ticket not verifiable: %v", verr)
+	}
+	if claims.RegionID != 7 || claims.CellID != 77 {
+		t.Errorf("hub ticket region/cell = (%d,%d), want (7,77)", claims.RegionID, claims.CellID)
+	}
+}
+
+// TestLogin_CellRoute_NilRouterHubTicketZeroCell 验证未设 Router 时,hub 票据 region/cell = 0
+// (单 Cell / dev 语义),与历史票据兼容。
+func TestLogin_CellRoute_NilRouterHubTicketZeroCell(t *testing.T) {
+	uc := newTestUsecase(t, nil) // 不调 SetCellRouter
+
+	res, err := uc.Login(context.Background(), "acc", "pw", "dev-1")
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	claims, verr := uc.verifier.VerifyDSTicket(res.HubTicket)
+	if verr != nil {
+		t.Fatalf("hub ticket not verifiable: %v", verr)
+	}
+	if claims.RegionID != 0 || claims.CellID != 0 {
+		t.Errorf("nil router hub ticket region/cell = (%d,%d), want (0,0)", claims.RegionID, claims.CellID)
+	}
+}
+
+// TestIssueDSTicket_CellRoute 验证 TicketUsecase 设了 Router 时,IssueDSTicket(battle 票据)
+// 把 region/cell 盖进 JWT;VerifyDSTicket 原样透传出来(scale-cellular-20m.md §3.3)。
+func TestIssueDSTicket_CellRoute(t *testing.T) {
+	cfg := auth.Config{Secret: []byte(testSecret)}
+	signer, err := auth.NewSigner(cfg)
+	if err != nil {
+		t.Fatalf("NewSigner: %v", err)
+	}
+	verifier, err := auth.NewVerifier(cfg)
+	if err != nil {
+		t.Fatalf("NewVerifier: %v", err)
+	}
+	tu := NewTicketUsecase(signer, verifier, nil)
+	tu.SetCellRouter(singleCellRouter(t, 5, 55))
+
+	issued, err := tu.IssueDSTicket(context.Background(), 42, string(auth.DSTypeBattle), 9001)
+	if err != nil {
+		t.Fatalf("IssueDSTicket: %v", err)
+	}
+	claims, err := tu.VerifyDSTicket(context.Background(), issued.Ticket, "ds-pod-1")
+	if err != nil {
+		t.Fatalf("VerifyDSTicket: %v", err)
+	}
+	if claims.RegionID != 5 || claims.CellID != 55 {
+		t.Errorf("battle ticket region/cell = (%d,%d), want (5,55)", claims.RegionID, claims.CellID)
+	}
+	if claims.MatchID != 9001 || claims.PlayerID != 42 {
+		t.Errorf("battle ticket match/player = (%d,%d), want (9001,42)", claims.MatchID, claims.PlayerID)
+	}
+}
+
+// TestIssueDSTicket_NilRouterZeroCell 验证 TicketUsecase 未设 Router 时,票据 region/cell = 0。
+func TestIssueDSTicket_NilRouterZeroCell(t *testing.T) {
+	cfg := auth.Config{Secret: []byte(testSecret)}
+	signer, _ := auth.NewSigner(cfg)
+	verifier, _ := auth.NewVerifier(cfg)
+	tu := NewTicketUsecase(signer, verifier, nil) // 不调 SetCellRouter
+
+	issued, err := tu.IssueDSTicket(context.Background(), 42, string(auth.DSTypeHub), 0)
+	if err != nil {
+		t.Fatalf("IssueDSTicket: %v", err)
+	}
+	claims, err := tu.VerifyDSTicket(context.Background(), issued.Ticket, "ds-pod-1")
+	if err != nil {
+		t.Fatalf("VerifyDSTicket: %v", err)
+	}
+	if claims.RegionID != 0 || claims.CellID != 0 {
+		t.Errorf("nil router ticket region/cell = (%d,%d), want (0,0)", claims.RegionID, claims.CellID)
 	}
 }
 

@@ -71,10 +71,16 @@ func (s *SessionClaims) PlayerID() uint64 {
 // 自定义 claim:
 //   - ds_type:"hub" / "battle"
 //   - match_id:battle DS 才有(hub 为 0)
+//   - region_id / cell_id:玩家确定性路由落点(docs/design/scale-cellular-20m.md §3.3)。
+//     把 DS 票据绑定到 Region+Cell,防跨单元串号(stale / 伪造票据把玩家从 A 单元的 DS
+//     接进 B 单元)。omitempty:单 Cell / dev(0)时不序列化该 claim,与历史票据完全兼容。
+//     uint32 拓扑维度(非 snowflake 业务 ID,CLAUDE.md §9.12)。
 type DSTicketClaims struct {
 	jwt.RegisteredClaims
-	DSType  string `json:"ds_type"`
-	MatchID uint64 `json:"match_id,omitempty"`
+	DSType   string `json:"ds_type"`
+	MatchID  uint64 `json:"match_id,omitempty"`
+	RegionID uint32 `json:"region_id,omitempty"`
+	CellID   uint32 `json:"cell_id,omitempty"`
 }
 
 // PlayerID 把 sub 字符串解成 uint64。失败返回 0。
@@ -215,7 +221,21 @@ func (s *Signer) SignSession(playerID uint64, jti string) (token string, expires
 // SignDSTicket 签发 DS 票据。dsType / matchID 按 docs/design/proto-design.md DSTicket message。
 //
 // 不变量 §3:本方法默认 TTL=5min。
+//
+// 单 Cell / dev 语义(region/cell = 0):本方法等价于 SignDSTicketWithCell(...,0,0,...)。
+// 多 Cell 部署请用 SignDSTicketWithCell 把玩家落点绑进票据(§3.3 防跨单元串号)。
 func (s *Signer) SignDSTicket(playerID uint64, dsType DSType, matchID uint64, jti string) (token string, expiresAtMs int64, err error) {
+	return s.SignDSTicketWithCell(playerID, dsType, matchID, 0, 0, jti)
+}
+
+// SignDSTicketWithCell 签发绑定 Region+Cell 的 DS 票据(docs/design/scale-cellular-20m.md §3.3)。
+//
+// regionID / cellID 是玩家的确定性路由落点(由调用方经 cellroute.Router 算出);单 Cell / dev
+// 传 0(此时与 SignDSTicket 行为一致,claim 不序列化)。把落点签进票据后,DS 侧可校验
+// "票据 Cell == 本 DS 所在 Cell",拒绝 stale / 伪造票据跨单元串号。
+//
+// 不变量 §3:默认 TTL=5min。
+func (s *Signer) SignDSTicketWithCell(playerID uint64, dsType DSType, matchID uint64, regionID, cellID uint32, jti string) (token string, expiresAtMs int64, err error) {
 	if playerID == 0 {
 		return "", 0, errors.New("auth.SignDSTicket: playerID must be > 0")
 	}
@@ -239,8 +259,10 @@ func (s *Signer) SignDSTicket(playerID uint64, dsType DSType, matchID uint64, jt
 			ExpiresAt: jwt.NewNumericDate(exp),
 			ID:        jti,
 		},
-		DSType:  string(dsType),
-		MatchID: matchID,
+		DSType:   string(dsType),
+		MatchID:  matchID,
+		RegionID: regionID,
+		CellID:   cellID,
 	}
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	str, err := t.SignedString(s.cfg.Secret)

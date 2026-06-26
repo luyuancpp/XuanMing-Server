@@ -76,8 +76,13 @@ message LoginResponse {
   string session_token = 3;  // 连后端 gRPC 用
   string hub_ds_addr   = 4;  // 直连大厅 DS 的 IP:port
   string hub_ticket    = 5;  // hub DS 票据(JWT)
-  // 6-9 reserved
-  reserved 6 to 9;
+  // [proto] 全服扩容三层化(docs/design/scale-cellular-20m.md §3.2/§3.3):玩家确定性路由落点。
+  // 客户端 / 边缘网关据此把后续连接(gRPC-Web、push stream)连到正确 Region 的正确 Cell。
+  // 单 Cell / dev 部署为 0。uint32 拓扑维度(非 snowflake 业务 ID,CLAUDE.md §9.12)。
+  uint32 region_id = 6;
+  uint32 cell_id   = 7;
+  // 8-9 reserved
+  reserved 8 to 9;
 }
 
 message LogoutRequest {
@@ -98,8 +103,14 @@ message DSTicket {
   int64  expires_at_ms  = 4;
   string ds_type        = 5;  // "hub" | "battle"
   string jti            = 6;  // JWT ID,防重放
-  // 7-9 reserved
-  reserved 7 to 9;
+  // [proto] 全服扩容三层化(docs/design/scale-cellular-20m.md §3.3):DS 票据绑定玩家路由落点,
+  // 防 stale/伪造票据跨单元串号(把 A 单元玩家接进 B 单元 DS)。单 Cell/dev 为 0。
+  // Go 侧 JWT claim 已落地(pkg/auth DSTicketClaims.region_id/cell_id);待 Codex regen 后
+  // cpp 共享结构同步。uint32 拓扑维度(非 snowflake 业务 ID,CLAUDE.md §9.12)。
+  uint32 region_id      = 7;
+  uint32 cell_id        = 8;
+  // 9 reserved
+  reserved 9;
 }
 
 message IssueDSTicketRequest {

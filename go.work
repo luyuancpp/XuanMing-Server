@@ -23,6 +23,8 @@ go 1.26.4
 
 use ./pkg
 
+use ./pkg/cellroute/etcdtable
+
 use ./proto
 
 use ./services/account/login

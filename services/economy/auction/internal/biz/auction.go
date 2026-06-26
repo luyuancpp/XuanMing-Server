@@ -95,6 +95,12 @@ type AuctionUsecase struct {
 
 	marketLocker MarketLocker // 跨实例单写者锁(nil = 仅进程内串行)
 
+	// marketRouter 是「市场 → 实例归属」一致性哈希路由(nil = 单实例,本实例拥有全部 market)。
+	// 多实例部署时由 main 经 SetMarketRouter 注入:同一 market 固定落 owner 实例,把跨实例锁竞争
+	// 降到最低。非 owner 实例处理某 market 仅作观测告警(路由抖动 / rebalance 信号),
+	// 正确性仍由 marketLocker 兜底,不阻断业务(转发属基础设施,见 market_router.go 头注释)。
+	marketRouter *MarketRouter
+
 	mu    sync.Mutex             // 保护 locks map 本身
 	locks map[uint32]*sync.Mutex // per-market 单写者锁(惰性建)
 }
@@ -142,10 +148,21 @@ func (u *AuctionUsecase) lockMarket(marketID uint32) *sync.Mutex {
 // SetMarketLocker 注入跨实例单写者锁(main.go 配 Redis 后调用)。nil 保持单实例进程内串行。
 func (u *AuctionUsecase) SetMarketLocker(ml MarketLocker) { u.marketLocker = ml }
 
+// SetMarketRouter 注入「市场 → 实例归属」一致性哈希路由(main.go 多实例部署时调用)。
+// nil 保持单实例(本实例拥有全部 market)。
+func (u *AuctionUsecase) SetMarketRouter(r *MarketRouter) { u.marketRouter = r }
+
 // guardMarket 获取 market 的单写者保护:先进程内 striped lock(总是),
 // 再(若配置)叠加跨实例 Redis 单写者锁。返回的释放函数按相反顺序解锁。
 // 跨实例锁竞争超时返回 ErrAuctionMarketBusy(进程内锁已回退)。
 func (u *AuctionUsecase) guardMarket(ctx context.Context, marketID uint32) (func(), error) {
+	// 路由观测:多实例部署时,非 owner 实例处理某 market 说明路由抖动 / rebalance,
+	// 仅告警(marketLocker 仍兜底正确性),不阻断 —— 转发由边缘 / 服务发现处理(基础设施)。
+	if u.marketRouter != nil && !u.marketRouter.OwnsMarket(marketID) {
+		plog.With(ctx).Warnw("msg", "auction_market_not_owned",
+			"market_id", marketID, "self", u.marketRouter.Self(), "owner", u.marketRouter.Owner(marketID))
+	}
+
 	m := u.lockMarket(marketID)
 	m.Lock()
 	if u.marketLocker == nil {

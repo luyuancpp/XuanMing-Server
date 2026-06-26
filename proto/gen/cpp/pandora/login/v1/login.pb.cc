@@ -508,11 +508,11 @@ constexpr LoginResponse::ParseTableT_ LoginResponse::InternalGenerateParseTable_
     {
       PROTOBUF_FIELD_OFFSET(LoginResponse, _impl_._has_bits_),
       0, // no _extensions_
-      5, 56,  // max_field_number, fast_idx_mask
+      7, 56,  // max_field_number, fast_idx_mask
       offsetof(ParseTableT_, field_lookup_table),
-      4294967264,  // skipmap
+      4294967168,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      5,  // num_field_entries
+      7,  // num_field_entries
       0,  // num_aux_entries
       offsetof(ParseTableT_, field_names),  // no aux_entries
       class_data,
@@ -543,8 +543,14 @@ constexpr LoginResponse::ParseTableT_ LoginResponse::InternalGenerateParseTable_
       {::_pbi::TcParser::FastUS1,
        {42, 2, 0,
         PROTOBUF_FIELD_OFFSET(LoginResponse, _impl_.hub_ticket_)}},
-      {::_pbi::TcParser::MiniParse, {}},
-      {::_pbi::TcParser::MiniParse, {}},
+      // uint32 region_id = 6 [json_name = "regionId"];
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(LoginResponse, _impl_.region_id_), 5>(),
+       {48, 5, 0,
+        PROTOBUF_FIELD_OFFSET(LoginResponse, _impl_.region_id_)}},
+      // uint32 cell_id = 7 [json_name = "cellId"];
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(LoginResponse, _impl_.cell_id_), 6>(),
+       {56, 6, 0,
+        PROTOBUF_FIELD_OFFSET(LoginResponse, _impl_.cell_id_)}},
     }}, {{
       65535, 65535
     }}, {{
@@ -558,6 +564,10 @@ constexpr LoginResponse::ParseTableT_ LoginResponse::InternalGenerateParseTable_
       {PROTOBUF_FIELD_OFFSET(LoginResponse, _impl_.hub_ds_addr_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string hub_ticket = 5 [json_name = "hubTicket"];
       {PROTOBUF_FIELD_OFFSET(LoginResponse, _impl_.hub_ticket_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // uint32 region_id = 6 [json_name = "regionId"];
+      {PROTOBUF_FIELD_OFFSET(LoginResponse, _impl_.region_id_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 cell_id = 7 [json_name = "cellId"];
+      {PROTOBUF_FIELD_OFFSET(LoginResponse, _impl_.cell_id_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
     }},
     // no aux_entries
     {{
@@ -585,7 +595,9 @@ inline constexpr LoginResponse::Impl_::Impl_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
         player_id_{::uint64_t{0u}},
-        code_{static_cast< ::pandora::common::v1::ErrCode >(0)} {}
+        code_{static_cast< ::pandora::common::v1::ErrCode >(0)},
+        region_id_{0u},
+        cell_id_{0u} {}
 
 template <typename>
 constexpr LoginResponse::LoginResponse(::_pbi::ConstantInitialized,
@@ -1207,11 +1219,11 @@ constexpr DSTicket::ParseTableT_ DSTicket::InternalGenerateParseTable_(const ::_
     {
       PROTOBUF_FIELD_OFFSET(DSTicket, _impl_._has_bits_),
       0, // no _extensions_
-      6, 56,  // max_field_number, fast_idx_mask
+      8, 56,  // max_field_number, fast_idx_mask
       offsetof(ParseTableT_, field_lookup_table),
-      4294967232,  // skipmap
+      4294967040,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      6,  // num_field_entries
+      8,  // num_field_entries
       0,  // num_aux_entries
       offsetof(ParseTableT_, field_names),  // no aux_entries
       class_data,
@@ -1221,7 +1233,10 @@ constexpr DSTicket::ParseTableT_ DSTicket::InternalGenerateParseTable_(const ::_
       ::_pbi::TcParser::GetTable<::pandora::login::v1::DSTicket>(),  // to_prefetch
       #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
     }, {{
-      {::_pbi::TcParser::MiniParse, {}},
+      // uint32 cell_id = 8 [json_name = "cellId"];
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(DSTicket, _impl_.cell_id_), 7>(),
+       {64, 7, 0,
+        PROTOBUF_FIELD_OFFSET(DSTicket, _impl_.cell_id_)}},
       // uint64 player_id = 1 [json_name = "playerId"];
       {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(DSTicket, _impl_.player_id_), 2>(),
        {8, 2, 0,
@@ -1246,7 +1261,10 @@ constexpr DSTicket::ParseTableT_ DSTicket::InternalGenerateParseTable_(const ::_
       {::_pbi::TcParser::FastUS1,
        {50, 1, 0,
         PROTOBUF_FIELD_OFFSET(DSTicket, _impl_.jti_)}},
-      {::_pbi::TcParser::MiniParse, {}},
+      // uint32 region_id = 7 [json_name = "regionId"];
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(DSTicket, _impl_.region_id_), 6>(),
+       {56, 6, 0,
+        PROTOBUF_FIELD_OFFSET(DSTicket, _impl_.region_id_)}},
     }}, {{
       65535, 65535
     }}, {{
@@ -1262,10 +1280,14 @@ constexpr DSTicket::ParseTableT_ DSTicket::InternalGenerateParseTable_(const ::_
       {PROTOBUF_FIELD_OFFSET(DSTicket, _impl_.ds_type_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string jti = 6 [json_name = "jti"];
       {PROTOBUF_FIELD_OFFSET(DSTicket, _impl_.jti_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // uint32 region_id = 7 [json_name = "regionId"];
+      {PROTOBUF_FIELD_OFFSET(DSTicket, _impl_.region_id_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 cell_id = 8 [json_name = "cellId"];
+      {PROTOBUF_FIELD_OFFSET(DSTicket, _impl_.cell_id_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
     }},
     // no aux_entries
     {{
-      "\31\0\0\0\0\7\3\0"
+      "\31\0\0\0\0\7\3\0\0\0\0\0\0\0\0\0"
       "pandora.login.v1.DSTicket"
       "ds_type"
       "jti"
@@ -1287,7 +1309,9 @@ inline constexpr DSTicket::Impl_::Impl_(
         player_id_{::uint64_t{0u}},
         match_id_{::uint64_t{0u}},
         issued_at_ms_{::int64_t{0}},
-        expires_at_ms_{::int64_t{0}} {}
+        expires_at_ms_{::int64_t{0}},
+        region_id_{0u},
+        cell_id_{0u} {}
 
 template <typename>
 constexpr DSTicket::DSTicket(::_pbi::ConstantInitialized,
@@ -1562,17 +1586,21 @@ const ::uint32_t
         5,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::LoginResponse, _impl_._has_bits_),
-        8, // hasbit index offset
+        10, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::LoginResponse, _impl_.code_),
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::LoginResponse, _impl_.player_id_),
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::LoginResponse, _impl_.session_token_),
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::LoginResponse, _impl_.hub_ds_addr_),
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::LoginResponse, _impl_.hub_ticket_),
+        PROTOBUF_FIELD_OFFSET(::pandora::login::v1::LoginResponse, _impl_.region_id_),
+        PROTOBUF_FIELD_OFFSET(::pandora::login::v1::LoginResponse, _impl_.cell_id_),
         4,
         3,
         0,
         1,
         2,
+        5,
+        6,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::LogoutRequest, _impl_._has_bits_),
         4, // hasbit index offset
@@ -1585,19 +1613,23 @@ const ::uint32_t
         0,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::DSTicket, _impl_._has_bits_),
-        9, // hasbit index offset
+        11, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::DSTicket, _impl_.player_id_),
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::DSTicket, _impl_.match_id_),
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::DSTicket, _impl_.issued_at_ms_),
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::DSTicket, _impl_.expires_at_ms_),
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::DSTicket, _impl_.ds_type_),
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::DSTicket, _impl_.jti_),
+        PROTOBUF_FIELD_OFFSET(::pandora::login::v1::DSTicket, _impl_.region_id_),
+        PROTOBUF_FIELD_OFFSET(::pandora::login::v1::DSTicket, _impl_.cell_id_),
         2,
         3,
         4,
         5,
         0,
         1,
+        6,
+        7,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::pandora::login::v1::IssueDSTicketRequest, _impl_._has_bits_),
         6, // hasbit index offset
@@ -1636,13 +1668,13 @@ static const ::_pbi::MigrationSchema
     schemas[] ABSL_ATTRIBUTE_SECTION_VARIABLE(protodesc_cold) = {
         {0, sizeof(::pandora::login::v1::LoginRequest)},
         {15, sizeof(::pandora::login::v1::LoginResponse)},
-        {28, sizeof(::pandora::login::v1::LogoutRequest)},
-        {33, sizeof(::pandora::login::v1::LogoutResponse)},
-        {38, sizeof(::pandora::login::v1::DSTicket)},
-        {53, sizeof(::pandora::login::v1::IssueDSTicketRequest)},
-        {62, sizeof(::pandora::login::v1::IssueDSTicketResponse)},
-        {71, sizeof(::pandora::login::v1::VerifyDSTicketRequest)},
-        {78, sizeof(::pandora::login::v1::VerifyDSTicketResponse)},
+        {32, sizeof(::pandora::login::v1::LogoutRequest)},
+        {37, sizeof(::pandora::login::v1::LogoutResponse)},
+        {42, sizeof(::pandora::login::v1::DSTicket)},
+        {61, sizeof(::pandora::login::v1::IssueDSTicketRequest)},
+        {70, sizeof(::pandora::login::v1::IssueDSTicketResponse)},
+        {79, sizeof(::pandora::login::v1::VerifyDSTicketRequest)},
+        {86, sizeof(::pandora::login::v1::VerifyDSTicketResponse)},
 };
 static const ::_pbi::MessageGlobalsBase* PROTOBUF_NONNULL const
     file_message_globals[] = {
@@ -1666,43 +1698,45 @@ const char descriptor_table_protodef_pandora_2flogin_2fv1_2flogin_2eproto[] ABSL
     "e_id\030\003 \001(\tR\010deviceId\022%\n\016client_version\030\004"
     " \001(\tR\rclientVersion\022\026\n\006region\030\n \001(\tR\006reg"
     "ion\022\026\n\006locale\030\013 \001(\tR\006localeJ\004\010\005\020\nJ\004\010\014\0202\""
-    "\306\001\n\rLoginResponse\022.\n\004code\030\001 \001(\0162\032.pandor"
+    "\374\001\n\rLoginResponse\022.\n\004code\030\001 \001(\0162\032.pandor"
     "a.common.v1.ErrCodeR\004code\022\033\n\tplayer_id\030\002"
     " \001(\004R\010playerId\022#\n\rsession_token\030\003 \001(\tR\014s"
     "essionToken\022\036\n\013hub_ds_addr\030\004 \001(\tR\thubDsA"
-    "ddr\022\035\n\nhub_ticket\030\005 \001(\tR\thubTicketJ\004\010\006\020\n"
-    "\"4\n\rLogoutRequest\022#\n\rsession_token\030\001 \001(\t"
-    "R\014sessionToken\"@\n\016LogoutResponse\022.\n\004code"
-    "\030\001 \001(\0162\032.pandora.common.v1.ErrCodeR\004code"
-    "\"\271\001\n\010DSTicket\022\033\n\tplayer_id\030\001 \001(\004R\010player"
-    "Id\022\031\n\010match_id\030\002 \001(\004R\007matchId\022 \n\014issued_"
-    "at_ms\030\003 \001(\003R\nissuedAtMs\022\"\n\rexpires_at_ms"
-    "\030\004 \001(\003R\013expiresAtMs\022\027\n\007ds_type\030\005 \001(\tR\006ds"
-    "Type\022\020\n\003jti\030\006 \001(\tR\003jtiJ\004\010\007\020\n\"q\n\024IssueDST"
-    "icketRequest\022#\n\rsession_token\030\001 \001(\tR\014ses"
-    "sionToken\022\027\n\007ds_type\030\002 \001(\tR\006dsType\022\033\n\tta"
-    "rget_id\030\003 \001(\004R\010targetId\"\177\n\025IssueDSTicket"
-    "Response\022.\n\004code\030\001 \001(\0162\032.pandora.common."
-    "v1.ErrCodeR\004code\022\026\n\006ticket\030\002 \001(\tR\006ticket"
-    "\022\036\n\013hub_ds_addr\030\003 \001(\tR\thubDsAddr\"O\n\025Veri"
-    "fyDSTicketRequest\022\026\n\006ticket\030\001 \001(\tR\006ticke"
-    "t\022\036\n\013ds_pod_name\030\002 \001(\tR\tdsPodName\"|\n\026Ver"
-    "ifyDSTicketResponse\022.\n\004code\030\001 \001(\0162\032.pand"
-    "ora.common.v1.ErrCodeR\004code\0222\n\006claims\030\002 "
-    "\001(\0132\032.pandora.login.v1.DSTicketR\006claims2"
-    "\334\003\n\014LoginService\022^\n\005Login\022\036.pandora.logi"
-    "n.v1.LoginRequest\032\037.pandora.login.v1.Log"
-    "inResponse\"\024\202\323\344\223\002\016\"\t/v1/login:\001*\022b\n\006Logo"
-    "ut\022\037.pandora.login.v1.LogoutRequest\032 .pa"
-    "ndora.login.v1.LogoutResponse\"\025\202\323\344\223\002\017\"\n/"
-    "v1/logout:\001*\022\200\001\n\rIssueDSTicket\022&.pandora"
-    ".login.v1.IssueDSTicketRequest\032\'.pandora"
-    ".login.v1.IssueDSTicketResponse\"\036\202\323\344\223\002\030\""
-    "\023/v1/ds/ticket/issue:\001*\022\204\001\n\016VerifyDSTick"
-    "et\022\'.pandora.login.v1.VerifyDSTicketRequ"
-    "est\032(.pandora.login.v1.VerifyDSTicketRes"
-    "ponse\"\037\202\323\344\223\002\031\"\024/v1/ds/ticket/verify:\001*b\006"
-    "proto3"
+    "ddr\022\035\n\nhub_ticket\030\005 \001(\tR\thubTicket\022\033\n\tre"
+    "gion_id\030\006 \001(\rR\010regionId\022\027\n\007cell_id\030\007 \001(\r"
+    "R\006cellIdJ\004\010\010\020\n\"4\n\rLogoutRequest\022#\n\rsessi"
+    "on_token\030\001 \001(\tR\014sessionToken\"@\n\016LogoutRe"
+    "sponse\022.\n\004code\030\001 \001(\0162\032.pandora.common.v1"
+    ".ErrCodeR\004code\"\357\001\n\010DSTicket\022\033\n\tplayer_id"
+    "\030\001 \001(\004R\010playerId\022\031\n\010match_id\030\002 \001(\004R\007matc"
+    "hId\022 \n\014issued_at_ms\030\003 \001(\003R\nissuedAtMs\022\"\n"
+    "\rexpires_at_ms\030\004 \001(\003R\013expiresAtMs\022\027\n\007ds_"
+    "type\030\005 \001(\tR\006dsType\022\020\n\003jti\030\006 \001(\tR\003jti\022\033\n\t"
+    "region_id\030\007 \001(\rR\010regionId\022\027\n\007cell_id\030\010 \001"
+    "(\rR\006cellIdJ\004\010\t\020\n\"q\n\024IssueDSTicketRequest"
+    "\022#\n\rsession_token\030\001 \001(\tR\014sessionToken\022\027\n"
+    "\007ds_type\030\002 \001(\tR\006dsType\022\033\n\ttarget_id\030\003 \001("
+    "\004R\010targetId\"\177\n\025IssueDSTicketResponse\022.\n\004"
+    "code\030\001 \001(\0162\032.pandora.common.v1.ErrCodeR\004"
+    "code\022\026\n\006ticket\030\002 \001(\tR\006ticket\022\036\n\013hub_ds_a"
+    "ddr\030\003 \001(\tR\thubDsAddr\"O\n\025VerifyDSTicketRe"
+    "quest\022\026\n\006ticket\030\001 \001(\tR\006ticket\022\036\n\013ds_pod_"
+    "name\030\002 \001(\tR\tdsPodName\"|\n\026VerifyDSTicketR"
+    "esponse\022.\n\004code\030\001 \001(\0162\032.pandora.common.v"
+    "1.ErrCodeR\004code\0222\n\006claims\030\002 \001(\0132\032.pandor"
+    "a.login.v1.DSTicketR\006claims2\334\003\n\014LoginSer"
+    "vice\022^\n\005Login\022\036.pandora.login.v1.LoginRe"
+    "quest\032\037.pandora.login.v1.LoginResponse\"\024"
+    "\202\323\344\223\002\016\"\t/v1/login:\001*\022b\n\006Logout\022\037.pandora"
+    ".login.v1.LogoutRequest\032 .pandora.login."
+    "v1.LogoutResponse\"\025\202\323\344\223\002\017\"\n/v1/logout:\001*"
+    "\022\200\001\n\rIssueDSTicket\022&.pandora.login.v1.Is"
+    "sueDSTicketRequest\032\'.pandora.login.v1.Is"
+    "sueDSTicketResponse\"\036\202\323\344\223\002\030\"\023/v1/ds/tick"
+    "et/issue:\001*\022\204\001\n\016VerifyDSTicket\022\'.pandora"
+    ".login.v1.VerifyDSTicketRequest\032(.pandor"
+    "a.login.v1.VerifyDSTicketResponse\"\037\202\323\344\223\002"
+    "\031\"\024/v1/ds/ticket/verify:\001*b\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_pandora_2flogin_2fv1_2flogin_2eproto_deps[2] = {
@@ -1713,7 +1747,7 @@ static ::absl::once_flag descriptor_table_pandora_2flogin_2fv1_2flogin_2eproto_o
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_pandora_2flogin_2fv1_2flogin_2eproto = {
     false,
     false,
-    1766,
+    1874,
     descriptor_table_protodef_pandora_2flogin_2fv1_2flogin_2eproto,
     "pandora/login/v1/login.proto",
     &descriptor_table_pandora_2flogin_2fv1_2flogin_2eproto_once,
@@ -2152,9 +2186,9 @@ LoginResponse::LoginResponse(
                offsetof(Impl_, player_id_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, player_id_),
-           offsetof(Impl_, code_) -
+           offsetof(Impl_, cell_id_) -
                offsetof(Impl_, player_id_) +
-               sizeof(Impl_::code_));
+               sizeof(Impl_::cell_id_));
 
   // @@protoc_insertion_point(copy_constructor:pandora.login.v1.LoginResponse)
 }
@@ -2171,9 +2205,9 @@ inline void LoginResponse::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, player_id_),
            0,
-           offsetof(Impl_, code_) -
+           offsetof(Impl_, cell_id_) -
                offsetof(Impl_, player_id_) +
-               sizeof(Impl_::code_));
+               sizeof(Impl_::cell_id_));
 }
 LoginResponse::~LoginResponse() {
   // @@protoc_insertion_point(destructor:pandora.login.v1.LoginResponse)
@@ -2237,10 +2271,10 @@ PROTOBUF_NOINLINE void LoginResponse::Clear() {
       _impl_.hub_ticket_.ClearNonDefaultToEmpty();
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000018U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000078U)) {
     ::memset(&_impl_.player_id_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.code_) -
-        reinterpret_cast<char*>(&_impl_.player_id_)) + sizeof(_impl_.code_));
+        reinterpret_cast<char*>(&_impl_.cell_id_) -
+        reinterpret_cast<char*>(&_impl_.player_id_)) + sizeof(_impl_.cell_id_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -2313,6 +2347,24 @@ PROTOBUF_NOINLINE void LoginResponse::Clear() {
     }
   }
 
+  // uint32 region_id = 6 [json_name = "regionId"];
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (this_._internal_region_id() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          6, this_._internal_region_id(), target);
+    }
+  }
+
+  // uint32 cell_id = 7 [json_name = "cellId"];
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (this_._internal_cell_id() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          7, this_._internal_cell_id(), target);
+    }
+  }
+
   if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
     target =
         ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
@@ -2338,7 +2390,7 @@ PROTOBUF_NOINLINE void LoginResponse::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000001fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
     // string session_token = 3 [json_name = "sessionToken"];
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!this_._internal_session_token().empty()) {
@@ -2374,6 +2426,20 @@ PROTOBUF_NOINLINE void LoginResponse::Clear() {
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_code());
       }
     }
+    // uint32 region_id = 6 [json_name = "regionId"];
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (this_._internal_region_id() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+            this_._internal_region_id());
+      }
+    }
+    // uint32 cell_id = 7 [json_name = "cellId"];
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (this_._internal_cell_id() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+            this_._internal_cell_id());
+      }
+    }
   }
   return this_.MaybeComputeUnknownFieldsSize(total_size,
                                              &this_._impl_._cached_size_);
@@ -2392,7 +2458,7 @@ void LoginResponse::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000001fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!from._internal_session_token().empty()) {
         _this->_internal_set_session_token(from._internal_session_token());
@@ -2430,6 +2496,16 @@ void LoginResponse::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.code_ = from._impl_.code_;
       }
     }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (from._internal_region_id() != 0) {
+        _this->_impl_.region_id_ = from._impl_.region_id_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (from._internal_cell_id() != 0) {
+        _this->_impl_.cell_id_ = from._impl_.cell_id_;
+      }
+    }
   }
   _this->_impl_._has_bits_[0] |= cached_has_bits;
   _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
@@ -2454,8 +2530,8 @@ void LoginResponse::InternalSwap(LoginResponse* PROTOBUF_RESTRICT PROTOBUF_NONNU
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.hub_ds_addr_, &other->_impl_.hub_ds_addr_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.hub_ticket_, &other->_impl_.hub_ticket_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(LoginResponse, _impl_.code_)
-      + sizeof(LoginResponse::_impl_.code_)
+      PROTOBUF_FIELD_OFFSET(LoginResponse, _impl_.cell_id_)
+      + sizeof(LoginResponse::_impl_.cell_id_)
       - PROTOBUF_FIELD_OFFSET(LoginResponse, _impl_.player_id_)>(
           reinterpret_cast<char*>(&_impl_.player_id_),
           reinterpret_cast<char*>(&other->_impl_.player_id_));
@@ -2905,9 +2981,9 @@ DSTicket::DSTicket(
                offsetof(Impl_, player_id_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, player_id_),
-           offsetof(Impl_, expires_at_ms_) -
+           offsetof(Impl_, cell_id_) -
                offsetof(Impl_, player_id_) +
-               sizeof(Impl_::expires_at_ms_));
+               sizeof(Impl_::cell_id_));
 
   // @@protoc_insertion_point(copy_constructor:pandora.login.v1.DSTicket)
 }
@@ -2923,9 +2999,9 @@ inline void DSTicket::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, player_id_),
            0,
-           offsetof(Impl_, expires_at_ms_) -
+           offsetof(Impl_, cell_id_) -
                offsetof(Impl_, player_id_) +
-               sizeof(Impl_::expires_at_ms_));
+               sizeof(Impl_::cell_id_));
 }
 DSTicket::~DSTicket() {
   // @@protoc_insertion_point(destructor:pandora.login.v1.DSTicket)
@@ -2985,10 +3061,10 @@ PROTOBUF_NOINLINE void DSTicket::Clear() {
       _impl_.jti_.ClearNonDefaultToEmpty();
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000003cU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000fcU)) {
     ::memset(&_impl_.player_id_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.expires_at_ms_) -
-        reinterpret_cast<char*>(&_impl_.player_id_)) + sizeof(_impl_.expires_at_ms_));
+        reinterpret_cast<char*>(&_impl_.cell_id_) -
+        reinterpret_cast<char*>(&_impl_.player_id_)) + sizeof(_impl_.cell_id_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -3069,6 +3145,24 @@ PROTOBUF_NOINLINE void DSTicket::Clear() {
     }
   }
 
+  // uint32 region_id = 7 [json_name = "regionId"];
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (this_._internal_region_id() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          7, this_._internal_region_id(), target);
+    }
+  }
+
+  // uint32 cell_id = 8 [json_name = "cellId"];
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (this_._internal_cell_id() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          8, this_._internal_cell_id(), target);
+    }
+  }
+
   if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
     target =
         ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
@@ -3094,7 +3188,7 @@ PROTOBUF_NOINLINE void DSTicket::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     // string ds_type = 5 [json_name = "dsType"];
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!this_._internal_ds_type().empty()) {
@@ -3137,6 +3231,20 @@ PROTOBUF_NOINLINE void DSTicket::Clear() {
             this_._internal_expires_at_ms());
       }
     }
+    // uint32 region_id = 7 [json_name = "regionId"];
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (this_._internal_region_id() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+            this_._internal_region_id());
+      }
+    }
+    // uint32 cell_id = 8 [json_name = "cellId"];
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (this_._internal_cell_id() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+            this_._internal_cell_id());
+      }
+    }
   }
   return this_.MaybeComputeUnknownFieldsSize(total_size,
                                              &this_._impl_._cached_size_);
@@ -3155,7 +3263,7 @@ void DSTicket::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!from._internal_ds_type().empty()) {
         _this->_internal_set_ds_type(from._internal_ds_type());
@@ -3194,6 +3302,16 @@ void DSTicket::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.expires_at_ms_ = from._impl_.expires_at_ms_;
       }
     }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (from._internal_region_id() != 0) {
+        _this->_impl_.region_id_ = from._impl_.region_id_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (from._internal_cell_id() != 0) {
+        _this->_impl_.cell_id_ = from._impl_.cell_id_;
+      }
+    }
   }
   _this->_impl_._has_bits_[0] |= cached_has_bits;
   _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
@@ -3217,8 +3335,8 @@ void DSTicket::InternalSwap(DSTicket* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) 
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.ds_type_, &other->_impl_.ds_type_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.jti_, &other->_impl_.jti_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(DSTicket, _impl_.expires_at_ms_)
-      + sizeof(DSTicket::_impl_.expires_at_ms_)
+      PROTOBUF_FIELD_OFFSET(DSTicket, _impl_.cell_id_)
+      + sizeof(DSTicket::_impl_.cell_id_)
       - PROTOBUF_FIELD_OFFSET(DSTicket, _impl_.player_id_)>(
           reinterpret_cast<char*>(&_impl_.player_id_),
           reinterpret_cast<char*>(&other->_impl_.player_id_));

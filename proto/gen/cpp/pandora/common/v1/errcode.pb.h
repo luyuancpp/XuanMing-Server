@@ -154,6 +154,7 @@ enum ErrCode : int {
   ERR_AUCTION_NOT_OWNER = 12003,
   ERR_AUCTION_INSUFFICIENT = 12004,
   ERR_AUCTION_IDEMPOTENCY_CONFLICT = 12005,
+  ERR_AUCTION_MARKET_BUSY = 12006,
   ErrCode_INT_MIN_SENTINEL_DO_NOT_USE_ =
       ::std::numeric_limits<::int32_t>::min(),
   ErrCode_INT_MAX_SENTINEL_DO_NOT_USE_ =
@@ -164,11 +165,11 @@ extern const uint32_t ErrCode_internal_data_[];
 inline constexpr ErrCode ErrCode_MIN =
     static_cast<ErrCode>(0);
 inline constexpr ErrCode ErrCode_MAX =
-    static_cast<ErrCode>(12005);
+    static_cast<ErrCode>(12006);
 [[nodiscard]] inline bool ErrCode_IsValid(int value) {
   return ::google::protobuf::internal::ValidateEnum(value, ErrCode_internal_data_);
 }
-inline constexpr int ErrCode_ARRAYSIZE = 12005 + 1;
+inline constexpr int ErrCode_ARRAYSIZE = 12006 + 1;
 [[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
 ErrCode_descriptor();
 [[nodiscard]] inline auto ProtobufInternalGetEnumDescriptor(ErrCode) {

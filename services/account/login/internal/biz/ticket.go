@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/luyuancpp/pandora/pkg/auth"
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	plog "github.com/luyuancpp/pandora/pkg/log"
 
@@ -43,6 +44,10 @@ type DSTicketClaims struct {
 	JTI         string
 	IssuedAtMs  int64
 	ExpiresAtMs int64
+	// RegionID / CellID 是票据绑定的玩家路由落点(scale-cellular-20m.md §3.3)。
+	// 单 Cell / dev 票据为 0。DS 侧据此校验票据 Cell == 本 DS 所在 Cell,防跨单元串号。
+	RegionID uint32
+	CellID   uint32
 }
 
 // TicketUsecase 处理 DSTicket 的签发 / 校验。
@@ -53,11 +58,37 @@ type TicketUsecase struct {
 	signer   *auth.Signer
 	verifier *auth.Verifier
 	jtiRepo  data.TicketJTIRepo // 可空(dev 不接 redis 时):跳过防重放,只验签
+
+	// router 是确定性 region/cell 路由器(scale-cellular-20m.md §3.3)。
+	// 可为 nil:单 Cell / dev 部署不路由,签出票据 region/cell = 0。多 Cell 部署由 main
+	// 经 SetCellRouter 注入。nil-safe,不阻断签票。
+	router *cellroute.Router
 }
 
 // NewTicketUsecase 构造用例。
 func NewTicketUsecase(signer *auth.Signer, verifier *auth.Verifier, jtiRepo data.TicketJTIRepo) *TicketUsecase {
 	return &TicketUsecase{signer: signer, verifier: verifier, jtiRepo: jtiRepo}
+}
+
+// SetCellRouter 注入确定性 region/cell 路由器(可选,多 Cell 部署用)。
+//
+// nil-safe:不调用 / 传 nil 时签出票据 region/cell = 0(单 Cell / dev 语义)。
+// 用 setter 而非构造参数,避免单 Cell 阶段调用点被迫改签名(与 LoginUsecase.SetCellRouter 一致)。
+func (u *TicketUsecase) SetCellRouter(r *cellroute.Router) {
+	u.router = r
+}
+
+// routeRegionCell 算玩家落点;router 为 nil(单 Cell / dev)或 Route 报错时降级为 0/0,不阻断签票。
+func (u *TicketUsecase) routeRegionCell(ctx context.Context, playerID uint64) (regionID, cellID uint32) {
+	if u.router == nil {
+		return 0, 0
+	}
+	loc, err := u.router.Route(playerID)
+	if err != nil {
+		plog.With(ctx).Warnw("msg", "cellroute_failed", "err", err, "player_id", playerID)
+		return 0, 0
+	}
+	return loc.RegionID, loc.CellID
 }
 
 // IssueDSTicket 给指定 player 签 hub / battle DS 票据。
@@ -86,8 +117,10 @@ func (u *TicketUsecase) IssueDSTicket(ctx context.Context, playerID uint64, dsTy
 		return nil, errcode.New(errcode.ErrInvalidArg, "battle DSTicket requires match_id (targetID)")
 	}
 
+	// 算玩家路由落点并签进票据(§3.3 防跨单元串号);单 Cell / dev → 0/0。
+	regionID, cellID := u.routeRegionCell(ctx, playerID)
 	jti := uuid.NewString()
-	tok, expMs, err := u.signer.SignDSTicket(playerID, ds, targetID, jti)
+	tok, expMs, err := u.signer.SignDSTicketWithCell(playerID, ds, targetID, regionID, cellID, jti)
 	if err != nil {
 		h.Errorw("msg", "sign_ds_ticket_failed", "err", err, "player_id", playerID, "ds_type", dsType)
 		return nil, errcode.New(errcode.ErrInternal, "sign ds ticket failed: %v", err)
@@ -95,7 +128,7 @@ func (u *TicketUsecase) IssueDSTicket(ctx context.Context, playerID uint64, dsTy
 
 	h.Infow("msg", "ds_ticket_issued",
 		"player_id", playerID, "ds_type", dsType, "target_id", targetID,
-		"jti", jti, "exp_ms", expMs)
+		"jti", jti, "exp_ms", expMs, "region_id", regionID, "cell_id", cellID)
 
 	return &DSTicketResult{
 		Ticket:      tok,
@@ -136,6 +169,8 @@ func (u *TicketUsecase) VerifyDSTicket(ctx context.Context, ticket, dsPodName st
 		MatchID:  claims.MatchID,
 		DSType:   claims.DSType,
 		JTI:      claims.ID,
+		RegionID: claims.RegionID,
+		CellID:   claims.CellID,
 	}
 	if claims.IssuedAt != nil {
 		out.IssuedAtMs = claims.IssuedAt.UnixMilli()

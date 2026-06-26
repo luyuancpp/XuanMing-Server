@@ -23,6 +23,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/luyuancpp/pandora/pkg/auth"
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	plog "github.com/luyuancpp/pandora/pkg/log"
 	"github.com/luyuancpp/pandora/pkg/passwd"
@@ -38,6 +39,12 @@ type LoginResult struct {
 	HubDSAddr      string
 	HubTicket      string // hub DS JWT(W3 ①)
 	HubTicketExpMs int64
+
+	// RegionID / CellID 是玩家的确定性路由落点(docs/design/scale-cellular-20m.md §3.2/§4.2)。
+	// 由 cellroute.Router 按 player_id 算出;未配 Router(单 Cell / dev)时为 0。
+	// 客户端 / 边缘网关据此连到正确 Region 的正确 Cell 接入入口。
+	RegionID uint32
+	CellID   uint32
 }
 
 // LoginUsecase 是 Login / Logout 用例。
@@ -51,6 +58,11 @@ type LoginUsecase struct {
 	hubRegion   string // 传给 hub_allocator.AssignHub 的 region(空=allocator 选最空分片)
 	signer      *auth.Signer
 	verifier    *auth.Verifier
+
+	// router 是确定性 region/cell 路由器(scale-cellular-20m.md 三层化地基)。
+	// 可为 nil:单 Cell / dev 部署不路由,登录返回 region/cell = 0。多 Cell 部署由 main
+	// 经 SetCellRouter 注入(配静态表或 etcdtable 热更新表)。nil-safe,不阻断登录。
+	router *cellroute.Router
 
 	// devSkipPassword 开发期免密登录(conf.LoginConf.DevSkipPassword)。
 	// 为 true 时跳过密码校验。
@@ -94,6 +106,15 @@ func NewLoginUsecase(
 		devSkipPassword: devSkipPassword,
 		devAutoRegister: devAutoRegister,
 	}
+}
+
+// SetCellRouter 注入确定性 region/cell 路由器(可选,多 Cell 部署用)。
+//
+// nil-safe:不调用 / 传 nil 时,Login 返回的 RegionID/CellID 为 0(单 Cell / dev 语义)。
+// 用 setter 而非构造参数,避免单 Cell 阶段所有调用点被迫改签名;多 Cell 部署在 main
+// 装配阶段调一次即可。Router 内部读路径无锁(AtomicTable),并发安全。
+func (u *LoginUsecase) SetCellRouter(r *cellroute.Router) {
+	u.router = r
 }
 
 // Login 走真实流程(W3 ②):
@@ -155,10 +176,15 @@ func (u *LoginUsecase) Login(ctx context.Context, account, passwordHash, deviceI
 		}
 	}
 
+	// 确定性 region/cell 路由落点(scale-cellular-20m.md §3.2/§3.3):多 Cell 部署时算出玩家落点,
+	// 一处算好,既供客户端 / 边缘网关连到正确 Cell,又盖进自签 hub 票据(§3.3 防跨单元串号)。
+	// router 为 nil(单 Cell / dev)或 Route 报错 → 降级 0/0(同单 Cell 行为),不阻断登录。
+	regionID, cellID := u.routeRegionCell(ctx, playerID)
+
 	// 解析 hub 分片 + hub 票据(W4 ⑥):
 	// hub_allocator 是 hub 票据权威,优先调 AssignHub 拿真实地址 + 票据;
-	// 未配 / 调用失败 → 回退自签票据 + 静态 hubDSAddr(弱依赖,不阻断登录)。
-	hubDSAddr, hubTicket, hubExpMs, err := u.resolveHub(ctx, playerID)
+	// 未配 / 调用失败 → 回退自签票据(盖 region/cell 戳) + 静态 hubDSAddr(弱依赖,不阻断登录)。
+	hubDSAddr, hubTicket, hubExpMs, err := u.resolveHub(ctx, playerID, regionID, cellID)
 	if err != nil {
 		h.Errorw("msg", "resolve_hub_failed", "err", err, "player_id", playerID)
 		return nil, err
@@ -177,8 +203,10 @@ func (u *LoginUsecase) Login(ctx context.Context, account, passwordHash, deviceI
 		}
 	}
 
+	// 确定性 region/cell 路由已在上方一次算好(regionID/cellID),这里直接复用。
 	h.Infow("msg", "login_ok", "player_id", playerID, "device_id", deviceID,
-		"session_exp_ms", sessExpMs, "hub_ticket_exp_ms", hubExpMs)
+		"session_exp_ms", sessExpMs, "hub_ticket_exp_ms", hubExpMs,
+		"region_id", regionID, "cell_id", cellID)
 
 	return &LoginResult{
 		PlayerID:       playerID,
@@ -187,6 +215,8 @@ func (u *LoginUsecase) Login(ctx context.Context, account, passwordHash, deviceI
 		HubDSAddr:      hubDSAddr,
 		HubTicket:      hubTicket,
 		HubTicketExpMs: hubExpMs,
+		RegionID:       regionID,
+		CellID:         cellID,
 	}, nil
 }
 
@@ -225,7 +255,11 @@ func (u *LoginUsecase) ensureAccount(ctx context.Context, account, passwordHash 
 //
 // 回退分支保证 login 可独立联调(本机不起 hub_allocator 也能拿到可连 hub 的票据,
 // 因为 login 与 hub_allocator 共享同一 JWT secret/issuer/audience)。
-func (u *LoginUsecase) resolveHub(ctx context.Context, playerID uint64) (addr, ticket string, expMs int64, err error) {
+//
+// regionID / cellID 是玩家确定性路由落点(由 Login / ResolveHubEndpoint 一次算好传入)。
+// 回退自签分支把落点盖进 hub 票据(scale-cellular-20m.md §3.3 防跨单元串号);单 Cell / dev 为 0。
+// hub_allocator 路径的票据由其自身签发(其内部落点绑定属 Codex/hub_allocator 职责)。
+func (u *LoginUsecase) resolveHub(ctx context.Context, playerID uint64, regionID, cellID uint32) (addr, ticket string, expMs int64, err error) {
 	h := plog.With(ctx)
 
 	if u.hubAssigner != nil {
@@ -240,11 +274,27 @@ func (u *LoginUsecase) resolveHub(ctx context.Context, playerID uint64) (addr, t
 		h.Warnw("msg", "hub_assign_failed_fallback_self_sign", "err", aerr, "player_id", playerID)
 	}
 
-	ticket, expMs, err = u.signer.SignDSTicket(playerID, auth.DSTypeHub, 0, uuid.NewString())
+	ticket, expMs, err = u.signer.SignDSTicketWithCell(playerID, auth.DSTypeHub, 0, regionID, cellID, uuid.NewString())
 	if err != nil {
 		return "", "", 0, errcode.New(errcode.ErrInternal, "sign hub ticket failed: %v", err)
 	}
 	return u.hubDSAddr, ticket, expMs, nil
+}
+
+// routeRegionCell 算玩家确定性路由落点(scale-cellular-20m.md §3.2/§3.3)。
+//
+// router 为 nil(单 Cell / dev)或 Route 报错(配置缺口)→ 降级为 0/0(同单 Cell 行为),
+// 仅告警不阻断登录。
+func (u *LoginUsecase) routeRegionCell(ctx context.Context, playerID uint64) (regionID, cellID uint32) {
+	if u.router == nil {
+		return 0, 0
+	}
+	loc, err := u.router.Route(playerID)
+	if err != nil {
+		plog.With(ctx).Warnw("msg", "cellroute_failed", "err", err, "player_id", playerID)
+		return 0, 0
+	}
+	return loc.RegionID, loc.CellID
 }
 
 // ResolveHubEndpoint 复用登录时的 hub 分配链路(resolveHub → hub_allocator.AssignHub),
@@ -262,7 +312,8 @@ func (u *LoginUsecase) ResolveHubEndpoint(ctx context.Context, playerID uint64) 
 	if playerID == 0 {
 		return "", "", 0, errcode.New(errcode.ErrInvalidArg, "playerID must be > 0")
 	}
-	return u.resolveHub(ctx, playerID)
+	regionID, cellID := u.routeRegionCell(ctx, playerID)
+	return u.resolveHub(ctx, playerID, regionID, cellID)
 }
 
 // hubTicketExpMs 解析 hub_allocator 签发的 hub 票据,取其 exp(unix ms)给客户端展示。

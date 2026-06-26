@@ -24,6 +24,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	plog "github.com/luyuancpp/pandora/pkg/log"
 	matchv1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/match/v1"
@@ -103,11 +104,77 @@ type MatchUsecase struct {
 	idGen     IDGenerator
 	locator   LocationNotifier // 可为 nil（本机不起 player_locator 时不上报位置）
 	cfg       conf.MatchConf
+
+	// router 是确定性 region/cell 路由器(scale-cellular-20m.md §4.2 两级撮合)。
+	// 可为 nil:单 Cell / dev / 阶段 1~2 不分区,matchOnce 退化为单桶贪心(与历史行为一致)。
+	// 多 Region 部署(阶段 3)由 main 经 SetCellRouter 注入,matchOnce 升级为"region 内优先 +
+	// 跨 region 溢出"两级撮合。nil-safe,不阻断撮合。
+	router *cellroute.Router
+
+	// regionPolicy 是跨 region 溢出策略(阈值 / RTT 惩罚 / 跨区比例上限)。
+	// 默认 DefaultRegionMatchPolicy();多 Region 阶段可由 main 从配置覆盖。
+	regionPolicy RegionMatchPolicy
 }
 
 // NewMatchUsecase 构造 MatchUsecase。locator 可为 nil（弱依赖，不上报位置）。
 func NewMatchUsecase(repo data.MatchRepo, reader TeamReader, pusher MatchEventPusher, allocator DSAllocator, idGen IDGenerator, locator LocationNotifier, cfg conf.MatchConf) *MatchUsecase {
-	return &MatchUsecase{repo: repo, reader: reader, pusher: pusher, allocator: allocator, idGen: idGen, locator: locator, cfg: cfg}
+	return &MatchUsecase{repo: repo, reader: reader, pusher: pusher, allocator: allocator, idGen: idGen, locator: locator, cfg: cfg, regionPolicy: DefaultRegionMatchPolicy()}
+}
+
+// SetCellRouter 注入确定性 region 路由器(可选,多 Region 部署用)。
+//
+// nil-safe:不调用 / 传 nil 时,matchOnce 退化为单桶贪心(单 Cell / 阶段 1~2 语义)。
+// 用 setter 而非构造参数,避免单 Cell 阶段调用点被迫改签名(与 login 两个 usecase 一致)。
+// Router 内部读路径无锁(AtomicTable),并发安全。
+func (u *MatchUsecase) SetCellRouter(r *cellroute.Router) {
+	u.router = r
+}
+
+// SetRegionPolicy 覆盖跨 region 溢出策略(可选,多 Region 阶段从配置装配)。
+func (u *MatchUsecase) SetRegionPolicy(p RegionMatchPolicy) {
+	u.regionPolicy = p
+}
+
+// ticketRegion 解析一张票据的 owner region(以队长 captain_id 为 owner 锚点)。
+// router 为 nil(单 Cell / dev)或 Route 报错 → 返回 0(未知 / 单桶),不阻断撮合。
+func (u *MatchUsecase) ticketRegion(t *matchv1.MatchTicketStorageRecord) uint32 {
+	if u.router == nil || t == nil {
+		return 0
+	}
+	loc, err := u.router.Route(t.CaptainId)
+	if err != nil {
+		return 0
+	}
+	return loc.RegionID
+}
+
+// ticketTier 返回一张票据的段位档(以 avg_mmr 经 regionPolicy.MmrTier 计算)。
+// 高分段档位更高 → 溢出阈值更短(高分段人稀,早点跨 region)。供 selectOverflowTickets 的
+// tierOf 入参,统一段位桶口径(decision-revisit-global-matchmaker.md §2.2/§2.3)。
+func (u *MatchUsecase) ticketTier(t *matchv1.MatchTicketStorageRecord) int {
+	if t == nil {
+		return 0
+	}
+	return u.regionPolicy.MmrTier(t.AvgMmr)
+}
+
+// battlePlacement 计算 battle DS 应落的 (region, cell):参战玩家多数所在落点
+// (scale-cellular-20m.md §4.4/§5,让多数玩家就近连入)。
+// router 为 nil(单 Cell / dev)或全部玩家路由失败时返回 ok=false,调用方退化为不带放置提示
+// (由 ds_allocator 默认选 Cell)。nil-safe,绝不阻断成局。
+func (u *MatchUsecase) battlePlacement(playerIDs []uint64) (CellLocation, bool) {
+	if u.router == nil {
+		return CellLocation{}, false
+	}
+	locs := make([]CellLocation, 0, len(playerIDs))
+	for _, pid := range playerIDs {
+		loc, err := u.router.Route(pid)
+		if err != nil {
+			continue
+		}
+		locs = append(locs, CellLocation{RegionID: loc.RegionID, CellID: loc.CellID})
+	}
+	return MajorityCellLocation(locs)
 }
 
 // notifyMatching 把 match 成员位置标记为 MATCHING（弱依赖：nil 跳过 / 失败仅 Warn）。
@@ -465,6 +532,17 @@ func (u *MatchUsecase) onMatchFailed(ctx context.Context, m *matchv1.MatchStorag
 func (u *MatchUsecase) onAllConfirmed(ctx context.Context, m *matchv1.MatchStorageRecord) {
 	playerIDs := memberPlayerIDs(m.Members)
 
+	// 两级撮合放置(scale-cellular-20m.md §4.4):算出"参战玩家多数所在 region/cell",
+	// 让 battle DS 就近落到该 Cell。当前先作为放置提示落日志(多 region RTT 排障 / 观测);
+	// 把它透传进 AllocateBattleRequest(region_id/cell_id)由 ds_allocator 按 Cell 选 k8s,
+	// 属 proto + 跨服务改动,留 Codex/人按 §11.1 跟进(见 PROGRESS 落地记录)。
+	// router 为 nil(单 Cell / dev)时 ok=false,不打印、行为不变。
+	if place, ok := u.battlePlacement(playerIDs); ok {
+		plog.With(ctx).Infow("msg", "battle_placement",
+			"match_id", m.MatchId, "region_id", place.RegionID, "cell_id", place.CellID,
+			"players", len(playerIDs))
+	}
+
 	dsAddr, tickets, err := u.allocator.AllocateBattle(ctx, m.MatchId, playerIDs)
 	if err != nil {
 		plog.With(ctx).Errorw("msg", "ds_allocate_failed", "match_id", m.MatchId, "err", err)
@@ -604,9 +682,13 @@ func (u *MatchUsecase) RunMatchLoop(ctx context.Context) {
 
 // matchOnce 扫描一次队列,尽可能多地凑出 match(5+5)。
 //
-// 算法(W4 ① 骨架版):按 avg_mmr 升序取票据,贪心累积进一个组,当组内总人数达到
-// 2×TeamSize 且 MMR 跨度在动态窗口内时,用 largest-first 装箱拆成两边各 TeamSize。
-// 装箱失败则前移起点重试。生产级更优撮合留 TODO。
+// 算法:按 avg_mmr 升序取票据,贪心累积进一个组,当组内总人数达到 2×TeamSize 且 MMR 跨度
+// 在动态窗口内时,用 largest-first 装箱拆成两边各 TeamSize。装箱失败则前移起点重试。
+//
+// 两级撮合(scale-cellular-20m.md §4.4,router 已配时):
+//   - 单 Cell / 阶段 1~2(router 未配)→ 单桶贪心(历史行为)。
+//   - 多 Region(阶段 3)→ ① 各 owner region 桶内独立贪心(同 region 优先,低延迟);
+//     ② 本 region 凑不齐且等待超阈值的剩余票据,进跨 region 溢出贪心(受跨 region 比例上限约束)。
 func (u *MatchUsecase) matchOnce(ctx context.Context) error {
 	ticketIDs, err := u.repo.RangeQueueTickets(ctx)
 	if err != nil {
@@ -649,6 +731,64 @@ func (u *MatchUsecase) matchOnce(ctx context.Context) error {
 	now := time.Now().UnixMilli()
 	used := make(map[uint64]bool)
 
+	// 单 Cell / dev / 阶段 1~2(router 未配)→ 单桶贪心(历史行为,零分区开销)。
+	if u.router == nil {
+		u.greedyFormMatches(ctx, tickets, used, now, nil)
+		return nil
+	}
+
+	// 多 Region(阶段 3)两级撮合(scale-cellular-20m.md §4.4):
+	//  ① region 内优先:按 owner region 分桶,各桶内独立贪心(绝大多数对局同 region,低延迟)。
+	//  ② 跨 region 溢出:本 region 凑不齐且等待超阈值的剩余票据,进跨 region 兜底贪心,
+	//     且每局受"跨 region 玩家比例软上限"约束(WithinCrossRegionCap)。
+	buckets, order := partitionTicketsByRegion(tickets, u.ticketRegion)
+	regionTotals := regionPlayerTotals(buckets)
+	for _, region := range order {
+		u.greedyFormMatches(ctx, buckets[region], used, now, nil)
+	}
+
+	// 收集本 region 内未成局的剩余票据(保持 MMR 升序),挑出可溢出者跨 region 兜底撮合。
+	leftover := make([]*matchv1.MatchTicketStorageRecord, 0, len(tickets))
+	for _, t := range tickets {
+		if !used[t.TicketId] {
+			leftover = append(leftover, t)
+		}
+	}
+	overflow := selectOverflowTickets(leftover, u.ticketRegion, regionTotals, need, u.regionPolicy, u.ticketTier, now)
+	if len(overflow) > 0 {
+		u.greedyFormMatches(ctx, overflow, used, now, u.withinCrossRegionCap)
+	}
+	return nil
+}
+
+// withinCrossRegionCap 是跨 region 溢出贪心的成局守卫:一局玩家的 region 分布须满足
+// "跨 region 玩家比例软上限"(decision-revisit-global-matchmaker.md §2.2),否则拒绝该组合,
+// 防一局横跨多区导致体验崩坏。
+func (u *MatchUsecase) withinCrossRegionCap(group []*matchv1.MatchTicketStorageRecord) bool {
+	regions := make([]uint32, 0, 2*u.cfg.TeamSize)
+	for _, t := range group {
+		r := u.ticketRegion(t)
+		for range t.Members {
+			regions = append(regions, r)
+		}
+	}
+	return u.regionPolicy.WithinCrossRegionCap(regions)
+}
+
+// greedyFormMatches 在给定票据切片(已按 MMR 升序)上做"按 MMR 窗口贪心装箱凑 5+5"撮合,
+// 成局即 formMatch 并把票据标记进 used。validate 非 nil 时,装箱成功后还须通过该守卫才成局
+// (跨 region 溢出用它做比例上限校验);validate 为 nil 表示无额外约束(单桶 / region 内)。
+//
+// 这是原 matchOnce 主循环抽出的可复用核(单桶 / 各 region 桶 / 跨 region 溢出桶共用),
+// 行为与抽取前完全一致(validate=nil 时)。
+func (u *MatchUsecase) greedyFormMatches(
+	ctx context.Context,
+	tickets []*matchv1.MatchTicketStorageRecord,
+	used map[uint64]bool,
+	now int64,
+	validate func(group []*matchv1.MatchTicketStorageRecord) bool,
+) {
+	need := 2 * u.cfg.TeamSize
 	for start := 0; start < len(tickets); start++ {
 		if used[tickets[start].TicketId] {
 			continue
@@ -673,6 +813,9 @@ func (u *MatchUsecase) matchOnce(ctx context.Context) error {
 		if !ok {
 			continue
 		}
+		if validate != nil && !validate(group) {
+			continue // 跨 region 比例超上限等约束未过,放弃该组合
+		}
 		if err := u.formMatch(ctx, sideA, sideB); err != nil {
 			plog.With(ctx).Warnw("msg", "form_match_failed", "err", err)
 			continue
@@ -681,7 +824,6 @@ func (u *MatchUsecase) matchOnce(ctx context.Context) error {
 			used[t.TicketId] = true
 		}
 	}
-	return nil
 }
 
 // formSoloMatch 是本地端到端测试路径:单张队伍票据直接成局,跳过多人确认,立即拉 Battle DS。
