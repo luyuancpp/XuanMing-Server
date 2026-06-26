@@ -24,6 +24,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	plog "github.com/luyuancpp/pandora/pkg/log"
 
@@ -68,6 +69,12 @@ type LocatorUsecase struct {
 	repo     data.LocationRepo
 	ttl      time.Duration
 	presence PresenceNotifier // 可为 nil(presence 订阅推送未开启 → 纯拉模式)
+
+	// router 是确定性 region/cell 路由器(scale-cellular-20m.md §4.2)。
+	// 可为 nil:单 Cell / dev / 阶段 1~2 不分片,位置 owner 落点观测退化为不打日志(行为不变)。
+	// 分片部署时由 main 经 SetCellRouter 注入,SetLocation 写成功后额外打一条位置 owner 落点
+	// 观测(核对位置落点 == 玩家 owner cell,防 §1 单写者须同 cell)。nil-safe。
+	router *cellroute.Router
 }
 
 // PresenceNotifier 是 presence fan-out 入口(由 PresenceHub 实现;nil 表示未启用)。
@@ -88,6 +95,15 @@ func NewLocatorUsecase(repo data.LocationRepo, ttl time.Duration, presence ...Pr
 		u.presence = presence[0]
 	}
 	return u
+}
+
+// SetCellRouter 注入确定性 region/cell 路由器(scale-cellular-20m.md §4.2 两级架构)。
+//
+// nil-safe:不调用 / 传 nil 时(单 Cell / dev / 阶段 1~2),SetLocation 不做位置 owner 落点观测,
+// 行为与历史一致。用 setter 而非构造参数,避免单 Cell 阶段调用点被迫改签名(与 matchmaker /
+// auction / battle_result / friend / chat / trade / dialogue / inventory 一致)。Router 内部读路径无锁,并发安全。
+func (u *LocatorUsecase) SetCellRouter(r *cellroute.Router) {
+	u.router = r
 }
 
 // SetLocation 写入 redis hash。
@@ -145,6 +161,9 @@ func (u *LocatorUsecase) SetLocation(ctx context.Context, in LocationInput) erro
 		"player_id", in.PlayerID, "state", in.State,
 		"hub_pod", in.HubPod, "match_id", in.MatchID, "battle_pod", in.BattlePod,
 		"ttl_ms", u.ttl.Milliseconds())
+	// 分片:位置写成功后观测本玩家位置锁定的 owner 落点(位置是 owner 数据,须锁定
+	// 玩家 owner cell 以保单写者须号,不变量 §1)。router 为 nil(单 Cell)→ 不打。
+	u.logLocationPlacement(ctx, in.PlayerID, in.State)
 	return nil
 }
 

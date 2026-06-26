@@ -21,6 +21,7 @@ import (
 
 	"github.com/IBM/sarama"
 
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	"github.com/luyuancpp/pandora/pkg/kafkax"
 	plog "github.com/luyuancpp/pandora/pkg/log"
@@ -53,6 +54,13 @@ type KafkaConsumer struct {
 	cm        FrameRouter
 	offline   data.OfflineCacheRepo
 	consumer  *kafkax.KeyOrderedConsumer
+
+	// router / selfRegion / selfCell:本 push 实例所在 cell 的身份 + 确定性路由器
+	// (scale-cellular-20m.md §4.2)。router 为 nil = 单 Cell,本实例拥有全部玩家,handle 不做
+	// 归属漂移告警(行为不变)。分片部署时由 main 经 SetCellOwnership 注入。nil-safe。
+	router     *cellroute.Router
+	selfRegion uint32
+	selfCell   uint32
 }
 
 // NewKafkaConsumer 构造但不启动;调用 Start() 才开始消费。
@@ -143,6 +151,11 @@ func (k *KafkaConsumer) handle(ctx context.Context, msg *sarama.ConsumerMessage)
 		)
 		return nil
 	}
+
+	// 分片:多 Cell 下本实例只应拥有 owner cell == 本 cell 的玩家;收到非本 cell 玩家消息
+	// 说明路由漂移 / rebalance,仅告警不阻断(本地交付仍正确),转投属基础设施。router 为 nil
+	// (单 Cell)→ 不告警。
+	k.guardPlayerOwnership(ctx, playerID, msg.Topic)
 
 	// 2. 构 PushFrame(payload 直接是业务 Event proto bytes;ts_ms 取 kafka 消息时间)
 	frame := &pushv1.PushFrame{

@@ -15,6 +15,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	plog "github.com/luyuancpp/pandora/pkg/log"
 
@@ -26,11 +27,26 @@ import (
 type InventoryUsecase struct {
 	repo data.InventoryRepo
 	cfg  conf.InventoryConf
+
+	// router 是确定性 region/cell 路由器(scale-cellular-20m.md §4.2)。
+	// 可为 nil:单 Cell / dev / 阶段 1~2 不分片,拍卖成交跨分片对转落点观测退化为不打日志
+	// (行为不变)。分片部署时由 main 经 SetCellRouter 注入,SettleAuctionMatch 成功后额外打一条
+	// 跨分片对转落点观测(买卖双方跨 Cell → 拆 Kafka 结算出箱幂等消费)。nil-safe。
+	router *cellroute.Router
 }
 
 // NewInventoryUsecase 构造。
 func NewInventoryUsecase(repo data.InventoryRepo, cfg conf.InventoryConf) *InventoryUsecase {
 	return &InventoryUsecase{repo: repo, cfg: cfg}
+}
+
+// SetCellRouter 注入确定性 region/cell 路由器(scale-cellular-20m.md §4.2 两级架构)。
+//
+// nil-safe:不调用 / 传 nil 时(单 Cell / dev / 阶段 1~2),SettleAuctionMatch 不做跨分片对转落点
+// 观测,行为与历史一致。用 setter 而非构造参数,避免单 Cell 阶段调用点被迫改签名(与 matchmaker /
+// auction / battle_result / friend / chat / trade / dialogue 一致)。Router 内部读路径无锁,并发安全。
+func (u *InventoryUsecase) SetCellRouter(r *cellroute.Router) {
+	u.router = r
 }
 
 // GetInventory 读玩家背包(货币 + 道具堆叠)。
@@ -189,6 +205,9 @@ func (u *InventoryUsecase) SettleAuctionMatch(ctx context.Context, matchID, sell
 		plog.With(ctx).Infow("msg", "auction_settle_idempotent_hit",
 			"match_id", matchID, "seller_id", sellerID, "buyer_id", buyerID, "item", itemConfigID, "qty", quantity, "gold", totalGold)
 	}
+	// 分片:成交对转成功后观测本笔的跨分片落点(买卖双方背包跨 Cell → 跨分片对转,
+	// 拆 Kafka 结算出箱幂等消费)。router 为 nil(单 Cell)→ 不打。
+	u.logAuctionSettlementRouting(ctx, matchID, sellerID, buyerID)
 	return nil
 }
 

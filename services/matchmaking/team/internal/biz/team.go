@@ -21,6 +21,7 @@ import (
 
 	teamv1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/team/v1"
 
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	plog "github.com/luyuancpp/pandora/pkg/log"
 
@@ -53,11 +54,26 @@ type TeamUsecase struct {
 	repo   data.TeamRepo
 	pusher TeamEventPusher
 	cfg    conf.TeamConf
+
+	// router 是确定性 region/cell 路由器(scale-cellular-20m.md §4.2)。
+	// 可为 nil:单 Cell / dev / 阶段 1~2 不分片,队伍 region 分布观测退化为不打日志(行为不变)。
+	// 分片部署时由 main 经 SetCellRouter 注入,成员变更(建队 / 入队)后额外打一条队伍
+	// 跨 region 组队观测(供撮合 / battle 放置评估跨 region 组队占比)。nil-safe。
+	router *cellroute.Router
 }
 
 // NewTeamUsecase 构造 TeamUsecase。
 func NewTeamUsecase(repo data.TeamRepo, pusher TeamEventPusher, cfg conf.TeamConf) *TeamUsecase {
 	return &TeamUsecase{repo: repo, pusher: pusher, cfg: cfg}
+}
+
+// SetCellRouter 注入确定性 region/cell 路由器(scale-cellular-20m.md §4.2 两级架构)。
+//
+// nil-safe:不调用 / 传 nil 时(单 Cell / dev / 阶段 1~2),不做队伍 region 分布观测,行为与历史
+// 一致。用 setter 而非构造参数,避免单 Cell 阶段调用点被迫改签名(与 matchmaker / auction /
+// battle_result / friend / chat / trade / dialogue / inventory / locator / push 一致)。Router 内部读路径无锁,并发安全。
+func (u *TeamUsecase) SetCellRouter(r *cellroute.Router) {
+	u.router = r
 }
 
 // InviteTTLMs 返回邀请令牌 TTL 的毫秒数,供 service 层计算 expires_at_ms。
@@ -106,6 +122,9 @@ func (u *TeamUsecase) CreateTeam(ctx context.Context, teamID, playerID uint64) (
 		teamv1.TeamUpdateReason_TEAM_UPDATE_REASON_MEMBER_JOINED, 0)
 
 	plog.With(ctx).Infow("msg", "team_created", "team_id", teamID, "captain_id", playerID)
+	// 分片:队伍锁定队长 owner cell(TeamShardKey=captain_id);新建队仅队长一人,region 分布
+	// 为单一,但统一打点便于后续成员加入后对比。router 为 nil(单 Cell)→ 不打。
+	u.logTeamComposition(ctx, team)
 	return team, nil
 }
 
@@ -211,6 +230,8 @@ func (u *TeamUsecase) AcceptInvite(ctx context.Context, inviteID, teamID, player
 		teamv1.TeamUpdateReason_TEAM_UPDATE_REASON_MEMBER_JOINED, 0)
 
 	plog.With(ctx).Infow("msg", "team_accept_invite", "team_id", teamID, "player_id", playerID)
+	// 分片:成员加入后队伍 region 分布可能变跨 region(影响 §4.4 battle DS 放置)。router 为 nil → 不打。
+	u.logTeamComposition(ctx, result)
 	return result, nil
 }
 

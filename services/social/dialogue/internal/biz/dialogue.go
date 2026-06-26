@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/luyuancpp/pandora/pkg/cellroute"
 	"github.com/luyuancpp/pandora/pkg/errcode"
 	dialoguev1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/dialogue/v1"
 
@@ -31,6 +32,12 @@ type DialogueUsecase struct {
 	trees      data.TreeProvider
 	sessions   data.SessionStore
 	sessionTTL time.Duration
+
+	// router 是确定性 region/cell 路由器(scale-cellular-20m.md §4.2)。
+	// 可为 nil:单 Cell / dev / 阶段 1~2 不分片,会话 owner 落点观测退化为不打日志(行为不变)。
+	// 分片部署时由 main 经 SetCellRouter 注入,StartDialogue 会话创建成功后额外打一条会话
+	// owner 落点观测(核对会话落点 == 玩家 owner cell)。nil-safe。
+	router *cellroute.Router
 }
 
 // NewDialogueUsecase 构造。sessionTTL <= 0 时回退到 5m。
@@ -39,6 +46,15 @@ func NewDialogueUsecase(trees data.TreeProvider, sessions data.SessionStore, ses
 		sessionTTL = 5 * time.Minute
 	}
 	return &DialogueUsecase{trees: trees, sessions: sessions, sessionTTL: sessionTTL}
+}
+
+// SetCellRouter 注入确定性 region/cell 路由器(scale-cellular-20m.md §4.2 两级架构)。
+//
+// nil-safe:不调用 / 传 nil 时(单 Cell / dev / 阶段 1~2),StartDialogue 不做会话 owner 落点观测,
+// 行为与历史一致。用 setter 而非构造参数,避免单 Cell 阶段调用点被迫改签名(与 matchmaker /
+// auction / battle_result / friend / chat / trade 一致)。Router 内部读路径无锁,并发安全。
+func (u *DialogueUsecase) SetCellRouter(r *cellroute.Router) {
+	u.router = r
 }
 
 // StartDialogue 开启一次 NPC 对话。newDialogueID 由 service 用 snowflake 预生成。
@@ -79,6 +95,10 @@ func (u *DialogueUsecase) StartDialogue(ctx context.Context, playerID uint64, np
 	if !created {
 		return nil, errcode.New(errcode.ErrDialogueNotFound, "dialogue_id %d already in use", newDialogueID)
 	}
+
+	// 分片:会话创建成功后观测本会话锁定的 owner 落点(会话是玩家 owner 数据,须锁定
+	// 玩家 owner cell,scale-cellular-20m.md §4.2)。router 为 nil(单 Cell)→ 不打。
+	u.logSessionPlacement(ctx, newDialogueID, playerID)
 
 	state := buildState(newDialogueID, tree, node)
 	// 起始节点即终止节点(无可见选项)→ 对话立即结束,回收会话。
