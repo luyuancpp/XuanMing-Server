@@ -41,6 +41,8 @@ use ./services/runtime/push
 
 use ./services/runtime/player_locator
 
+use ./services/runtime/leaderboard
+
 use ./services/matchmaking/team
 
 use ./services/matchmaking/matchmaker
@@ -62,6 +64,9 @@ use (
 	./pkg/snowflake/etcdnode
 	./services/data/data_service
 )
+
+// robot/stress —— 阶段 1 单 Cell 压测客户端机群(只依赖 proto + grpc,不碰业务 module)。
+use ./robot/stress
 
 // ⚠️ 构建验证:仓库根没有 go.mod,不能在根目录跑 go build ./...
 // 正确做法:按 use 列表构建,例如 go build ./pkg/...

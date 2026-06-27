@@ -34,6 +34,7 @@
 | `friend_cluster` | friend | host.docker.internal:50004 | h2c | route 15s |
 | `chat_cluster`   | chat | host.docker.internal:50005 | h2c | route 15s |
 | `trade_cluster`  | trade | host.docker.internal:50012 | h2c | route 15s |
+| `leaderboard_cluster` | leaderboard | host.docker.internal:50007 | h2c | route 15s |
 | `dialogue_cluster` | dialogue | host.docker.internal:50013 | h2c | route 15s |
 
 DS 面(`:8444` `pandora_ds_listener`,**不挂 jwt_authn**,DS 身份由 UE NetDriver 层 DSTicket 校验,见 agones-dev.md §5):

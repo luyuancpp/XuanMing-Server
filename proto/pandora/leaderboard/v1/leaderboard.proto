@@ -1,0 +1,184 @@
+// Pandora LeaderboardService 协议(通用排行榜,2026-06-27)。
+//
+// 职责(docs/design/decision-revisit-leaderboard.md):通用 / 可扩展排行榜。
+//   - 一套机制支持任意榜:全服(GLOBAL)、按类型(board_type)、工会(GUILD)、副本局内(INSTANCE,临时);
+//   - 榜由复合 BoardKey 唯一标识(board_type + scope + scope_id + period);
+//   - Redis ZSET 做实时排名(O(log N) 插入 / 查名次 / 范围),临时榜带 TTL 自清,内存可控;
+//   - 结算 SettleBoard:取 Top-N 落 MySQL 快照 + 按 RewardTable 幂等发奖(对齐不变量 §9.2 / §9.7)。
+//
+// 协议原则:
+//   - 写入(SubmitScore / Settle / Remove / Delete)是系统接口,不在 Envoy 暴露,带玩家 JWT 调用一律拒绝(同 inventory.GrantItems)。
+//   - 读取(GetRank / GetRange / GetAround)可经 Envoy 给客户端,只回 LeaderboardEntry 客户端可见结构(不变量 §14)。
+
+syntax = "proto3";
+
+package pandora.leaderboard.v1;
+
+import "pandora/common/v1/errcode.proto";
+
+service LeaderboardService {
+  // SubmitScore 上报分数(系统驱动:战后 / 副本局内 / 活动)。首次写按 BoardOptions 建榜(TTL / max_size / tie-break)。
+  rpc SubmitScore(SubmitScoreRequest) returns (SubmitScoreResponse);
+  // GetRank 查某 entity 的名次 + 分数(客户端可见)。
+  rpc GetRank(GetRankRequest) returns (GetRankResponse);
+  // GetRange 取榜区间(Top-N / 分页;客户端可见)。
+  rpc GetRange(GetRangeRequest) returns (GetRangeResponse);
+  // GetAround 取某 entity 上下 radius 名(客户端可见)。
+  rpc GetAround(GetAroundRequest) returns (GetAroundResponse);
+  // RemoveEntry 移除某 entity(封号 / 作弊清理;系统接口)。
+  rpc RemoveEntry(RemoveEntryRequest) returns (RemoveEntryResponse);
+  // SettleBoard 结算:取 Top-N → 落快照 + 按 RewardTable 幂等发奖 → 可选 reset(系统接口)。
+  rpc SettleBoard(SettleBoardRequest) returns (SettleBoardResponse);
+  // DeleteBoard 删整个榜(临时榜提前清;系统接口)。
+  rpc DeleteBoard(DeleteBoardRequest) returns (DeleteBoardResponse);
+}
+
+// LeaderboardScope 榜归属维度。
+enum LeaderboardScope {
+  LEADERBOARD_SCOPE_UNSPECIFIED = 0;
+  LEADERBOARD_SCOPE_GLOBAL      = 1;  // 全服榜(scope_id=0)
+  LEADERBOARD_SCOPE_GUILD       = 2;  // 工会榜(scope_id=guild_id)
+  LEADERBOARD_SCOPE_INSTANCE    = 3;  // 副本局内榜(scope_id=match_id,临时,带 TTL)
+  LEADERBOARD_SCOPE_CUSTOM      = 4;  // 其它局部 / 自定义榜(scope_id 自定义)
+}
+
+// SubmitMode 上报语义。
+enum SubmitMode {
+  SUBMIT_MODE_UNSPECIFIED   = 0;
+  SUBMIT_MODE_SET_IF_HIGHER = 1;  // 仅当新分更优才更新(默认排行语义:降序取高 / 升序取低)
+  SUBMIT_MODE_SET           = 2;  // 强制覆盖为新分
+  SUBMIT_MODE_INCREMENT     = 3;  // 在原分上累加(累计伤害 / 工会贡献)
+}
+
+// BoardKey 唯一标识一个排行榜。
+message BoardKey {
+  uint32 board_type          = 1;  // 榜类型(配置 id):竞技分 / 累计伤害 / 工会贡献 ...
+  LeaderboardScope scope     = 2;
+  uint64 scope_id            = 3;  // GUILD→guild_id,INSTANCE→match_id,GLOBAL→0
+  string period              = 4;  // ""=永久,"2026-W26" / "2026-06-27" / "S5"=周期
+}
+
+// BoardOptions 建榜参数(首次 SubmitScore 时按此初始化榜行为)。
+message BoardOptions {
+  int64 ttl_seconds       = 1;  // > 0:临时榜,Redis key 设 EXPIRE(副本局内自清);0=永久
+  int64 max_size          = 2;  // > 0:截断只保留 Top-N(内存控制);0=不限
+  bool  tie_break_by_time = 3;  // true:同分「先达到者靠前」(时间 tie-break)
+  bool  ascending         = 4;  // true:升序榜(分低在前,如最快用时);默认降序(分高在前)
+}
+
+// LeaderboardEntry 是客户端可见的排行项(最小视图,不含 packed / 内部字段,不变量 §14)。
+message LeaderboardEntry {
+  uint64 entity_id     = 1;  // player_id 或 guild_id
+  int64  score         = 2;  // 真实分数(已还原,非 packed)
+  int64  rank          = 3;  // 1-based 名次
+  int64  updated_at_ms = 4;  // 最后更新时间(毫秒)
+}
+
+// RewardItem 一份奖励(对齐 inventory ItemGrant:count>0)。
+message RewardItem {
+  uint32 item_config_id = 1;
+  int64  count          = 2;
+}
+
+// RewardTier 名次区间 → 奖励(rank_from / rank_to 含两端,1-based)。
+message RewardTier {
+  int64 rank_from              = 1;  // 含
+  int64 rank_to                = 2;  // 含
+  repeated RewardItem items    = 3;
+}
+
+// RewardTable 结算奖励表(调用方在 Settle 时传入,leaderboard 保持玩法无关)。
+message RewardTable {
+  repeated RewardTier tiers = 1;
+}
+
+// LeaderboardSettleEvent 是结算事件(kafka pandora.leaderboard.settle,key=settlement_id;
+// 供工会 / 活动服务消费分发(尤其 GUILD 榜)+ 风控对账;服务内部消息,非客户端推送)。
+message LeaderboardSettleEvent {
+  uint64 settlement_id           = 1;
+  BoardKey board                 = 2;
+  repeated LeaderboardEntry winners = 3;
+  int64 settled_at_ms            = 4;
+}
+
+message SubmitScoreRequest {
+  BoardKey board          = 1;
+  uint64 entity_id        = 2;  // player_id 或 guild_id
+  int64  score            = 3;  // SET/SET_IF_HIGHER=目标分;INCREMENT=增量
+  SubmitMode mode         = 4;
+  BoardOptions options    = 5;  // 首次建榜参数(已存在的榜忽略变更)
+}
+
+message SubmitScoreResponse {
+  pandora.common.v1.ErrCode code = 1;
+  int64 new_score = 2;  // 写入后的真实分
+  int64 rank      = 3;  // 写入后的 1-based 名次(0=未上榜 / 被截断)
+}
+
+message GetRankRequest {
+  BoardKey board   = 1;
+  uint64 entity_id = 2;
+}
+
+message GetRankResponse {
+  pandora.common.v1.ErrCode code = 1;
+  bool found              = 2;
+  LeaderboardEntry entry  = 3;
+}
+
+message GetRangeRequest {
+  BoardKey board = 1;
+  int64 offset   = 2;  // 0-based 起始名次
+  int32 limit    = 3;  // 0=服务端默认上限
+}
+
+message GetRangeResponse {
+  pandora.common.v1.ErrCode code = 1;
+  repeated LeaderboardEntry entries = 2;
+  int64 total = 3;  // 榜总人数
+}
+
+message GetAroundRequest {
+  BoardKey board   = 1;
+  uint64 entity_id = 2;
+  int32  radius    = 3;  // 上下各取 radius 名(0=服务端默认)
+}
+
+message GetAroundResponse {
+  pandora.common.v1.ErrCode code = 1;
+  repeated LeaderboardEntry entries = 2;  // 含自身;entity 不在榜则空
+  bool found = 3;
+}
+
+message RemoveEntryRequest {
+  BoardKey board   = 1;
+  uint64 entity_id = 2;
+}
+
+message RemoveEntryResponse {
+  pandora.common.v1.ErrCode code = 1;
+}
+
+message SettleBoardRequest {
+  BoardKey board               = 1;
+  int32  top_n                 = 2;  // 取前 N 名结算 / 落快照(0=服务端默认)
+  RewardTable reward_table     = 3;  // 名次区间→奖励(空=只落快照不发奖)
+  bool   reset_after           = 4;  // true:结算后清空 ZSET(周期榜进入下一周期)
+  string settle_idempotency_key = 5; // 防重复结算(建议 = board 串 + period);空=服务端按 board+period 生成
+}
+
+message SettleBoardResponse {
+  pandora.common.v1.ErrCode code = 1;
+  uint64 settlement_id           = 2;  // 雪花结算批次 id
+  int64  settled_count           = 3;  // 实际结算名次数
+  bool   already_settled         = 4;  // true=幂等命中(本次未重复发奖)
+  repeated LeaderboardEntry winners = 5;  // Top-N 快照(客户端可见)
+}
+
+message DeleteBoardRequest {
+  BoardKey board = 1;
+}
+
+message DeleteBoardResponse {
+  pandora.common.v1.ErrCode code = 1;
+}

@@ -1,4 +1,4 @@
-# Pandora 15 个 go 业务服务(k8s Deployment + Service)
+# Pandora 17 个 go 业务服务(k8s Deployment + Service)
 #
 # 镜像:pandora/<svc>:dev(k8s 模式由 start.ps1 docker build 后 `minikube image load`;
 #       online 模式由 kustomize overlay 把镜像换成 registry 推送的带版本 tag)。
@@ -272,6 +272,30 @@ apiVersion: v1
 kind: Service
 metadata: { name: push, namespace: pandora }
 spec: { selector: { app: push }, ports: [ { port: 50014, targetPort: 50014 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: leaderboard, namespace: pandora, labels: { app: leaderboard } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: leaderboard } }
+  template:
+    metadata: { labels: { app: leaderboard } }
+    spec:
+      containers:
+        - name: leaderboard
+          image: pandora/leaderboard:dev
+          imagePullPolicy: IfNotPresent
+          args: ["-conf", "etc/cluster.yaml"]
+          ports: [ { containerPort: 50007 } ]
+          volumeMounts: [ { name: conf, mountPath: /app/etc/cluster.yaml, subPath: leaderboard.yaml, readOnly: true } ]
+          resources: { requests: { cpu: 25m, memory: 64Mi }, limits: { cpu: "1", memory: 256Mi } }
+      volumes: [ { name: conf, configMap: { name: pandora-config } } ]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: leaderboard, namespace: pandora }
+spec: { selector: { app: leaderboard }, ports: [ { port: 50007, targetPort: 50007 } ] }
 ---
 apiVersion: apps/v1
 kind: Deployment

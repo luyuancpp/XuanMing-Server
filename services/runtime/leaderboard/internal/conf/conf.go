@@ -1,0 +1,59 @@
+// Package conf 是 leaderboard 服务的私有配置结构(2026-06-27)。
+package conf
+
+import (
+	"github.com/luyuancpp/pandora/pkg/config"
+)
+
+// Config 是 leaderboard 服务的完整配置。
+type Config struct {
+	config.Base `yaml:",inline" mapstructure:",squash"`
+
+	Leaderboard LeaderboardConf `yaml:"leaderboard" json:"leaderboard"`
+}
+
+// LeaderboardConf 是 leaderboard 服务私有配置。
+type LeaderboardConf struct {
+	// DefaultListLimit GetRange 默认返回条数(默认 50)。
+	DefaultListLimit int `yaml:"default_list_limit,omitempty" json:"default_list_limit,omitempty"`
+
+	// MaxListLimit GetRange / GetAround 单次返回上限(默认 200)。
+	MaxListLimit int `yaml:"max_list_limit,omitempty" json:"max_list_limit,omitempty"`
+
+	// DefaultAroundRadius GetAround 默认上下名数(默认 10)。
+	DefaultAroundRadius int `yaml:"default_around_radius,omitempty" json:"default_around_radius,omitempty"`
+
+	// DefaultSettleTopN SettleBoard 未指定 top_n 时默认结算前 N 名(默认 100)。
+	DefaultSettleTopN int `yaml:"default_settle_top_n,omitempty" json:"default_settle_top_n,omitempty"`
+
+	// InventoryAddr 是 inventory 服务的内网 gRPC 地址(host:port,如 127.0.0.1:50015)。
+	// 配了 → 结算发奖走真实 GrantItems(幂等键 lb:<settlement_id>:<entity_id>);
+	// 留空 → 退回 NoopRewardGranter(占位,不真实发奖),仅供无背包联调 / 单测环境用。
+	InventoryAddr string `yaml:"inventory_addr,omitempty" json:"inventory_addr,omitempty"`
+
+	// AllowNoopReward 显式允许在 InventoryAddr 为空时退回 NoopRewardGranter(不真实发奖)。
+	// 默认 false:InventoryAddr 缺失即 fail-fast,防生产漏配后静默以「结算不发奖」启动。
+	AllowNoopReward bool `yaml:"allow_noop_reward,omitempty" json:"allow_noop_reward,omitempty"`
+}
+
+// Defaults 填默认值,防止 yaml 缺字段时零值引发非预期行为。
+func (c *Config) Defaults() {
+	if c.Leaderboard.DefaultListLimit <= 0 {
+		c.Leaderboard.DefaultListLimit = 50
+	}
+	if c.Leaderboard.MaxListLimit <= 0 {
+		c.Leaderboard.MaxListLimit = 200
+	}
+	if c.Leaderboard.DefaultAroundRadius <= 0 {
+		c.Leaderboard.DefaultAroundRadius = 10
+	}
+	if c.Leaderboard.DefaultSettleTopN <= 0 {
+		c.Leaderboard.DefaultSettleTopN = 100
+	}
+	if c.Server.Grpc.Addr == "" {
+		c.Server.Grpc.Addr = ":50007"
+	}
+	if c.Server.Http.Addr == "" {
+		c.Server.Http.Addr = ":51007"
+	}
+}

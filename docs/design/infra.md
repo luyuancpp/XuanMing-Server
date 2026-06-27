@@ -23,6 +23,7 @@ pandora_social         # 好友 / 黑名单 / 公会(后期)
 pandora_battle         # 战斗结算历史 / 战绩
 pandora_trade          # 交易订单 / 审计
 pandora_auction        # 全服拍卖行挂单 / 成交(按 market_id 分片)
+pandora_leaderboard    # 排行榜结算批次 / Top-N 快照 / 发奖凭证(实时排名在 Redis,不落库)
 pandora_ops            # 运营日志 / 封禁 / 客诉
 ```
 
@@ -84,6 +85,15 @@ version      INT          NOT NULL  DEFAULT 0                    -- 乐观锁
 |---|---|---|
 | `auction_orders` | 挂单 / 出价 | PK(order_id), uk(owner_id, idempotency_key), idx(market_id, side, status), idx(owner_id, status), idx(status, created_at_ms) |
 | `auction_matches` | 成交流水(append-only) | PK(match_id), idx(market_id, matched_at_ms), idx(sell_order_id), idx(buy_order_id) |
+
+#### `pandora_leaderboard`
+排行榜实时排名权威在 Redis ZSET(board_store.go),MySQL 只兜结算结果 + 发奖凭证(结算是低频写,单库即可,无分库)。
+
+| 表 | 用途 | 关键索引 |
+|---|---|---|
+| `leaderboard_settlement` | 结算批次头(幂等防重复结算) | PK(settlement_id), uk(settle_idempotency_key), idx(board_type, scope, scope_id) |
+| `leaderboard_snapshot` | 结算 Top-N 名次快照(归档 / 对账) | PK(settlement_id, rank), idx(settlement_id, entity_id) |
+| `leaderboard_reward_log` | 逐名次发奖记录(幂等防重复发奖) | PK(id), uk(grant_idempotency_key), idx(settlement_id) |
 
 ### 2.4 字符集 / 引擎
 
@@ -147,6 +157,15 @@ pandora:<domain>:<entity>:<id>[:<field>]
 
 ⚠️ hashtag `{<market_id>}` 把同一市场买卖盘锁到同一 Cluster slot,撮合同时碰两侧不触发 CROSSSLOT。MySQL `pandora_auction` 为权威,Redis 仅活跃撮合索引。
 
+#### Leaderboard(通用排行榜)
+| Key | 类型 | TTL | 用途 |
+|---|---|---|---|
+| `pandora:lb:{<board>}:z` | zset | 临时榜带 TTL | 排名(member=entity_id,score=打包分,支持时间 tie-break) |
+| `pandora:lb:{<board>}:t` | hash | 同 z | entity_id → updated_at_ms(展示 / 审计) |
+| `pandora:lb:{<board>}:m` | hash | 同 z | 榜元信息(asc / tie,供读查询判排序方向) |
+
+`<board>` = `<board_type>:<scope>:<scope_id>:<period>`(period 空用 `-`)。hashtag `{<board>}` 把同一榜的 z/t/m 锁到同一 Cluster slot,SubmitScore 的 Lua 原子碰三 key 不触发 CROSSSLOT。临时榜(副本局内 / 活动)靠 TTL 自动回收,实时排名权威在 Redis,MySQL 只兜结算。
+
 #### Lock / Cache
 | Key | 类型 | TTL | 用途 |
 |---|---|---|---|
@@ -192,6 +211,7 @@ pandora.dlq.<original_topic>     # 死信队列
 | `pandora.trade.audit` | 4 | 90d | trade | 审计、风控 | 交易日志(append-only) |
 | `pandora.auction.match` | 4 | 90d | auction | 风控、对账 | 拍卖成交事件(key=match_id) |
 | `pandora.auction.audit` | 4 | 90d | auction | 审计、风控 | 拍卖挂单流转(key=order_id,append-only) |
+| `pandora.leaderboard.settle` | 4 | 90d | leaderboard | 工会 / 活动服务、对账 | 排行榜结算事件(key=settlement_id,含 Top-N;尤其 GUILD 榜由工会服务消费分发) |
 | `pandora.locator.update` | 8 | 1h | hub DS / battle DS | player_locator | 玩家位置变更 |
 
 ⭐ = 2026-06-03 新增推送 topic,见 `gateway-decision.md` §5。所有标 ⭐ 的 topic 都被 **pandora-push** 服务消费,统一推 WebSocket 给客户端。
@@ -273,6 +293,7 @@ pandora.dlq.<original_topic>     # 死信队列
 | friend | 50004 | 51004 |
 | chat | 50005 | 51005 |
 | player_locator | 50006 | 51006 |
+| leaderboard | 50007 | 51007 |
 | team | 50010 | 51010 |
 | matchmaker | 50011 | 51011 |
 | trade | 50012 | 51012 |
@@ -286,7 +307,7 @@ pandora.dlq.<original_topic>     # 死信队列
 
 ⭐ = 2026-06-04 终版新增。push 服务用 Kratos transport/grpc 暴露 server stream,客户端经 Envoy 连过来(gRPC-Web → gRPC 转换)。
 
-**所有 go 服务全部用 gRPC 端口**(50001-50022 段),协议统一。inventory(W5 ③ 新增,economy 域,50015/51015)落在 push(50014)与 battle 块(50020+)之间的空档。auction(2026-06-19 新增,全服拍卖行 / 撮合,economy 域,50016/51016)紧随 inventory。
+**所有 go 服务全部用 gRPC 端口**(50001-50022 段),协议统一。inventory(W5 ③ 新增,economy 域,50015/51015)落在 push(50014)与 battle 块(50020+)之间的空档。auction(2026-06-19 新增,全服拍卖行 / 撮合,economy 域,50016/51016)紧随 inventory。leaderboard(2026-06-27 新增,通用排行榜,runtime 域,50007/51007)落在 player_locator(50006)与 team 块(50010)之间的空档。
 
 ### 6.3 Edge Gateway(Envoy)
 

@@ -16,6 +16,7 @@
 //	10000-10999 = data_service
 //	11000-11999 = 预留
 //	12000-12999 = auction(全服拍卖行 / 撮合)
+//	13000-13999 = leaderboard(通用排行榜)
 //
 // 字段编号永不复用,只 deprecate。
 package errcode
@@ -167,6 +168,15 @@ const (
 	ErrAuctionInsufficient        Code = 12004 // 结算资源不足(冻结 / 扣减失败)
 	ErrAuctionIdempotencyConflict Code = 12005 // idempotency_key 复用到不同请求(指纹不一致)
 	ErrAuctionMarketBusy          Code = 12006 // market 跨实例单写者锁竞争超时(让客户端稍后重试)
+)
+
+// leaderboard(13000-13999,通用排行榜)
+const (
+	ErrLeaderboardBoardNotFound  Code = 13001 // 榜不存在(查询 / 结算空榜)
+	ErrLeaderboardEntryNotFound  Code = 13002 // entity 不在榜上
+	ErrLeaderboardInvalidBoard   Code = 13003 // BoardKey 非法(board_type / scope 缺失)
+	ErrLeaderboardSettleConflict Code = 13004 // settle_idempotency_key 复用到不同请求
+	ErrLeaderboardRewardFailed   Code = 13005 // 结算发奖失败(inventory 不可用 / 扣发异常)
 )
 
 // Error 是带错误码的标准错误类型。

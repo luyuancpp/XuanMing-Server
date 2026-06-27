@@ -1,0 +1,39 @@
+{
+  "name": "single-cell-40w",
+  "targets": {
+    "login": "127.0.0.1:50001",
+    "player": "127.0.0.1:50002",
+    "data_service": "127.0.0.1:50003",
+    "friend": "127.0.0.1:50004",
+    "chat": "127.0.0.1:50005",
+    "player_locator": "127.0.0.1:50006",
+    "team": "127.0.0.1:50010",
+    "matchmaker": "127.0.0.1:50011",
+    "auction": "127.0.0.1:50016",
+    "battle_result": "127.0.0.1:50022",
+    "push": "127.0.0.1:50014",
+    "envoy_addr": "127.0.0.1:8443"
+  },
+  "vu_count": 400000,
+  "ramp_seconds": 600,
+  "steady_seconds": 1800,
+  "machine_id": "robot-0",
+  "ds_mode": "stub",
+  "account_prefix": "stressbot_",
+  "envoy_sample_ratio": 0.01,
+  "action_interval_ms": 5000,
+  "behavior": {
+    "locator_set_location": 40,
+    "player_get_profile": 12,
+    "team_get_my_team": 8,
+    "friend_list_friends": 8,
+    "chat_send_message": 7,
+    "auction_list_market": 15,
+    "match_flow": 10
+  },
+  "router": {
+    "region_id": 0,
+    "cell_id": 0
+  },
+  "stats_file": "robot/logs/robot-stats.jsonl"
+}
