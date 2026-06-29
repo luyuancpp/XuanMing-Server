@@ -86,11 +86,11 @@ func (s *TradeService) ListMyOrders(ctx context.Context, req *tradev1.ListMyOrde
 		return &tradev1.ListMyOrdersResponse{Code: commonv1.ErrCode_ERR_UNAUTHORIZED}, nil
 	}
 
-	orders, err := s.uc.ListMyOrders(ctx, playerID, req.GetActiveOnly())
+	orders, next, err := s.uc.ListMyOrders(ctx, playerID, req.GetActiveOnly(), req.GetCursor(), int(req.GetLimit()))
 	if err != nil {
 		return &tradev1.ListMyOrdersResponse{Code: toProtoCode(err)}, nil
 	}
-	return &tradev1.ListMyOrdersResponse{Code: commonv1.ErrCode_OK, Orders: orders}, nil
+	return &tradev1.ListMyOrdersResponse{Code: commonv1.ErrCode_OK, Orders: orders, NextCursor: next}, nil
 }
 
 // ── 辅助 ──────────────────────────────────────────────────────────────────────

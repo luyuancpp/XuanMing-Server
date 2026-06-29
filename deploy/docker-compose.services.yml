@@ -86,6 +86,16 @@ services:
     volumes: [ "../run/cluster/etc/guild.yaml:/app/etc/cluster.yaml:ro" ]
     ports: [ "50008:50008" ]
 
+  mail:
+    <<: *svc-base
+    build:
+      <<: *build-base
+      args: { SERVICE_DIR: services/social/mail, CMD_NAME: mail }
+    image: pandora/mail:dev
+    container_name: pandora-mail
+    volumes: [ "../run/cluster/etc/mail.yaml:/app/etc/cluster.yaml:ro" ]
+    ports: [ "50009:50009" ]
+
   player-locator:
     <<: *svc-base
     build:

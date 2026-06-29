@@ -515,6 +515,7 @@ function Get-ServiceList {
         @{ Name = 'friend';         Dir = 'services/social/friend';            Cmd = 'friend' }
         @{ Name = 'chat';           Dir = 'services/social/chat';              Cmd = 'chat' }
         @{ Name = 'guild';          Dir = 'services/social/guild';             Cmd = 'guild' }
+        @{ Name = 'mail';           Dir = 'services/social/mail';              Cmd = 'mail' }
         @{ Name = 'player-locator'; Dir = 'services/runtime/player_locator';   Cmd = 'locator' }
         @{ Name = 'leaderboard';    Dir = 'services/runtime/leaderboard';      Cmd = 'leaderboard' }
         @{ Name = 'team';           Dir = 'services/matchmaking/team';         Cmd = 'team' }

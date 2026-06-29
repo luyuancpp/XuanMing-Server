@@ -86,9 +86,12 @@ message CancelOrderResponse {
 message ListMyOrdersRequest {
   uint64 player_id = 1;
   bool  active_only = 2;
+  uint64 cursor    = 3;  // 上页末 order_id;0=首页(按 order_id 降序)
+  int32  limit     = 4;  // 0=服务端默认 50,>100 收敛
 }
 
 message ListMyOrdersResponse {
   pandora.common.v1.ErrCode code = 1;
   repeated Order orders = 2;
+  uint64 next_cursor = 3;  // 0=无更多
 }

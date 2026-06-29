@@ -168,6 +168,12 @@ const (
 	ErrGroupNotOwner  Code = 9503 // 操作需群主权限(解散 / 转让 / 踢人)
 	ErrGroupNotMember Code = 9504 // 玩家不在群内
 	ErrGroupAlreadyIn Code = 9505 // 玩家已在群内(拉人幂等命中)
+
+	// mail 邮件(9600-9699,2026-06-29)
+	ErrMailNotFound       Code = 9601 // 邮件不存在 / 已删除
+	ErrMailExpired        Code = 9602 // 邮件已过期
+	ErrMailNoAttachment   Code = 9603 // 该邮件无附件可领
+	ErrMailAlreadyClaimed Code = 9604 // 附件已领取(幂等命中)
 )
 
 // data_service(10000-10999)

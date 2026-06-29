@@ -1,0 +1,158 @@
+// Pandora MailService 协议(2026-06-29)。
+//
+// 职责(docs/design/mail.md):游戏内邮件系统,三类邮件统一收件箱视图。
+//   - 系统邮件:全服一份,玩家登录拉取(watermark 游标,零写扩散)
+//   - 公会邮件:每公会一份,成员拉取(watermark 游标,僵尸/退游不登录即零成本)
+//   - 个人邮件:写收件人收件箱(写扩散),离线可达,上线拉取
+//
+// 通用机制:邮箱频道(channel)+ 游标。系统 / 公会只是 channel 的两个实例,
+//   核心逻辑 (channel_id, mail_id>cursor, now∈[start,end]) → 推进游标。
+// 附件领取复用 inventory ledger 幂等(player_mail_claim);附件 = item_config_id + count。
+//
+// 数据落地:pandora_social 库(sys_mail / guild_mail / player_mail /
+//   player_mail_cursor / player_mail_claim)。客户端只拿 Mail / MailAttachment 视图(§14)。
+
+syntax = "proto3";
+
+package pandora.mail.v1;
+
+import "pandora/common/v1/errcode.proto";
+
+service MailService {
+  // ListMail 拉取玩家收件箱(个人邮件 + 命中的有效系统/公会邮件,合并去重)。
+  rpc ListMail(ListMailRequest) returns (ListMailResponse);
+  // ReadMail 标记已读;系统/公会邮件推进游标,个人邮件置已读。
+  rpc ReadMail(ReadMailRequest) returns (ReadMailResponse);
+  // ClaimMail 领取附件(走 inventory 幂等);返回发放清单。
+  rpc ClaimMail(ClaimMailRequest) returns (ClaimMailResponse);
+  // DeleteMail 删除个人邮件(系统/公会邮件靠游标天然跳过,不可删)。
+  rpc DeleteMail(DeleteMailRequest) returns (DeleteMailResponse);
+  // SendSystemMail 运营群发系统邮件(内网,只插一行)。
+  rpc SendSystemMail(SendSystemMailRequest) returns (SendSystemMailResponse);
+  // SendGuildMail 公会群发(内网,只插一行)。
+  rpc SendGuildMail(SendGuildMailRequest) returns (SendGuildMailResponse);
+  // SendPersonalMail 定点发个人邮件(战利品/补偿/互发,离线可达)。
+  rpc SendPersonalMail(SendPersonalMailRequest) returns (SendPersonalMailResponse);
+}
+
+// 邮件来源频道(enum 底层 int32,不属 ID 规则,CLAUDE.md §5.7)。
+enum MailChannel {
+  MAIL_CHANNEL_UNSPECIFIED = 0;
+  MAIL_CHANNEL_SYSTEM      = 1;  // 全服系统邮件
+  MAIL_CHANNEL_GUILD       = 2;  // 公会群发
+  MAIL_CHANNEL_PERSONAL    = 3;  // 个人邮件(写扩散)
+}
+
+// 个人邮件状态(对齐 DB player_mail.status 数值)。
+enum MailStatus {
+  MAIL_STATUS_UNSPECIFIED = 0;
+  MAIL_STATUS_UNREAD      = 1;
+  MAIL_STATUS_READ        = 2;
+  MAIL_STATUS_CLAIMED     = 3;  // 附件已领
+}
+
+// MailAttachment 是一件附件(item_config_id 静态表 ID uint32,§5.6;count 数量)。
+message MailAttachment {
+  uint32 item_config_id = 1;
+  uint32 count          = 2;
+}
+
+// Mail 是客户端可见的邮件视图(CLAUDE.md §5.8 / §14)。
+message Mail {
+  uint64                  mail_id     = 1;  // snowflake(uint64)
+  MailChannel             channel     = 2;
+  string                  title       = 3;
+  string                  body        = 4;
+  repeated MailAttachment attachments = 5;
+  MailStatus              status      = 6;  // 系统/公会邮件按游标/领取记录推导
+  bool                    claimed     = 7;  // 附件是否已领
+  int64                   created_ms  = 8;
+  int64                   expire_ms   = 9;  // 0 = 永不过期
+}
+
+message ListMailRequest {
+  uint64 player_id = 1;  // JWT ctx 覆盖(R5)
+  uint64 cursor    = 2;  // 上页末个人邮件 mail_id;0=首页(含系统/公会 watermark)
+  int32  limit     = 3;  // 0=服务端默认 50,>100 收敛
+}
+
+message ListMailResponse {
+  pandora.common.v1.ErrCode code  = 1;
+  repeated Mail             mails = 2;
+  uint64 next_cursor             = 3;  // 个人邮件翻页游标;0=无更多
+}
+
+message ReadMailRequest {
+  uint64 player_id = 1;  // JWT ctx 覆盖
+  uint64 mail_id   = 2;
+}
+
+message ReadMailResponse {
+  pandora.common.v1.ErrCode code = 1;
+}
+
+message ClaimMailRequest {
+  uint64 player_id = 1;  // JWT ctx 覆盖
+  uint64 mail_id   = 2;
+}
+
+message ClaimMailResponse {
+  pandora.common.v1.ErrCode code        = 1;
+  repeated MailAttachment   attachments = 2;  // 实发清单(幂等重放返回首次结果)
+}
+
+message DeleteMailRequest {
+  uint64 player_id = 1;  // JWT ctx 覆盖
+  uint64 mail_id   = 2;
+}
+
+message DeleteMailResponse {
+  pandora.common.v1.ErrCode code = 1;
+}
+
+message SendSystemMailRequest {
+  string                  title       = 1;
+  string                  body        = 2;
+  repeated MailAttachment attachments = 3;
+  int64                   start_ms    = 4;  // 生效起;0 = 立即
+  int64                   end_ms      = 5;  // 失效止;0 = 7 天默认由服务端补
+}
+
+message SendSystemMailResponse {
+  pandora.common.v1.ErrCode code    = 1;
+  uint64                    mail_id = 2;
+}
+
+message SendGuildMailRequest {
+  uint64                  guild_id    = 1;
+  string                  title       = 2;
+  string                  body        = 3;
+  repeated MailAttachment attachments = 4;
+  int64                   start_ms    = 5;
+  int64                   end_ms      = 6;
+}
+
+message SendGuildMailResponse {
+  pandora.common.v1.ErrCode code    = 1;
+  uint64                    mail_id = 2;
+}
+
+message SendPersonalMailRequest {
+  uint64                  to_player_id = 1;
+  string                  title        = 2;
+  string                  body         = 3;
+  repeated MailAttachment attachments  = 4;
+  int64                   expire_ms    = 5;  // 0 = 永不过期
+}
+
+message SendPersonalMailResponse {
+  pandora.common.v1.ErrCode code    = 1;
+  uint64                    mail_id = 2;
+}
+
+// ===== 存储快照(blob 列序列化,CLAUDE.md §5.8 存储侧;不外露客户端)=====
+message MailContentStorageRecord {
+  string                  title       = 1;
+  string                  body        = 2;
+  repeated MailAttachment attachments = 3;
+}

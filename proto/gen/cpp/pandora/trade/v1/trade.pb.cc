@@ -211,11 +211,11 @@ constexpr ListMyOrdersRequest::ParseTableT_ ListMyOrdersRequest::InternalGenerat
     {
       PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_._has_bits_),
       0, // no _extensions_
-      2, 8,  // max_field_number, fast_idx_mask
+      4, 24,  // max_field_number, fast_idx_mask
       offsetof(ParseTableT_, field_lookup_table),
-      4294967292,  // skipmap
+      4294967280,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      2,  // num_field_entries
+      4,  // num_field_entries
       0,  // num_aux_entries
       offsetof(ParseTableT_, field_names),  // no aux_entries
       class_data,
@@ -225,21 +225,33 @@ constexpr ListMyOrdersRequest::ParseTableT_ ListMyOrdersRequest::InternalGenerat
       ::_pbi::TcParser::GetTable<::pandora::trade::v1::ListMyOrdersRequest>(),  // to_prefetch
       #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
     }, {{
-      // bool active_only = 2 [json_name = "activeOnly"];
-      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(ListMyOrdersRequest, _impl_.active_only_), 1>(),
-       {16, 1, 0,
-        PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_.active_only_)}},
+      // int32 limit = 4 [json_name = "limit"];
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ListMyOrdersRequest, _impl_.limit_), 3>(),
+       {32, 3, 0,
+        PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_.limit_)}},
       // uint64 player_id = 1 [json_name = "playerId"];
       {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(ListMyOrdersRequest, _impl_.player_id_), 0>(),
        {8, 0, 0,
         PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_.player_id_)}},
+      // bool active_only = 2 [json_name = "activeOnly"];
+      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(ListMyOrdersRequest, _impl_.active_only_), 2>(),
+       {16, 2, 0,
+        PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_.active_only_)}},
+      // uint64 cursor = 3 [json_name = "cursor"];
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(ListMyOrdersRequest, _impl_.cursor_), 1>(),
+       {24, 1, 0,
+        PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_.cursor_)}},
     }}, {{
       65535, 65535
     }}, {{
       // uint64 player_id = 1 [json_name = "playerId"];
       {PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_.player_id_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
       // bool active_only = 2 [json_name = "activeOnly"];
-      {PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_.active_only_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_.active_only_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      // uint64 cursor = 3 [json_name = "cursor"];
+      {PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_.cursor_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // int32 limit = 4 [json_name = "limit"];
+      {PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_.limit_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
     }},
     // no aux_entries
     {{
@@ -253,7 +265,9 @@ inline constexpr ListMyOrdersRequest::Impl_::Impl_(
     ::_pbi::ConstantInitialized) noexcept
       : _cached_size_{0},
         player_id_{::uint64_t{0u}},
-        active_only_{false} {}
+        cursor_{::uint64_t{0u}},
+        active_only_{false},
+        limit_{0} {}
 
 template <typename>
 constexpr ListMyOrdersRequest::ListMyOrdersRequest(::_pbi::ConstantInitialized,
@@ -1506,11 +1520,11 @@ constexpr ListMyOrdersResponse::ParseTableT_ ListMyOrdersResponse::InternalGener
     {
       PROTOBUF_FIELD_OFFSET(ListMyOrdersResponse, _impl_._has_bits_),
       0, // no _extensions_
-      2, 8,  // max_field_number, fast_idx_mask
+      3, 24,  // max_field_number, fast_idx_mask
       offsetof(ParseTableT_, field_lookup_table),
-      4294967292,  // skipmap
+      4294967288,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      2,  // num_field_entries
+      3,  // num_field_entries
       1,  // num_aux_entries
       offsetof(ParseTableT_, aux_entries),
       class_data,
@@ -1520,21 +1534,28 @@ constexpr ListMyOrdersResponse::ParseTableT_ ListMyOrdersResponse::InternalGener
       ::_pbi::TcParser::GetTable<::pandora::trade::v1::ListMyOrdersResponse>(),  // to_prefetch
       #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
     }, {{
+      {::_pbi::TcParser::MiniParse, {}},
+      // .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ListMyOrdersResponse, _impl_.code_), 2>(),
+       {8, 2, 0,
+        PROTOBUF_FIELD_OFFSET(ListMyOrdersResponse, _impl_.code_)}},
       // repeated .pandora.trade.v1.Order orders = 2 [json_name = "orders"];
       {::_pbi::TcParser::FastMtR1,
        {18, 0, 0,
         PROTOBUF_FIELD_OFFSET(ListMyOrdersResponse, _impl_.orders_)}},
-      // .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
-      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ListMyOrdersResponse, _impl_.code_), 1>(),
-       {8, 1, 0,
-        PROTOBUF_FIELD_OFFSET(ListMyOrdersResponse, _impl_.code_)}},
+      // uint64 next_cursor = 3 [json_name = "nextCursor"];
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(ListMyOrdersResponse, _impl_.next_cursor_), 1>(),
+       {24, 1, 0,
+        PROTOBUF_FIELD_OFFSET(ListMyOrdersResponse, _impl_.next_cursor_)}},
     }}, {{
       65535, 65535
     }}, {{
       // .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
-      {PROTOBUF_FIELD_OFFSET(ListMyOrdersResponse, _impl_.code_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+      {PROTOBUF_FIELD_OFFSET(ListMyOrdersResponse, _impl_.code_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
       // repeated .pandora.trade.v1.Order orders = 2 [json_name = "orders"];
       {PROTOBUF_FIELD_OFFSET(ListMyOrdersResponse, _impl_.orders_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcRepeated | ::_fl::kMessage | ::_fl::kTvTable)},
+      // uint64 next_cursor = 3 [json_name = "nextCursor"];
+      {PROTOBUF_FIELD_OFFSET(ListMyOrdersResponse, _impl_.next_cursor_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
     }},
     {{
         #ifndef PROTOBUF_MESSAGE_GLOBALS
@@ -1558,6 +1579,7 @@ inline constexpr ListMyOrdersResponse::Impl_::Impl_(
             PROTOBUF_FIELD_OFFSET(::pandora::trade::v1::ListMyOrdersResponse, _impl_.orders_)>()
          }
         ,
+        next_cursor_{::uint64_t{0u}},
         code_{static_cast< ::pandora::common::v1::ErrCode >(0)} {}
 
 template <typename>
@@ -1738,18 +1760,24 @@ const ::uint32_t
         0,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::pandora::trade::v1::ListMyOrdersRequest, _impl_._has_bits_),
-        5, // hasbit index offset
+        7, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::pandora::trade::v1::ListMyOrdersRequest, _impl_.player_id_),
         PROTOBUF_FIELD_OFFSET(::pandora::trade::v1::ListMyOrdersRequest, _impl_.active_only_),
+        PROTOBUF_FIELD_OFFSET(::pandora::trade::v1::ListMyOrdersRequest, _impl_.cursor_),
+        PROTOBUF_FIELD_OFFSET(::pandora::trade::v1::ListMyOrdersRequest, _impl_.limit_),
         0,
+        2,
         1,
+        3,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::pandora::trade::v1::ListMyOrdersResponse, _impl_._has_bits_),
-        5, // hasbit index offset
+        6, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::pandora::trade::v1::ListMyOrdersResponse, _impl_.code_),
         PROTOBUF_FIELD_OFFSET(::pandora::trade::v1::ListMyOrdersResponse, _impl_.orders_),
-        1,
+        PROTOBUF_FIELD_OFFSET(::pandora::trade::v1::ListMyOrdersResponse, _impl_.next_cursor_),
+        2,
         0,
+        1,
 };
 
 static const ::_pbi::MigrationSchema
@@ -1763,7 +1791,7 @@ static const ::_pbi::MigrationSchema
         {62, sizeof(::pandora::trade::v1::CancelOrderRequest)},
         {69, sizeof(::pandora::trade::v1::CancelOrderResponse)},
         {74, sizeof(::pandora::trade::v1::ListMyOrdersRequest)},
-        {81, sizeof(::pandora::trade::v1::ListMyOrdersResponse)},
+        {85, sizeof(::pandora::trade::v1::ListMyOrdersResponse)},
 };
 static const ::_pbi::MessageGlobalsBase* PROTOBUF_NONNULL const
     file_message_globals[] = {
@@ -1809,28 +1837,30 @@ const char descriptor_table_protodef_pandora_2ftrade_2fv1_2ftrade_2eproto[] ABSL
     "ewState\"L\n\022CancelOrderRequest\022\033\n\tplayer_"
     "id\030\001 \001(\004R\010playerId\022\031\n\010order_id\030\002 \001(\004R\007or"
     "derId\"E\n\023CancelOrderResponse\022.\n\004code\030\001 \001"
-    "(\0162\032.pandora.common.v1.ErrCodeR\004code\"S\n\023"
-    "ListMyOrdersRequest\022\033\n\tplayer_id\030\001 \001(\004R\010"
-    "playerId\022\037\n\013active_only\030\002 \001(\010R\nactiveOnl"
-    "y\"w\n\024ListMyOrdersResponse\022.\n\004code\030\001 \001(\0162"
-    "\032.pandora.common.v1.ErrCodeR\004code\022/\n\006ord"
-    "ers\030\002 \003(\0132\027.pandora.trade.v1.OrderR\006orde"
-    "rs*\353\001\n\nOrderState\022\033\n\027ORDER_STATE_UNSPECI"
-    "FIED\020\000\022\027\n\023ORDER_STATE_PENDING\020\001\022\037\n\033ORDER"
-    "_STATE_BUYER_CONFIRMED\020\002\022 \n\034ORDER_STATE_"
-    "SELLER_CONFIRMED\020\003\022\031\n\025ORDER_STATE_COMPLE"
-    "TED\020\004\022\026\n\022ORDER_STATE_FAILED\020\005\022\027\n\023ORDER_S"
-    "TATE_EXPIRED\020\006\022\030\n\024ORDER_STATE_CANCELED\020\007"
-    "2\204\003\n\014TradeService\022Z\n\013CreateOrder\022$.pando"
-    "ra.trade.v1.CreateOrderRequest\032%.pandora"
-    ".trade.v1.CreateOrderResponse\022]\n\014Confirm"
-    "Order\022%.pandora.trade.v1.ConfirmOrderReq"
-    "uest\032&.pandora.trade.v1.ConfirmOrderResp"
-    "onse\022Z\n\013CancelOrder\022$.pandora.trade.v1.C"
-    "ancelOrderRequest\032%.pandora.trade.v1.Can"
-    "celOrderResponse\022]\n\014ListMyOrders\022%.pando"
-    "ra.trade.v1.ListMyOrdersRequest\032&.pandor"
-    "a.trade.v1.ListMyOrdersResponseb\006proto3"
+    "(\0162\032.pandora.common.v1.ErrCodeR\004code\"\201\001\n"
+    "\023ListMyOrdersRequest\022\033\n\tplayer_id\030\001 \001(\004R"
+    "\010playerId\022\037\n\013active_only\030\002 \001(\010R\nactiveOn"
+    "ly\022\026\n\006cursor\030\003 \001(\004R\006cursor\022\024\n\005limit\030\004 \001("
+    "\005R\005limit\"\230\001\n\024ListMyOrdersResponse\022.\n\004cod"
+    "e\030\001 \001(\0162\032.pandora.common.v1.ErrCodeR\004cod"
+    "e\022/\n\006orders\030\002 \003(\0132\027.pandora.trade.v1.Ord"
+    "erR\006orders\022\037\n\013next_cursor\030\003 \001(\004R\nnextCur"
+    "sor*\353\001\n\nOrderState\022\033\n\027ORDER_STATE_UNSPEC"
+    "IFIED\020\000\022\027\n\023ORDER_STATE_PENDING\020\001\022\037\n\033ORDE"
+    "R_STATE_BUYER_CONFIRMED\020\002\022 \n\034ORDER_STATE"
+    "_SELLER_CONFIRMED\020\003\022\031\n\025ORDER_STATE_COMPL"
+    "ETED\020\004\022\026\n\022ORDER_STATE_FAILED\020\005\022\027\n\023ORDER_"
+    "STATE_EXPIRED\020\006\022\030\n\024ORDER_STATE_CANCELED\020"
+    "\0072\204\003\n\014TradeService\022Z\n\013CreateOrder\022$.pand"
+    "ora.trade.v1.CreateOrderRequest\032%.pandor"
+    "a.trade.v1.CreateOrderResponse\022]\n\014Confir"
+    "mOrder\022%.pandora.trade.v1.ConfirmOrderRe"
+    "quest\032&.pandora.trade.v1.ConfirmOrderRes"
+    "ponse\022Z\n\013CancelOrder\022$.pandora.trade.v1."
+    "CancelOrderRequest\032%.pandora.trade.v1.Ca"
+    "ncelOrderResponse\022]\n\014ListMyOrders\022%.pand"
+    "ora.trade.v1.ListMyOrdersRequest\032&.pando"
+    "ra.trade.v1.ListMyOrdersResponseb\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_pandora_2ftrade_2fv1_2ftrade_2eproto_deps[1] = {
@@ -1840,7 +1870,7 @@ static ::absl::once_flag descriptor_table_pandora_2ftrade_2fv1_2ftrade_2eproto_o
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_pandora_2ftrade_2fv1_2ftrade_2eproto = {
     false,
     false,
-    2039,
+    2120,
     descriptor_table_protodef_pandora_2ftrade_2fv1_2ftrade_2eproto,
     "pandora/trade/v1/trade.proto",
     &descriptor_table_pandora_2ftrade_2fv1_2ftrade_2eproto_once,
@@ -4019,9 +4049,9 @@ inline void ListMyOrdersRequest::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE aren
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, player_id_),
            0,
-           offsetof(Impl_, active_only_) -
+           offsetof(Impl_, limit_) -
                offsetof(Impl_, player_id_) +
-               sizeof(Impl_::active_only_));
+               sizeof(Impl_::limit_));
 }
 ListMyOrdersRequest::~ListMyOrdersRequest() {
   // @@protoc_insertion_point(destructor:pandora.trade.v1.ListMyOrdersRequest)
@@ -4071,10 +4101,10 @@ PROTOBUF_NOINLINE void ListMyOrdersRequest::Clear() {
   (void) cached_has_bits;
 
   cached_has_bits = _impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000003U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000000fU)) {
     ::memset(&_impl_.player_id_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.active_only_) -
-        reinterpret_cast<char*>(&_impl_.player_id_)) + sizeof(_impl_.active_only_));
+        reinterpret_cast<char*>(&_impl_.limit_) -
+        reinterpret_cast<char*>(&_impl_.player_id_)) + sizeof(_impl_.limit_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -4109,11 +4139,29 @@ PROTOBUF_NOINLINE void ListMyOrdersRequest::Clear() {
   }
 
   // bool active_only = 2 [json_name = "activeOnly"];
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
     if (this_._internal_active_only() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
           2, this_._internal_active_only(), target);
+    }
+  }
+
+  // uint64 cursor = 3 [json_name = "cursor"];
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (this_._internal_cursor() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          3, this_._internal_cursor(), target);
+    }
+  }
+
+  // int32 limit = 4 [json_name = "limit"];
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (this_._internal_limit() != 0) {
+      target =
+          ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<4>(
+              stream, this_._internal_limit(), target);
     }
   }
 
@@ -4142,7 +4190,7 @@ PROTOBUF_NOINLINE void ListMyOrdersRequest::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000003U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000000fU)) {
     // uint64 player_id = 1 [json_name = "playerId"];
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (this_._internal_player_id() != 0) {
@@ -4150,10 +4198,24 @@ PROTOBUF_NOINLINE void ListMyOrdersRequest::Clear() {
             this_._internal_player_id());
       }
     }
-    // bool active_only = 2 [json_name = "activeOnly"];
+    // uint64 cursor = 3 [json_name = "cursor"];
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (this_._internal_cursor() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
+            this_._internal_cursor());
+      }
+    }
+    // bool active_only = 2 [json_name = "activeOnly"];
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       if (this_._internal_active_only() != 0) {
         total_size += 2;
+      }
+    }
+    // int32 limit = 4 [json_name = "limit"];
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (this_._internal_limit() != 0) {
+        total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
+            this_._internal_limit());
       }
     }
   }
@@ -4174,15 +4236,25 @@ void ListMyOrdersRequest::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000003U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000000fU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (from._internal_player_id() != 0) {
         _this->_impl_.player_id_ = from._impl_.player_id_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (from._internal_cursor() != 0) {
+        _this->_impl_.cursor_ = from._impl_.cursor_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       if (from._internal_active_only() != 0) {
         _this->_impl_.active_only_ = from._impl_.active_only_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (from._internal_limit() != 0) {
+        _this->_impl_.limit_ = from._impl_.limit_;
       }
     }
   }
@@ -4204,8 +4276,8 @@ void ListMyOrdersRequest::InternalSwap(ListMyOrdersRequest* PROTOBUF_RESTRICT PR
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_.active_only_)
-      + sizeof(ListMyOrdersRequest::_impl_.active_only_)
+      PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_.limit_)
+      + sizeof(ListMyOrdersRequest::_impl_.limit_)
       - PROTOBUF_FIELD_OFFSET(ListMyOrdersRequest, _impl_.player_id_)>(
           reinterpret_cast<char*>(&_impl_.player_id_),
           reinterpret_cast<char*>(&other->_impl_.player_id_));
@@ -4253,7 +4325,13 @@ ListMyOrdersResponse::ListMyOrdersResponse(
   _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
       from._internal_metadata_);
   new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
-  _impl_.code_ = from._impl_.code_;
+  ::memcpy(reinterpret_cast<char*>(&_impl_) +
+               offsetof(Impl_, next_cursor_),
+           reinterpret_cast<const char*>(&from._impl_) +
+               offsetof(Impl_, next_cursor_),
+           offsetof(Impl_, code_) -
+               offsetof(Impl_, next_cursor_) +
+               sizeof(Impl_::code_));
 
   // @@protoc_insertion_point(copy_constructor:pandora.trade.v1.ListMyOrdersResponse)
 }
@@ -4269,7 +4347,12 @@ PROTOBUF_NDEBUG_INLINE ListMyOrdersResponse::Impl_::Impl_(
 
 inline void ListMyOrdersResponse::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
-  _impl_.code_ = {};
+  ::memset(reinterpret_cast<char*>(&_impl_) +
+               offsetof(Impl_, next_cursor_),
+           0,
+           offsetof(Impl_, code_) -
+               offsetof(Impl_, next_cursor_) +
+               sizeof(Impl_::code_));
 }
 ListMyOrdersResponse::~ListMyOrdersResponse() {
   // @@protoc_insertion_point(destructor:pandora.trade.v1.ListMyOrdersResponse)
@@ -4322,7 +4405,11 @@ PROTOBUF_NOINLINE void ListMyOrdersResponse::Clear() {
   if (CheckHasBit(cached_has_bits, 0x00000001U)) {
     _impl_.orders_.Clear();
   }
-  _impl_.code_ = 0;
+  if (BatchCheckHasBit(cached_has_bits, 0x00000006U)) {
+    ::memset(&_impl_.next_cursor_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.code_) -
+        reinterpret_cast<char*>(&_impl_.next_cursor_)) + sizeof(_impl_.code_));
+  }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
 }
@@ -4347,7 +4434,7 @@ PROTOBUF_NOINLINE void ListMyOrdersResponse::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[0];
   // .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
     if (this_._internal_code() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteEnumToArray(
@@ -4365,6 +4452,15 @@ PROTOBUF_NOINLINE void ListMyOrdersResponse::Clear() {
           ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
               2, repfield, repfield.GetCachedSize(),
               target, stream);
+    }
+  }
+
+  // uint64 next_cursor = 3 [json_name = "nextCursor"];
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (this_._internal_next_cursor() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          3, this_._internal_next_cursor(), target);
     }
   }
 
@@ -4393,7 +4489,7 @@ PROTOBUF_NOINLINE void ListMyOrdersResponse::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000003U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000007U)) {
     // repeated .pandora.trade.v1.Order orders = 2 [json_name = "orders"];
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       total_size += 1UL * this_._internal_orders_size();
@@ -4401,8 +4497,15 @@ PROTOBUF_NOINLINE void ListMyOrdersResponse::Clear() {
         total_size += ::google::protobuf::internal::WireFormatLite::MessageSize(msg);
       }
     }
-    // .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
+    // uint64 next_cursor = 3 [json_name = "nextCursor"];
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (this_._internal_next_cursor() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
+            this_._internal_next_cursor());
+      }
+    }
+    // .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       if (this_._internal_code() != 0) {
         total_size += 1 +
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_code());
@@ -4427,13 +4530,18 @@ void ListMyOrdersResponse::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000003U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000007U)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       _this->_internal_mutable_orders()->InternalMergeFromWithArena(
           ::google::protobuf::MessageLite::internal_visibility(), arena,
           from._internal_orders());
     }
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (from._internal_next_cursor() != 0) {
+        _this->_impl_.next_cursor_ = from._impl_.next_cursor_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       if (from._internal_code() != 0) {
         _this->_impl_.code_ = from._impl_.code_;
       }
@@ -4457,7 +4565,12 @@ void ListMyOrdersResponse::InternalSwap(ListMyOrdersResponse* PROTOBUF_RESTRICT 
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   _impl_.orders_.InternalSwap(&other->_impl_.orders_);
-  swap(_impl_.code_, other->_impl_.code_);
+  ::google::protobuf::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(ListMyOrdersResponse, _impl_.code_)
+      + sizeof(ListMyOrdersResponse::_impl_.code_)
+      - PROTOBUF_FIELD_OFFSET(ListMyOrdersResponse, _impl_.next_cursor_)>(
+          reinterpret_cast<char*>(&_impl_.next_cursor_),
+          reinterpret_cast<char*>(&other->_impl_.next_cursor_));
 }
 
 ::google::protobuf::Metadata ListMyOrdersResponse::GetMetadata() const {

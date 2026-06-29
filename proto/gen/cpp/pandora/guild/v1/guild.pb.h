@@ -1864,6 +1864,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListMembersRequest final : public :
   // accessors -------------------------------------------------------
   enum : int {
     kGuildIdFieldNumber = 1,
+    kCursorFieldNumber = 2,
+    kLimitFieldNumber = 3,
   };
   // uint64 guild_id = 1 [json_name = "guildId"];
   void clear_guild_id() ;
@@ -1875,11 +1877,31 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListMembersRequest final : public :
   void _internal_set_guild_id(::uint64_t value);
 
   public:
+  // uint64 cursor = 2 [json_name = "cursor"];
+  void clear_cursor() ;
+  [[nodiscard]] ::uint64_t cursor() const;
+  void set_cursor(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_cursor() const;
+  void _internal_set_cursor(::uint64_t value);
+
+  public:
+  // int32 limit = 3 [json_name = "limit"];
+  void clear_limit() ;
+  [[nodiscard]] ::int32_t limit() const;
+  void set_limit(::int32_t value);
+
+  private:
+  ::int32_t _internal_limit() const;
+  void _internal_set_limit(::int32_t value);
+
+  public:
   // @@protoc_insertion_point(class_scope:pandora.guild.v1.ListMembersRequest)
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<0, 1,
+      ::google::protobuf::internal::TcParseTable<2, 3,
                           0, 0,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
@@ -1909,6 +1931,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListMembersRequest final : public :
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::uint64_t guild_id_;
+    ::uint64_t cursor_;
+    ::int32_t limit_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -2065,6 +2089,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListJoinRequestsRequest final : pub
   // accessors -------------------------------------------------------
   enum : int {
     kPlayerIdFieldNumber = 1,
+    kCursorFieldNumber = 2,
+    kLimitFieldNumber = 3,
   };
   // uint64 player_id = 1 [json_name = "playerId"];
   void clear_player_id() ;
@@ -2076,11 +2102,31 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListJoinRequestsRequest final : pub
   void _internal_set_player_id(::uint64_t value);
 
   public:
+  // uint64 cursor = 2 [json_name = "cursor"];
+  void clear_cursor() ;
+  [[nodiscard]] ::uint64_t cursor() const;
+  void set_cursor(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_cursor() const;
+  void _internal_set_cursor(::uint64_t value);
+
+  public:
+  // int32 limit = 3 [json_name = "limit"];
+  void clear_limit() ;
+  [[nodiscard]] ::int32_t limit() const;
+  void set_limit(::int32_t value);
+
+  private:
+  ::int32_t _internal_limit() const;
+  void _internal_set_limit(::int32_t value);
+
+  public:
   // @@protoc_insertion_point(class_scope:pandora.guild.v1.ListJoinRequestsRequest)
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<0, 1,
+      ::google::protobuf::internal::TcParseTable<2, 3,
                           0, 0,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
@@ -2110,6 +2156,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListJoinRequestsRequest final : pub
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::uint64_t player_id_;
+    ::uint64_t cursor_;
+    ::int32_t limit_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -6173,6 +6221,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListMembersResponse final : public 
   // accessors -------------------------------------------------------
   enum : int {
     kMembersFieldNumber = 2,
+    kNextCursorFieldNumber = 3,
     kCodeFieldNumber = 1,
   };
   // repeated .pandora.guild.v1.GuildMember members = 2 [json_name = "members"];
@@ -6196,6 +6245,16 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListMembersResponse final : public 
   ::google::protobuf::RepeatedPtrField<::pandora::guild::v1::GuildMember>* PROTOBUF_NONNULL _internal_mutable_members();
 
   public:
+  // uint64 next_cursor = 3 [json_name = "nextCursor"];
+  void clear_next_cursor() ;
+  [[nodiscard]] ::uint64_t next_cursor() const;
+  void set_next_cursor(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_next_cursor() const;
+  void _internal_set_next_cursor(::uint64_t value);
+
+  public:
   // .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
   void clear_code() ;
   [[nodiscard]] ::pandora::common::v1::ErrCode code() const;
@@ -6210,7 +6269,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListMembersResponse final : public 
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<1, 2,
+      ::google::protobuf::internal::TcParseTable<2, 3,
                           1, 0,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
@@ -6240,6 +6299,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListMembersResponse final : public 
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::RepeatedPtrField< ::pandora::guild::v1::GuildMember > members_;
+    ::uint64_t next_cursor_;
     int code_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
@@ -6397,6 +6457,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListJoinRequestsResponse final : pu
   // accessors -------------------------------------------------------
   enum : int {
     kRequestsFieldNumber = 2,
+    kNextCursorFieldNumber = 3,
     kCodeFieldNumber = 1,
   };
   // repeated .pandora.guild.v1.GuildJoinRequest requests = 2 [json_name = "requests"];
@@ -6420,6 +6481,16 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListJoinRequestsResponse final : pu
   ::google::protobuf::RepeatedPtrField<::pandora::guild::v1::GuildJoinRequest>* PROTOBUF_NONNULL _internal_mutable_requests();
 
   public:
+  // uint64 next_cursor = 3 [json_name = "nextCursor"];
+  void clear_next_cursor() ;
+  [[nodiscard]] ::uint64_t next_cursor() const;
+  void set_next_cursor(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_next_cursor() const;
+  void _internal_set_next_cursor(::uint64_t value);
+
+  public:
   // .pandora.common.v1.ErrCode code = 1 [json_name = "code"];
   void clear_code() ;
   [[nodiscard]] ::pandora::common::v1::ErrCode code() const;
@@ -6434,7 +6505,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListJoinRequestsResponse final : pu
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<1, 2,
+      ::google::protobuf::internal::TcParseTable<2, 3,
                           1, 0,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
@@ -6464,6 +6535,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListJoinRequestsResponse final : pu
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::RepeatedPtrField< ::pandora::guild::v1::GuildJoinRequest > requests_;
+    ::uint64_t next_cursor_;
     int code_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
@@ -8533,6 +8605,54 @@ inline void ListMembersRequest::_internal_set_guild_id(::uint64_t value) {
   _impl_.guild_id_ = value;
 }
 
+// uint64 cursor = 2 [json_name = "cursor"];
+inline void ListMembersRequest::clear_cursor() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.cursor_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+}
+inline ::uint64_t ListMembersRequest::cursor() const {
+  // @@protoc_insertion_point(field_get:pandora.guild.v1.ListMembersRequest.cursor)
+  return _internal_cursor();
+}
+inline void ListMembersRequest::set_cursor(::uint64_t value) {
+  _internal_set_cursor(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  // @@protoc_insertion_point(field_set:pandora.guild.v1.ListMembersRequest.cursor)
+}
+inline ::uint64_t ListMembersRequest::_internal_cursor() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.cursor_;
+}
+inline void ListMembersRequest::_internal_set_cursor(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.cursor_ = value;
+}
+
+// int32 limit = 3 [json_name = "limit"];
+inline void ListMembersRequest::clear_limit() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.limit_ = 0;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+}
+inline ::int32_t ListMembersRequest::limit() const {
+  // @@protoc_insertion_point(field_get:pandora.guild.v1.ListMembersRequest.limit)
+  return _internal_limit();
+}
+inline void ListMembersRequest::set_limit(::int32_t value) {
+  _internal_set_limit(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  // @@protoc_insertion_point(field_set:pandora.guild.v1.ListMembersRequest.limit)
+}
+inline ::int32_t ListMembersRequest::_internal_limit() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.limit_;
+}
+inline void ListMembersRequest::_internal_set_limit(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.limit_ = value;
+}
+
 // -------------------------------------------------------------------
 
 // ListMembersResponse
@@ -8541,7 +8661,7 @@ inline void ListMembersRequest::_internal_set_guild_id(::uint64_t value) {
 inline void ListMembersResponse::clear_code() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.code_ = 0;
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
 }
 inline ::pandora::common::v1::ErrCode ListMembersResponse::code() const {
   // @@protoc_insertion_point(field_get:pandora.guild.v1.ListMembersResponse.code)
@@ -8549,7 +8669,7 @@ inline ::pandora::common::v1::ErrCode ListMembersResponse::code() const {
 }
 inline void ListMembersResponse::set_code(::pandora::common::v1::ErrCode value) {
   _internal_set_code(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   // @@protoc_insertion_point(field_set:pandora.guild.v1.ListMembersResponse.code)
 }
 inline ::pandora::common::v1::ErrCode ListMembersResponse::_internal_code() const {
@@ -8616,6 +8736,30 @@ ListMembersResponse::_internal_mutable_members() {
   return &_impl_.members_;
 }
 
+// uint64 next_cursor = 3 [json_name = "nextCursor"];
+inline void ListMembersResponse::clear_next_cursor() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.next_cursor_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+}
+inline ::uint64_t ListMembersResponse::next_cursor() const {
+  // @@protoc_insertion_point(field_get:pandora.guild.v1.ListMembersResponse.next_cursor)
+  return _internal_next_cursor();
+}
+inline void ListMembersResponse::set_next_cursor(::uint64_t value) {
+  _internal_set_next_cursor(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  // @@protoc_insertion_point(field_set:pandora.guild.v1.ListMembersResponse.next_cursor)
+}
+inline ::uint64_t ListMembersResponse::_internal_next_cursor() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.next_cursor_;
+}
+inline void ListMembersResponse::_internal_set_next_cursor(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.next_cursor_ = value;
+}
+
 // -------------------------------------------------------------------
 
 // ListJoinRequestsRequest
@@ -8644,6 +8788,54 @@ inline void ListJoinRequestsRequest::_internal_set_player_id(::uint64_t value) {
   _impl_.player_id_ = value;
 }
 
+// uint64 cursor = 2 [json_name = "cursor"];
+inline void ListJoinRequestsRequest::clear_cursor() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.cursor_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+}
+inline ::uint64_t ListJoinRequestsRequest::cursor() const {
+  // @@protoc_insertion_point(field_get:pandora.guild.v1.ListJoinRequestsRequest.cursor)
+  return _internal_cursor();
+}
+inline void ListJoinRequestsRequest::set_cursor(::uint64_t value) {
+  _internal_set_cursor(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  // @@protoc_insertion_point(field_set:pandora.guild.v1.ListJoinRequestsRequest.cursor)
+}
+inline ::uint64_t ListJoinRequestsRequest::_internal_cursor() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.cursor_;
+}
+inline void ListJoinRequestsRequest::_internal_set_cursor(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.cursor_ = value;
+}
+
+// int32 limit = 3 [json_name = "limit"];
+inline void ListJoinRequestsRequest::clear_limit() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.limit_ = 0;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+}
+inline ::int32_t ListJoinRequestsRequest::limit() const {
+  // @@protoc_insertion_point(field_get:pandora.guild.v1.ListJoinRequestsRequest.limit)
+  return _internal_limit();
+}
+inline void ListJoinRequestsRequest::set_limit(::int32_t value) {
+  _internal_set_limit(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  // @@protoc_insertion_point(field_set:pandora.guild.v1.ListJoinRequestsRequest.limit)
+}
+inline ::int32_t ListJoinRequestsRequest::_internal_limit() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.limit_;
+}
+inline void ListJoinRequestsRequest::_internal_set_limit(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.limit_ = value;
+}
+
 // -------------------------------------------------------------------
 
 // ListJoinRequestsResponse
@@ -8652,7 +8844,7 @@ inline void ListJoinRequestsRequest::_internal_set_player_id(::uint64_t value) {
 inline void ListJoinRequestsResponse::clear_code() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.code_ = 0;
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
 }
 inline ::pandora::common::v1::ErrCode ListJoinRequestsResponse::code() const {
   // @@protoc_insertion_point(field_get:pandora.guild.v1.ListJoinRequestsResponse.code)
@@ -8660,7 +8852,7 @@ inline ::pandora::common::v1::ErrCode ListJoinRequestsResponse::code() const {
 }
 inline void ListJoinRequestsResponse::set_code(::pandora::common::v1::ErrCode value) {
   _internal_set_code(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   // @@protoc_insertion_point(field_set:pandora.guild.v1.ListJoinRequestsResponse.code)
 }
 inline ::pandora::common::v1::ErrCode ListJoinRequestsResponse::_internal_code() const {
@@ -8725,6 +8917,30 @@ inline ::google::protobuf::RepeatedPtrField<::pandora::guild::v1::GuildJoinReque
 ListJoinRequestsResponse::_internal_mutable_requests() {
   ::google::protobuf::internal::TSanRead(&_impl_);
   return &_impl_.requests_;
+}
+
+// uint64 next_cursor = 3 [json_name = "nextCursor"];
+inline void ListJoinRequestsResponse::clear_next_cursor() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.next_cursor_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+}
+inline ::uint64_t ListJoinRequestsResponse::next_cursor() const {
+  // @@protoc_insertion_point(field_get:pandora.guild.v1.ListJoinRequestsResponse.next_cursor)
+  return _internal_next_cursor();
+}
+inline void ListJoinRequestsResponse::set_next_cursor(::uint64_t value) {
+  _internal_set_next_cursor(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  // @@protoc_insertion_point(field_set:pandora.guild.v1.ListJoinRequestsResponse.next_cursor)
+}
+inline ::uint64_t ListJoinRequestsResponse::_internal_next_cursor() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.next_cursor_;
+}
+inline void ListJoinRequestsResponse::_internal_set_next_cursor(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.next_cursor_ = value;
 }
 
 // -------------------------------------------------------------------

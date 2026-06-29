@@ -187,24 +187,24 @@ func (s *GuildService) ListMembers(ctx context.Context, req *guildv1.ListMembers
 	if req.GetGuildId() == 0 {
 		return &guildv1.ListMembersResponse{Code: commonv1.ErrCode_ERR_INVALID_ARG}, nil
 	}
-	members, err := s.uc.ListMembers(ctx, req.GetGuildId())
+	members, next, err := s.uc.ListMembers(ctx, req.GetGuildId(), req.GetCursor(), int(req.GetLimit()))
 	if err != nil {
 		return &guildv1.ListMembersResponse{Code: toProtoCode(err)}, nil
 	}
-	return &guildv1.ListMembersResponse{Code: commonv1.ErrCode_OK, Members: members}, nil
+	return &guildv1.ListMembersResponse{Code: commonv1.ErrCode_OK, Members: members, NextCursor: next}, nil
 }
 
 // ListJoinRequests 列挂起申请。请求人以 JWT ctx 为准(R5),须 LEADER / OFFICER。
-func (s *GuildService) ListJoinRequests(ctx context.Context, _ *guildv1.ListJoinRequestsRequest) (*guildv1.ListJoinRequestsResponse, error) {
+func (s *GuildService) ListJoinRequests(ctx context.Context, req *guildv1.ListJoinRequestsRequest) (*guildv1.ListJoinRequestsResponse, error) {
 	playerID := callerID(ctx)
 	if playerID == 0 {
 		return &guildv1.ListJoinRequestsResponse{Code: commonv1.ErrCode_ERR_UNAUTHORIZED}, nil
 	}
-	requests, err := s.uc.ListJoinRequests(ctx, playerID)
+	requests, next, err := s.uc.ListJoinRequests(ctx, playerID, req.GetCursor(), int(req.GetLimit()))
 	if err != nil {
 		return &guildv1.ListJoinRequestsResponse{Code: toProtoCode(err)}, nil
 	}
-	return &guildv1.ListJoinRequestsResponse{Code: commonv1.ErrCode_OK, Requests: requests}, nil
+	return &guildv1.ListJoinRequestsResponse{Code: commonv1.ErrCode_OK, Requests: requests, NextCursor: next}, nil
 }
 
 // ── 辅助 ──────────────────────────────────────────────────────────────────────

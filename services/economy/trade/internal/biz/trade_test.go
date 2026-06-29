@@ -253,7 +253,7 @@ func TestListMyOrders_ActiveOnly(t *testing.T) {
 	id2, _ := uc.CreateOrder(context.Background(), 1, 3, items(), nil, 200)
 	_ = uc.CancelOrder(context.Background(), 1, id2) // id2 终态
 
-	all, err := uc.ListMyOrders(context.Background(), 1, false)
+	all, _, err := uc.ListMyOrders(context.Background(), 1, false, 0, 0)
 	if err != nil {
 		t.Fatalf("list err: %v", err)
 	}
@@ -261,7 +261,7 @@ func TestListMyOrders_ActiveOnly(t *testing.T) {
 		t.Fatalf("want 2 all, got %d", len(all))
 	}
 
-	active, _ := uc.ListMyOrders(context.Background(), 1, true)
+	active, _, _ := uc.ListMyOrders(context.Background(), 1, true, 0, 0)
 	if len(active) != 1 || active[0].GetOrderId() != id1 {
 		t.Fatalf("want 1 active (id %d), got %+v", id1, active)
 	}

@@ -39,6 +39,8 @@ use ./services/social/dialogue
 
 use ./services/social/guild
 
+use ./services/social/mail
+
 use ./services/runtime/push
 
 use ./services/runtime/player_locator

@@ -7,6 +7,7 @@ package biz
 
 import (
 	"context"
+	"sort"
 	"testing"
 
 	"github.com/luyuancpp/pandora/pkg/errcode"
@@ -64,12 +65,16 @@ func (f *fakeGuildRepo) GetMember(_ context.Context, playerID uint64) (*data.Gui
 	return m, ok, nil
 }
 
-func (f *fakeGuildRepo) ListMembers(_ context.Context, guildID uint64) ([]data.GuildMemberRow, error) {
+func (f *fakeGuildRepo) ListMembers(_ context.Context, guildID, cursor uint64, limit int) ([]data.GuildMemberRow, error) {
 	var out []data.GuildMemberRow
 	for _, m := range f.members {
-		if m.GuildID == guildID {
+		if m.GuildID == guildID && (cursor == 0 || m.PlayerID > cursor) {
 			out = append(out, *m)
 		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].PlayerID < out[j].PlayerID })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
 	}
 	return out, nil
 }
@@ -172,12 +177,16 @@ func (f *fakeGuildRepo) TransferLeader(_ context.Context, guildID, oldLeaderID, 
 	return nil
 }
 
-func (f *fakeGuildRepo) ListPendingRequests(_ context.Context, guildID uint64) ([]data.GuildJoinRequestRow, error) {
+func (f *fakeGuildRepo) ListPendingRequests(_ context.Context, guildID, cursor uint64, limit int) ([]data.GuildJoinRequestRow, error) {
 	var out []data.GuildJoinRequestRow
 	for _, rq := range f.requests {
-		if rq.GuildID == guildID && rq.Status == 1 {
+		if rq.GuildID == guildID && rq.Status == 1 && (cursor == 0 || rq.RequestID > cursor) {
 			out = append(out, *rq)
 		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].RequestID < out[j].RequestID })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
 	}
 	return out, nil
 }
@@ -405,7 +414,7 @@ func TestListJoinRequests_MemberNoPerm(t *testing.T) {
 	_, _ = uc.CreateGuild(context.Background(), 1, "G", 1001)
 	r2, _ := uc.ApplyJoin(context.Background(), 2, 1001, 2002)
 	_ = uc.ApproveJoin(context.Background(), 1, r2)
-	_, err := uc.ListJoinRequests(context.Background(), 2) // 普通成员
+	_, _, err := uc.ListJoinRequests(context.Background(), 2, 0, 0) // 普通成员
 	wantGuildCode(t, err, errcode.ErrGuildNoPermission)
 }
 

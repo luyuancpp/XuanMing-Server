@@ -170,8 +170,11 @@ static_resources:
               - match:
                   prefix: "/pandora.trade.v1.TradeService/"
                 requires:
-                  provider_name: "pandora_session"
-              # leaderboard 客户端只允许读榜;写 RPC 即使经此入口也会被服务层按 player_id 拒绝。
+                  provider_name: "pandora_session"              # mail 服务面向玩家 RPC 均需 JWT（收件人以 JWT sub 为准；Send* 运营接口服务层拒玩家）
+              - match:
+                  prefix: "/pandora.mail.v1.MailService/"
+                requires:
+                  provider_name: "pandora_session"              # leaderboard 客户端只允许读榜;写 RPC 即使经此入口也会被服务层按 player_id 拒绝。
               - match:
                   prefix: "/pandora.leaderboard.v1.LeaderboardService/"
                 requires:
@@ -263,6 +266,14 @@ static_resources:
                   prefix: "/pandora.group.v1.GroupService/"
                 route:
                   cluster: guild_cluster
+                  timeout: 15s
+                  idle_timeout: 60s
+
+              # ----- mail(unary,立即完成型,demo 15s 超时)-----
+              - match:
+                  prefix: "/pandora.mail.v1.MailService/"
+                route:
+                  cluster: mail_cluster
                   timeout: 15s
                   idle_timeout: 60s
 
@@ -590,6 +601,27 @@ static_resources:
               socket_address:
                 address: host.docker.internal
                 port_value: 50008
+
+  # ===== mail_cluster（邮件 MailService，unary，demo 15s 超时）=====
+  - name: mail_cluster
+    type: STRICT_DNS
+    dns_lookup_family: V4_ONLY
+    connect_timeout: 1s
+    lb_policy: ROUND_ROBIN
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
+    load_assignment:
+      cluster_name: mail_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: host.docker.internal
+                port_value: 50009
 
   # ===========================================================================
   # DS 面内部服务 cluster(供 :8444 pandora_ds_listener 使用,agones-dev.md §5.1)

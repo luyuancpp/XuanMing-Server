@@ -155,6 +155,30 @@ spec: { selector: { app: guild }, ports: [ { port: 50008, targetPort: 50008 } ] 
 ---
 apiVersion: apps/v1
 kind: Deployment
+metadata: { name: mail, namespace: pandora, labels: { app: mail } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: mail } }
+  template:
+    metadata: { labels: { app: mail } }
+    spec:
+      containers:
+        - name: mail
+          image: pandora/mail:dev
+          imagePullPolicy: IfNotPresent
+          args: ["-conf", "etc/cluster.yaml"]
+          ports: [ { containerPort: 50009 } ]
+          volumeMounts: [ { name: conf, mountPath: /app/etc/cluster.yaml, subPath: mail.yaml, readOnly: true } ]
+          resources: { requests: { cpu: 25m, memory: 64Mi }, limits: { cpu: "1", memory: 256Mi } }
+      volumes: [ { name: conf, configMap: { name: pandora-config } } ]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: mail, namespace: pandora }
+spec: { selector: { app: mail }, ports: [ { port: 50009, targetPort: 50009 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
 metadata: { name: player-locator, namespace: pandora, labels: { app: player-locator } }
 spec:
   replicas: 1

@@ -178,20 +178,26 @@ message GetMyGuildResponse {
 
 message ListMembersRequest {
   uint64 guild_id = 1;
+  uint64 cursor   = 2;  // 上页末成员 player_id;0=首页
+  int32  limit    = 3;  // 0=服务端默认 50,>100 收敛
 }
 
 message ListMembersResponse {
   pandora.common.v1.ErrCode code = 1;
   repeated GuildMember members = 2;
+  uint64 next_cursor = 3;  // 0=无更多
 }
 
 message ListJoinRequestsRequest {
   uint64 player_id = 1;  // 会长 / 官员(JWT ctx 覆盖),查自己公会的挂起申请
+  uint64 cursor    = 2;  // 上页末 request_id;0=首页
+  int32  limit     = 3;  // 0=服务端默认 50,>100 收敛
 }
 
 message ListJoinRequestsResponse {
   pandora.common.v1.ErrCode code = 1;
   repeated GuildJoinRequest requests = 2;
+  uint64 next_cursor = 3;  // 0=无更多
 }
 
 // ===== Kafka 推送 payload(pandora.guild.event,key=接收方 player_id)=====

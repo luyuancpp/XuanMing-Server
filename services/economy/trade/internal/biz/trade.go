@@ -23,6 +23,7 @@ package biz
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"github.com/luyuancpp/pandora/pkg/cellroute"
@@ -268,18 +269,29 @@ func (u *TradeUsecase) CancelOrder(ctx context.Context, playerID, orderID uint64
 	return nil
 }
 
-// ListMyOrders 列玩家参与的订单(客户端可见结构 Order)。
+// ListMyOrders 列玩家参与的订单(客户端可见结构 Order),按 order_id 降序游标分页。
 // activeOnly=true 时只返回非终态订单。playerID 由 service 从 JWT ctx 得到(R5)。
-func (u *TradeUsecase) ListMyOrders(ctx context.Context, playerID uint64, activeOnly bool) ([]*tradev1.Order, error) {
+// nextCursor 为本页末 order_id;0=无更多。
+func (u *TradeUsecase) ListMyOrders(ctx context.Context, playerID uint64, activeOnly bool, cursor uint64, limit int) ([]*tradev1.Order, uint64, error) {
 	if playerID == 0 {
-		return nil, errcode.New(errcode.ErrInvalidArg, "player_id required")
+		return nil, 0, errcode.New(errcode.ErrInvalidArg, "player_id required")
 	}
+	limit = clampLimit(limit)
 	ids, err := u.repo.ListPlayerOrderIDs(ctx, playerID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	out := make([]*tradev1.Order, 0, len(ids))
+	sort.Slice(ids, func(i, j int) bool { return ids[i] > ids[j] }) // order_id 降序
+	out := make([]*tradev1.Order, 0, limit)
+	var next uint64
 	for _, id := range ids {
+		if cursor != 0 && id >= cursor {
+			continue // 上页已返回
+		}
+		if len(out) == limit {
+			next = out[len(out)-1].GetOrderId() // 还有更多
+			break
+		}
 		o, ok, gerr := u.repo.GetOrder(ctx, id)
 		if gerr != nil || !ok {
 			continue // 订单已过期被 Redis 回收 → 跳过
@@ -298,7 +310,23 @@ func (u *TradeUsecase) ListMyOrders(ctx context.Context, playerID uint64, active
 		}
 		out = append(out, o)
 	}
-	return out, nil
+	return out, next, nil
+}
+
+// 分页上限(决策:docs/design/decision-revisit-list-pagination.md)。
+const (
+	defaultPageLimit = 50
+	maxPageLimit     = 100
+)
+
+func clampLimit(limit int) int {
+	if limit <= 0 {
+		return defaultPageLimit
+	}
+	if limit > maxPageLimit {
+		return maxPageLimit
+	}
+	return limit
 }
 
 // ── 辅助 ──────────────────────────────────────────────────────────────────────

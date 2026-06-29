@@ -1,6 +1,6 @@
 # Pandora Go 服务清单与契约
 
-> 18 个 go 服务的职责边界、对外接口、关键状态、依赖矩阵。
+> 19 个 go 服务的职责边界、对外接口、关键状态、依赖矩阵。
 >
 > ⚠️ **2026-06-04 架构终版**:
 > - 框架统一 **Kratos**(替代 go-zero,详见 `gateway-decision.md` §4)
@@ -20,6 +20,7 @@
 | 6 | player_locator | 50006 | 强 | redis | locator.update | ✅ W3 ⑤(W4 ⑦ matchmaker 上报 MATCHING/BATTLE) |
 | 7 | leaderboard | 50007 | 无 | redis(实时榜)+ mysql(结算) | (生产 leaderboard.settle) | ✅ 2026-06-27(通用排行榜,全服/公会/副本/活动可扩展) |
 | 8 | guild | 50008 | 弱(guild.event 推送) | mysql(pandora_social) | pandora.guild.event | ✅ 2026-06-27(公会 GuildService + 临时群 GroupService 同进程;公会/群聊不落库) |
+| 19 | mail | 50009 | 无 | mysql(pandora_social) | (复用 system.notify 红点) | ✅ 2026-06-29(系统/公会邮件 channel+watermark 拉取,个人邮件写扩散离线可达,附件领取幂等) |
 | 9 | team | 50010 | 强 | redis | - | ✅ W3 ⑦ |
 | 10 | matchmaker | 50011 | 强 | redis | (生产 match.found) | ✅ W4 ①(W4 ⑦ 接 locator 串 MATCHING/BATTLE) |
 | 11 | trade | 50012 | 强 | redis | trade.audit | ✅ 2026-06-16(两阶段确认订单状态机 + 乐观锁 + 结算幂等键 + 审计) |

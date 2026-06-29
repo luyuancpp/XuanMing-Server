@@ -144,6 +144,12 @@ enum ErrCode {
   ERR_GROUP_NOT_MEMBER         = 9504;  // 玩家不在群内
   ERR_GROUP_ALREADY_IN         = 9505;  // 玩家已在群内(拉人幂等命中)
 
+  // mail 邮件(9600-9699,2026-06-29)
+  ERR_MAIL_NOT_FOUND           = 9601;  // 邮件不存在 / 已删除
+  ERR_MAIL_EXPIRED             = 9602;  // 邮件已过期
+  ERR_MAIL_NO_ATTACHMENT       = 9603;  // 该邮件无附件可领
+  ERR_MAIL_ALREADY_CLAIMED     = 9604;  // 附件已领取(幂等命中)
+
   // 10000-10999 data_service
   ERR_DATA_VERSION_MISMATCH    = 10001;
   ERR_DATA_LOCK_TIMEOUT        = 10002;

@@ -1,0 +1,301 @@
+// Package data 是 mail 服务的数据层(MySQL 邮件存储,2026-06-29)。
+//
+// 库表(deploy/mysql-init/12-mail-tables.sql,pandora_social 库):
+//
+//	sys_mail            系统邮件一份(PK mail_id snowflake,channel 内递增)
+//	guild_mail          公会邮件一份(PK mail_id;idx guild_id)
+//	player_mail         个人收件箱(PK mail_id;idx player_id+status,写扩散)
+//	player_mail_cursor  系统/公会拉取游标(PK player_id)
+//	player_mail_claim   附件领取幂等(PK player_id+mail_id)
+//
+// 系统/公会邮件 = channel + watermark 拉取(零写扩散);个人邮件 = 写扩散(离线可达)。
+// 邮件正文+附件序列化为 MailContentStorageRecord proto bytes 存 payload blob(CLAUDE.md §5.8)。
+package data
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+
+	"github.com/luyuancpp/pandora/pkg/errcode"
+)
+
+// 个人邮件状态(与 proto MailStatus 数值一致)。
+const (
+	StatusUnread  = 1
+	StatusRead    = 2
+	StatusClaimed = 3
+)
+
+// MailRow 是一行邮件(任意 channel,data → biz 内部结构)。payload 为存储 blob。
+type MailRow struct {
+	MailID    uint64
+	Status    int32 // 仅个人邮件有意义;系统/公会拉取后由 biz 推导
+	Claimed   bool
+	CreatedMs int64
+	ExpireMs  int64 // 个人邮件
+	StartMs   int64 // 系统/公会邮件
+	EndMs     int64 // 系统/公会邮件
+	Payload   []byte
+}
+
+// MailRepo 是邮件数据层抽象。biz 只依赖此接口。
+type MailRepo interface {
+	GetCursor(ctx context.Context, playerID uint64) (lastSys, lastGuild uint64, err error)
+	GetPlayerGuild(ctx context.Context, playerID uint64) (guildID uint64, ok bool, err error)
+
+	// ListPersonal 倒序拉个人邮件;beforeID=0 取首页,>0 取 mail_id<beforeID;limit>0 限量。
+	ListPersonal(ctx context.Context, playerID uint64, nowMs int64, beforeID uint64, limit int) ([]MailRow, error)
+	ListSysSince(ctx context.Context, lastSys uint64, nowMs int64) ([]MailRow, error)
+	ListGuildSince(ctx context.Context, guildID, lastGuild uint64, nowMs int64) ([]MailRow, error)
+	AdvanceCursor(ctx context.Context, playerID, sysMax, guildMax uint64) error
+
+	SetPersonalStatus(ctx context.Context, playerID, mailID uint64, status int32) error
+	DeletePersonal(ctx context.Context, playerID, mailID uint64) error
+	// GetClaimablePayload 取邮件正文用于领取,并按 channel 校验领取人有权访问:
+	//   - 个人邮件:必须 player_id == 收件人
+	//   - 公会邮件:必须 player_id 当前属于该公会
+	//   - 系统邮件:任意玩家可领
+	// 未生效(start_ms 未到)、已过期(end_ms 已过)或越权 → found=false。
+	GetClaimablePayload(ctx context.Context, playerID, mailID uint64, nowMs int64) (payload []byte, found bool, err error)
+	HasClaimed(ctx context.Context, playerID, mailID uint64) (bool, error)
+	RecordClaim(ctx context.Context, playerID, mailID uint64) (firstTime bool, err error)
+
+	InsertSysMail(ctx context.Context, mailID uint64, startMs, endMs int64, payload []byte) error
+	InsertGuildMail(ctx context.Context, mailID, guildID uint64, startMs, endMs int64, payload []byte) error
+	InsertPersonalMail(ctx context.Context, mailID, playerID uint64, expireMs int64, payload []byte) error
+}
+
+// MySQLMailRepo 实现 MailRepo。
+type MySQLMailRepo struct {
+	db *sql.DB
+}
+
+// NewMySQLMailRepo 构造。
+func NewMySQLMailRepo(db *sql.DB) *MySQLMailRepo {
+	return &MySQLMailRepo{db: db}
+}
+
+func (r *MySQLMailRepo) GetCursor(ctx context.Context, playerID uint64) (uint64, uint64, error) {
+	var s, g uint64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT last_sys_mail_id, last_guild_mail_id FROM player_mail_cursor WHERE player_id = ?`,
+		playerID).Scan(&s, &g)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, 0, nil
+	}
+	if err != nil {
+		return 0, 0, errcode.New(errcode.ErrInternal, "get cursor %d: %v", playerID, err)
+	}
+	return s, g, nil
+}
+
+func (r *MySQLMailRepo) GetPlayerGuild(ctx context.Context, playerID uint64) (uint64, bool, error) {
+	var g uint64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT guild_id FROM guild_members WHERE player_id = ?`, playerID).Scan(&g)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, errcode.New(errcode.ErrInternal, "get player guild %d: %v", playerID, err)
+	}
+	return g, true, nil
+}
+
+func (r *MySQLMailRepo) ListPersonal(ctx context.Context, playerID uint64, nowMs int64, beforeID uint64, limit int) ([]MailRow, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT mail_id, status, claimed, expire_ms,
+		        CAST(UNIX_TIMESTAMP(created_at) * 1000 AS SIGNED), payload
+		 FROM player_mail
+		 WHERE player_id = ? AND (expire_ms = 0 OR expire_ms > ?)
+		       AND (? = 0 OR mail_id < ?)
+		 ORDER BY mail_id DESC
+		 LIMIT ?`, playerID, nowMs, beforeID, beforeID, limit)
+	if err != nil {
+		return nil, errcode.New(errcode.ErrInternal, "list personal %d: %v", playerID, err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []MailRow
+	for rows.Next() {
+		var m MailRow
+		var claimed int
+		if err := rows.Scan(&m.MailID, &m.Status, &claimed, &m.ExpireMs, &m.CreatedMs, &m.Payload); err != nil {
+			return nil, errcode.New(errcode.ErrInternal, "scan personal: %v", err)
+		}
+		m.Claimed = claimed != 0
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+func (r *MySQLMailRepo) ListSysSince(ctx context.Context, lastSys uint64, nowMs int64) ([]MailRow, error) {
+	return r.listChannelSince(ctx,
+		`SELECT mail_id, start_ms, end_ms, CAST(UNIX_TIMESTAMP(created_at)*1000 AS SIGNED), payload
+		 FROM sys_mail
+		 WHERE mail_id > ? AND (start_ms = 0 OR start_ms <= ?) AND (end_ms = 0 OR end_ms > ?)
+		 ORDER BY mail_id`, lastSys, nowMs)
+}
+
+func (r *MySQLMailRepo) ListGuildSince(ctx context.Context, guildID, lastGuild uint64, nowMs int64) ([]MailRow, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT mail_id, start_ms, end_ms, CAST(UNIX_TIMESTAMP(created_at)*1000 AS SIGNED), payload
+		 FROM guild_mail
+		 WHERE guild_id = ? AND mail_id > ? AND (start_ms = 0 OR start_ms <= ?) AND (end_ms = 0 OR end_ms > ?)
+		 ORDER BY mail_id`, guildID, lastGuild, nowMs, nowMs)
+	if err != nil {
+		return nil, errcode.New(errcode.ErrInternal, "list guild mail %d: %v", guildID, err)
+	}
+	return scanChannelRows(rows)
+}
+
+func (r *MySQLMailRepo) listChannelSince(ctx context.Context, q string, last uint64, nowMs int64) ([]MailRow, error) {
+	rows, err := r.db.QueryContext(ctx, q, last, nowMs, nowMs)
+	if err != nil {
+		return nil, errcode.New(errcode.ErrInternal, "list channel mail: %v", err)
+	}
+	return scanChannelRows(rows)
+}
+
+func scanChannelRows(rows *sql.Rows) ([]MailRow, error) {
+	defer func() { _ = rows.Close() }()
+	var out []MailRow
+	for rows.Next() {
+		var m MailRow
+		if err := rows.Scan(&m.MailID, &m.StartMs, &m.EndMs, &m.CreatedMs, &m.Payload); err != nil {
+			return nil, errcode.New(errcode.ErrInternal, "scan channel mail: %v", err)
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+func (r *MySQLMailRepo) AdvanceCursor(ctx context.Context, playerID, sysMax, guildMax uint64) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO player_mail_cursor (player_id, last_sys_mail_id, last_guild_mail_id)
+		 VALUES (?, ?, ?)
+		 ON DUPLICATE KEY UPDATE
+		   last_sys_mail_id = GREATEST(last_sys_mail_id, VALUES(last_sys_mail_id)),
+		   last_guild_mail_id = GREATEST(last_guild_mail_id, VALUES(last_guild_mail_id))`,
+		playerID, sysMax, guildMax)
+	if err != nil {
+		return errcode.New(errcode.ErrInternal, "advance cursor %d: %v", playerID, err)
+	}
+	return nil
+}
+
+func (r *MySQLMailRepo) SetPersonalStatus(ctx context.Context, playerID, mailID uint64, status int32) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE player_mail SET status = ? WHERE mail_id = ? AND player_id = ?`,
+		status, mailID, playerID)
+	if err != nil {
+		return errcode.New(errcode.ErrInternal, "set status %d: %v", mailID, err)
+	}
+	return nil
+}
+
+func (r *MySQLMailRepo) DeletePersonal(ctx context.Context, playerID, mailID uint64) error {
+	_, err := r.db.ExecContext(ctx,
+		`DELETE FROM player_mail WHERE mail_id = ? AND player_id = ?`, mailID, playerID)
+	if err != nil {
+		return errcode.New(errcode.ErrInternal, "delete mail %d: %v", mailID, err)
+	}
+	return nil
+}
+
+// GetClaimablePayload 取邮件正文并按 channel 校验领取人权限 + 生效区间。
+// 越权 / 未生效 / 已过期 / 不存在 → (nil, false, nil)。
+func (r *MySQLMailRepo) GetClaimablePayload(ctx context.Context, playerID, mailID uint64, nowMs int64) ([]byte, bool, error) {
+	// 1) 个人邮件:仅收件人本人,过期不可领
+	var payload []byte
+	err := r.db.QueryRowContext(ctx,
+		`SELECT payload FROM player_mail
+		 WHERE mail_id = ? AND player_id = ? AND (expire_ms = 0 OR expire_ms > ?)`,
+		mailID, playerID, nowMs).Scan(&payload)
+	if err == nil {
+		return payload, true, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, false, errcode.New(errcode.ErrInternal, "get personal payload %d: %v", mailID, err)
+	}
+
+	// 2) 系统邮件:任意玩家可领,须已生效未过期
+	err = r.db.QueryRowContext(ctx,
+		`SELECT payload FROM sys_mail
+		 WHERE mail_id = ? AND (start_ms = 0 OR start_ms <= ?) AND (end_ms = 0 OR end_ms > ?)`,
+		mailID, nowMs, nowMs).Scan(&payload)
+	if err == nil {
+		return payload, true, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, false, errcode.New(errcode.ErrInternal, "get sys payload %d: %v", mailID, err)
+	}
+
+	// 3) 公会邮件:领取人须当前属于该邮件的公会,且已生效未过期
+	err = r.db.QueryRowContext(ctx,
+		`SELECT gm.payload FROM guild_mail gm
+		 JOIN guild_members m ON m.guild_id = gm.guild_id
+		 WHERE gm.mail_id = ? AND m.player_id = ?
+		   AND (gm.start_ms = 0 OR gm.start_ms <= ?) AND (gm.end_ms = 0 OR gm.end_ms > ?)`,
+		mailID, playerID, nowMs, nowMs).Scan(&payload)
+	if err == nil {
+		return payload, true, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, false, errcode.New(errcode.ErrInternal, "get guild payload %d: %v", mailID, err)
+	}
+	return nil, false, nil
+}
+
+func (r *MySQLMailRepo) HasClaimed(ctx context.Context, playerID, mailID uint64) (bool, error) {
+	var x int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT 1 FROM player_mail_claim WHERE player_id = ? AND mail_id = ?`, playerID, mailID).Scan(&x)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, errcode.New(errcode.ErrInternal, "has claimed: %v", err)
+	}
+	return true, nil
+}
+
+func (r *MySQLMailRepo) RecordClaim(ctx context.Context, playerID, mailID uint64) (bool, error) {
+	res, err := r.db.ExecContext(ctx,
+		`INSERT IGNORE INTO player_mail_claim (player_id, mail_id) VALUES (?, ?)`, playerID, mailID)
+	if err != nil {
+		return false, errcode.New(errcode.ErrInternal, "record claim: %v", err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+func (r *MySQLMailRepo) InsertSysMail(ctx context.Context, mailID uint64, startMs, endMs int64, payload []byte) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO sys_mail (mail_id, start_ms, end_ms, payload) VALUES (?, ?, ?, ?)`,
+		mailID, startMs, endMs, payload)
+	if err != nil {
+		return errcode.New(errcode.ErrInternal, "insert sys mail: %v", err)
+	}
+	return nil
+}
+
+func (r *MySQLMailRepo) InsertGuildMail(ctx context.Context, mailID, guildID uint64, startMs, endMs int64, payload []byte) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO guild_mail (mail_id, guild_id, start_ms, end_ms, payload) VALUES (?, ?, ?, ?, ?)`,
+		mailID, guildID, startMs, endMs, payload)
+	if err != nil {
+		return errcode.New(errcode.ErrInternal, "insert guild mail: %v", err)
+	}
+	return nil
+}
+
+func (r *MySQLMailRepo) InsertPersonalMail(ctx context.Context, mailID, playerID uint64, expireMs int64, payload []byte) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO player_mail (mail_id, player_id, status, expire_ms, payload) VALUES (?, ?, 1, ?, ?)`,
+		mailID, playerID, expireMs, payload)
+	if err != nil {
+		return errcode.New(errcode.ErrInternal, "insert personal mail: %v", err)
+	}
+	return nil
+}

@@ -82,8 +82,8 @@ type GuildRepo interface {
 	GetMyGuild(ctx context.Context, playerID uint64) (*GuildRow, bool, error)
 	// GetMember 读玩家的成员行(含 guild_id / role);不在任何公会 → (nil, false, nil)。
 	GetMember(ctx context.Context, playerID uint64) (*GuildMemberRow, bool, error)
-	// ListMembers 列公会成员(按 role 升序,leader 在前)。
-	ListMembers(ctx context.Context, guildID uint64) ([]GuildMemberRow, error)
+	// ListMembers 列公会成员(按 player_id 升序游标分页;cursor=0 首页,limit>0 限量)。
+	ListMembers(ctx context.Context, guildID, cursor uint64, limit int) ([]GuildMemberRow, error)
 	// CreateJoinRequest 创建 / 复用加入申请(pending);已 pending → 复用既有 request_id。
 	CreateJoinRequest(ctx context.Context, newRequestID, guildID, playerID uint64) (requestID uint64, reused bool, err error)
 	// GetRequest 读申请;not found → (nil, false, nil)。
@@ -102,8 +102,8 @@ type GuildRepo interface {
 	SetRole(ctx context.Context, guildID, playerID uint64, role int32) error
 	// TransferLeader 在事务里转让会长:旧会长降 member,新会长升 leader,更新 guilds.leader_id。
 	TransferLeader(ctx context.Context, guildID, oldLeaderID, newLeaderID uint64) error
-	// ListPendingRequests 列公会的挂起申请。
-	ListPendingRequests(ctx context.Context, guildID uint64) ([]GuildJoinRequestRow, error)
+	// ListPendingRequests 列公会的挂起申请(按 request_id 升序游标分页)。
+	ListPendingRequests(ctx context.Context, guildID, cursor uint64, limit int) ([]GuildJoinRequestRow, error)
 }
 
 // MySQLGuildRepo 是基于 database/sql 的 GuildRepo 实现。
@@ -192,10 +192,16 @@ func (r *MySQLGuildRepo) GetMember(ctx context.Context, playerID uint64) (*Guild
 	return &m, true, nil
 }
 
-func (r *MySQLGuildRepo) ListMembers(ctx context.Context, guildID uint64) ([]GuildMemberRow, error) {
-	rows, err := r.db.QueryContext(ctx,
-		`SELECT player_id, guild_id, role, CAST(UNIX_TIMESTAMP(joined_at) * 1000 AS SIGNED)
-		 FROM guild_members WHERE guild_id = ? ORDER BY role ASC, joined_at ASC`, guildID)
+func (r *MySQLGuildRepo) ListMembers(ctx context.Context, guildID, cursor uint64, limit int) ([]GuildMemberRow, error) {
+	q := `SELECT player_id, guild_id, role, CAST(UNIX_TIMESTAMP(joined_at) * 1000 AS SIGNED)
+		 FROM guild_members WHERE guild_id = ? AND (? = 0 OR player_id > ?)
+		 ORDER BY player_id ASC`
+	args := []any{guildID, cursor, cursor}
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, errcode.New(errcode.ErrInternal, "list members %d: %v", guildID, err)
 	}
@@ -450,11 +456,16 @@ func (r *MySQLGuildRepo) TransferLeader(ctx context.Context, guildID, oldLeaderI
 	})
 }
 
-func (r *MySQLGuildRepo) ListPendingRequests(ctx context.Context, guildID uint64) ([]GuildJoinRequestRow, error) {
-	rows, err := r.db.QueryContext(ctx,
-		`SELECT request_id, guild_id, player_id, status, CAST(UNIX_TIMESTAMP(created_at) * 1000 AS SIGNED)
-		 FROM guild_join_requests WHERE guild_id = ? AND status = ? ORDER BY created_at ASC`,
-		guildID, joinStatusPending)
+func (r *MySQLGuildRepo) ListPendingRequests(ctx context.Context, guildID, cursor uint64, limit int) ([]GuildJoinRequestRow, error) {
+	q := `SELECT request_id, guild_id, player_id, status, CAST(UNIX_TIMESTAMP(created_at) * 1000 AS SIGNED)
+		 FROM guild_join_requests WHERE guild_id = ? AND status = ? AND (? = 0 OR request_id > ?)
+		 ORDER BY request_id ASC`
+	args := []any{guildID, joinStatusPending, cursor, cursor}
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, errcode.New(errcode.ErrInternal, "list requests %d: %v", guildID, err)
 	}

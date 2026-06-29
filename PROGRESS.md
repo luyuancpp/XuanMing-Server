@@ -4220,3 +4220,13 @@ Codex 确认可接受再同步 UE 客户端。**
 3. 14 服务 main 接线:matchmaker(SetCellRouter+SetRegionPolicy)、login(login+ticket)、player/data/friend/chat/dialogue/team/trade/inventory/locator/battle_result(SetCellRouter)、auction(SetMarketRouter)、push(SetCellOwnership)。
 
 验证:pkg cellroute test/vet 全绿(新增 config_test.go 6 例);14 服务 go build 全 OK;gofmt 干净。边界:各服务 go.mod 补 etcdtable require + 物理部署属 Codex/人。
+
+## 邮件系统 ✅ 服务上线 + 4 项缺陷加固（2026-06-29）
+
+MailService（services/social/mail，:50009/:51009）：系统/公会邮件 channel+watermark 拉取（零扩散），个人邮件写扩散离线可达，附件领取幂等。修复评审 4 缺陷：
+1. ClaimMail 越权领取：repo 改 GetClaimablePayload 按 channel 校验（个人=收件人本人/系统=任意/公会=当前会员）+ 生效区间，越权→NotFound。
+2. 附件不入库：接 inventory.GrantItems（幂等键 mail:{mail}:{player}），先发奖→后记 claim，crash 不丢奖；conf 加 inventory_addr/allow_noop_grant，main 缺地址且非测试空领则拒启。
+3. 运维注册：run_services/gen_cluster_config/start.ps1/docker-compose.services/prometheus/k8s services.yaml/envoy.yaml 全加 mail（all=19）。
+4. 文档订正：go-services.md 18→19，mail 行号 19；本条追加。
+
+验证：mail 模块 BUILD=0 VET=0。Codex 收尾：cpp pb 同步 UE（mail proto 已生成）;git 收尾等用户授权。

@@ -236,7 +236,7 @@ func (u *GuildUsecase) DisbandGuild(ctx context.Context, leaderID uint64) error 
 	if g != nil {
 		guildName = g.Name
 	}
-	members, _ := u.repo.ListMembers(ctx, m.GuildID)
+	members, _ := u.repo.ListMembers(ctx, m.GuildID, 0, 0)
 
 	if err := u.repo.DisbandGuild(ctx, m.GuildID); err != nil {
 		return err
@@ -273,7 +273,7 @@ func (u *GuildUsecase) TransferLeader(ctx context.Context, leaderID, targetID ui
 	if g != nil {
 		guildName = g.Name
 	}
-	members, _ := u.repo.ListMembers(ctx, m.GuildID)
+	members, _ := u.repo.ListMembers(ctx, m.GuildID, 0, 0)
 	for _, mem := range members {
 		u.push(ctx, mem.PlayerID, &guildv1.GuildEvent{
 			Type:      guildv1.GuildEventType_GUILD_EVENT_TYPE_LEADER_CHANGED,
@@ -338,11 +338,28 @@ func (u *GuildUsecase) GetMyGuild(ctx context.Context, playerID uint64) (*guildv
 	return toGuildView(g), nil
 }
 
-// ListMembers 列公会成员(客户端可见结构)。
-func (u *GuildUsecase) ListMembers(ctx context.Context, guildID uint64) ([]*guildv1.GuildMember, error) {
-	rows, err := u.repo.ListMembers(ctx, guildID)
+// 分页上限(决策:docs/design/decision-revisit-list-pagination.md)。
+const (
+	defaultPageLimit = 50
+	maxPageLimit     = 100
+)
+
+func clampLimit(limit int) int {
+	if limit <= 0 {
+		return defaultPageLimit
+	}
+	if limit > maxPageLimit {
+		return maxPageLimit
+	}
+	return limit
+}
+
+// ListMembers 列公会成员(客户端可见结构),按 player_id 升序游标分页。
+func (u *GuildUsecase) ListMembers(ctx context.Context, guildID, cursor uint64, limit int) ([]*guildv1.GuildMember, uint64, error) {
+	limit = clampLimit(limit)
+	rows, err := u.repo.ListMembers(ctx, guildID, cursor, limit)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	out := make([]*guildv1.GuildMember, 0, len(rows))
 	for _, m := range rows {
@@ -352,24 +369,29 @@ func (u *GuildUsecase) ListMembers(ctx context.Context, guildID uint64) ([]*guil
 			JoinedMs: m.JoinedMs,
 		})
 	}
-	return out, nil
+	var next uint64
+	if len(rows) == limit {
+		next = rows[len(rows)-1].PlayerID
+	}
+	return out, next, nil
 }
 
-// ListJoinRequests 列公会挂起申请。requesterID 须为该公会 LEADER / OFFICER。
-func (u *GuildUsecase) ListJoinRequests(ctx context.Context, requesterID uint64) ([]*guildv1.GuildJoinRequest, error) {
+// ListJoinRequests 列公会挂起申请。requesterID 须为该公会 LEADER / OFFICER。按 request_id 升序游标分页。
+func (u *GuildUsecase) ListJoinRequests(ctx context.Context, requesterID, cursor uint64, limit int) ([]*guildv1.GuildJoinRequest, uint64, error) {
+	limit = clampLimit(limit)
 	m, ok, err := u.repo.GetMember(ctx, requesterID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if !ok {
-		return nil, errcode.New(errcode.ErrGuildNotMember, "player %d not in any guild", requesterID)
+		return nil, 0, errcode.New(errcode.ErrGuildNotMember, "player %d not in any guild", requesterID)
 	}
 	if m.Role != data.GuildRoleLeader && m.Role != data.GuildRoleOfficer {
-		return nil, errcode.New(errcode.ErrGuildNoPermission, "only leader/officer can list requests")
+		return nil, 0, errcode.New(errcode.ErrGuildNoPermission, "only leader/officer can list requests")
 	}
-	rows, err := u.repo.ListPendingRequests(ctx, m.GuildID)
+	rows, err := u.repo.ListPendingRequests(ctx, m.GuildID, cursor, limit)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	out := make([]*guildv1.GuildJoinRequest, 0, len(rows))
 	for _, rq := range rows {
@@ -380,7 +402,11 @@ func (u *GuildUsecase) ListJoinRequests(ctx context.Context, requesterID uint64)
 			CreatedMs:    rq.CreatedMs,
 		})
 	}
-	return out, nil
+	var next uint64
+	if len(rows) == limit {
+		next = rows[len(rows)-1].RequestID
+	}
+	return out, next, nil
 }
 
 // fanoutToManagers 把事件推给公会的会长 + 官员(申请通知用),排除 evt.ActorId 本人。
@@ -388,7 +414,7 @@ func (u *GuildUsecase) fanoutToManagers(ctx context.Context, guildID uint64, evt
 	if u.pusher == nil {
 		return
 	}
-	members, err := u.repo.ListMembers(ctx, guildID)
+	members, err := u.repo.ListMembers(ctx, guildID, 0, 0)
 	if err != nil {
 		plog.With(ctx).Warnw("msg", "guild_fanout_managers_failed", "guild_id", guildID, "err", err)
 		return

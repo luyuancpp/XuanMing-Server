@@ -39,6 +39,9 @@ scrape_configs:
       # 公会 + 临时群（GuildService + GroupService 同进程）
       - targets: ['host.docker.internal:51008']
         labels: { service: guild }
+      # 邮件（MailService,系统/公会 channel+watermark + 个人写扩散）
+      - targets: ['host.docker.internal:51009']
+        labels: { service: mail }
       # 推送（W2 ⑤ 新增，server stream + /metrics）
       - targets: ['host.docker.internal:51014']
         labels: { service: push }

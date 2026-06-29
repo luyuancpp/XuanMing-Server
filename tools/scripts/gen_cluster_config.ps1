@@ -47,6 +47,7 @@ $Services = @(
     @{ Name = 'player-locator'; Conf = 'services/runtime/player_locator/etc/locator-dev.yaml';     Port = 50006 }
     @{ Name = 'leaderboard';    Conf = 'services/runtime/leaderboard/etc/leaderboard-dev.yaml';    Port = 50007 }
     @{ Name = 'guild';          Conf = 'services/social/guild/etc/guild-dev.yaml';                 Port = 50008 }
+    @{ Name = 'mail';           Conf = 'services/social/mail/etc/mail-dev.yaml';                   Port = 50009 }
     @{ Name = 'team';           Conf = 'services/matchmaking/team/etc/team-dev.yaml';              Port = 50010 }
     @{ Name = 'matchmaker';     Conf = 'services/matchmaking/matchmaker/etc/matchmaker-dev.yaml';  Port = 50011 }
     @{ Name = 'trade';          Conf = 'services/economy/trade/etc/trade-dev.yaml';                Port = 50012 }
