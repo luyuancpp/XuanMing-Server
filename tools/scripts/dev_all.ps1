@@ -4,10 +4,13 @@
 # 等容器 healthy 后,再按依赖顺序拉起 Go 业务服务。
 #
 # 用法:
-#   # 起"登录 + 组队"测试需要的最小集(UE 测登录/组队)
+#   # 起全部业务服务
 #   pwsh tools/scripts/dev_all.ps1
 #
-#   # 起完整主链路全部服务
+#   # 起"登录 + 组队"测试需要的最小集(UE 测登录/组队)
+#   pwsh tools/scripts/dev_all.ps1 -Profile login
+#
+#   # 起完整主链路服务(登录→组队→匹配→拉DS→结算)
 #   pwsh tools/scripts/dev_all.ps1 -Profile match
 #
 #   # 排除某个服务(留给 VS Code 断点调试)
@@ -19,7 +22,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('login', 'match', 'all')]
-    [string]$Profile = 'login',
+    [string]$Profile = 'all',
     [string[]]$Exclude = @(),
     [switch]$Pull,
     [switch]$Down
