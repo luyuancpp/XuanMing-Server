@@ -116,6 +116,10 @@ function Get-VersionOutput {
 # ===== 装 winget =====
 function Install-ViaWinget {
     param([string]$pkgId, [switch]$ForceLatest)
+    if (-not (Test-CommandExists "winget")) {
+        Write-Skip "  winget 未安装,跳过"
+        return $false
+    }
     if ($ForceLatest) {
         Write-Info "  尝试 winget install $pkgId --force (强制安装最新)..."
         $null = winget install --id $pkgId --force --silent --accept-source-agreements --accept-package-agreements 2>&1
@@ -130,6 +134,10 @@ function Install-ViaWinget {
 # 返回 $true 表示已装但有更新可拉;$false 表示已是最新(或无法判定时保守视为最新)。
 function Test-WingetUpgradeAvailable {
     param([string]$pkgId)
+    if (-not (Test-CommandExists "winget")) {
+        Write-Skip "  winget 未安装,无法检测升级"
+        return $false
+    }
     $out = winget upgrade --id $pkgId --accept-source-agreements 2>&1 | Out-String
     # winget 在“已是最新/无可用升级”时会输出 No applicable / No available upgrade 等
     if ($out -match "No available upgrade|No applicable update|No newer|已经是最新|无可用升级|无适用的升级") {
