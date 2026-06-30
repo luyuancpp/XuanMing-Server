@@ -6,6 +6,7 @@
 #    服务全在容器里编译运行,宿主无需 go / git)。详见 play.ps1。
 #
 # 安装的工具:
+#   - pwsh      PowerShell 7(程序员必装最新版;已装也强制 winget 升级到最新)
 #   - buf       proto 工具(lint / generate / breaking)
 #   - mkcert    自签 TLS 证书(Envoy / 本地 HTTPS 用)
 #   - grpcurl   gRPC 端到端测试(命令行 grpcurl 调 gRPC 服务)
@@ -21,6 +22,7 @@
 #   pwsh tools/scripts/install_dev_tools.ps1 -Force     # 强制重装(已装的也重装)
 #
 # 工具版本(锁定,跟项目对齐):
+#   pwsh      最新       (PowerShell 7,程序员必装;已装也强制升级到最新)
 #   buf       v1.50.0   (跟 buf.gen.go.yaml 里 plugin 版本兼容)
 #   mkcert    最新       (无版本锁定需求)
 #   grpcurl   v1.9.1     (社区主流稳定版)
@@ -40,6 +42,17 @@ $GRPCURL_VERSION = "v1.9.1"
 
 # ===== 工具元信息 =====
 $Tools = @(
+    @{
+        Name        = "pwsh"
+        Version     = "latest"
+        WingetId    = "Microsoft.PowerShell"
+        ScoopId     = "pwsh"
+        CheckCmd    = "pwsh"
+        CheckArgs   = "--version"
+        VersionPattern = "[0-9]+\.[0-9]+\.[0-9]+"
+        AlwaysLatest = $true   # 即使已装也强制 winget upgrade 到最新版
+        Description = "PowerShell 7(程序员必装最新版,脚本统一入口)"
+    },
     @{
         Name        = "buf"
         Version     = $BUF_VERSION
@@ -85,12 +98,49 @@ function Test-CommandExists {
     return [bool](Get-Command $cmd -ErrorAction SilentlyContinue)
 }
 
+# ===== 获取工具版本输出(stdout + stderr)=====
+function Get-VersionOutput {
+    param(
+        [string]$cmd,
+        [string]$cmdArgs
+    )
+    $oldErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        return (& $cmd $cmdArgs 2>&1 | ForEach-Object { $_.ToString() }) -join "`n"
+    } finally {
+        $ErrorActionPreference = $oldErrorActionPreference
+    }
+}
+
 # ===== 装 winget =====
 function Install-ViaWinget {
-    param([string]$pkgId)
-    Write-Info "  尝试 winget install $pkgId ..."
-    $null = winget install --id $pkgId --silent --accept-source-agreements --accept-package-agreements 2>&1
+    param([string]$pkgId, [switch]$ForceLatest)
+    if ($ForceLatest) {
+        Write-Info "  尝试 winget install $pkgId --force (强制安装最新)..."
+        $null = winget install --id $pkgId --force --silent --accept-source-agreements --accept-package-agreements 2>&1
+    } else {
+        Write-Info "  尝试 winget install $pkgId ..."
+        $null = winget install --id $pkgId --silent --accept-source-agreements --accept-package-agreements 2>&1
+    }
     return ($LASTEXITCODE -eq 0)
+}
+
+# ===== 检测 winget 是否有可用升级 =====
+# 返回 $true 表示已装但有更新可拉;$false 表示已是最新(或无法判定时保守视为最新)。
+function Test-WingetUpgradeAvailable {
+    param([string]$pkgId)
+    $out = winget upgrade --id $pkgId --accept-source-agreements 2>&1 | Out-String
+    # winget 在“已是最新/无可用升级”时会输出 No applicable / No available upgrade 等
+    if ($out -match "No available upgrade|No applicable update|No newer|已经是最新|无可用升级|无适用的升级") {
+        return $false
+    }
+    # 输出里出现该包 id 且有 Available 列说明有更新
+    if ($out -match [regex]::Escape($pkgId)) {
+        return $true
+    }
+    # 拿不准时保守认为已是最新,避免无意义重装
+    return $false
 }
 
 # ===== 装 scoop =====
@@ -132,7 +182,7 @@ foreach ($tool in $Tools) {
     # 1. 检查是否已装
     $installed = Test-CommandExists $tool.CheckCmd
     if ($installed) {
-        $verOutput = & $tool.CheckCmd $tool.CheckArgs 2>&1 | Out-String
+        $verOutput = Get-VersionOutput -cmd $tool.CheckCmd -cmdArgs $tool.CheckArgs
         $verMatch = [regex]::Match($verOutput, $tool.VersionPattern)
         $currentVer = if ($verMatch.Success) { $verMatch.Value } else { "(未知)" }
         Write-Ok "已安装,版本:$currentVer"
@@ -142,11 +192,22 @@ foreach ($tool in $Tools) {
             continue
         }
         if (-not $Force) {
-            $results += [PSCustomObject]@{ Tool=$tool.Name; Status="installed"; Version=$currentVer }
-            Write-Skip "已装且未指定 -Force,跳过"
-            continue
+            if ($tool.AlwaysLatest) {
+                if (Test-WingetUpgradeAvailable -pkgId $tool.WingetId) {
+                    Write-Info "检测到有新版本,准备强制更新到最新..."
+                } else {
+                    $results += [PSCustomObject]@{ Tool=$tool.Name; Status="installed"; Version=$currentVer }
+                    Write-Skip "已是最新版,跳过"
+                    continue
+                }
+            } else {
+                $results += [PSCustomObject]@{ Tool=$tool.Name; Status="installed"; Version=$currentVer }
+                Write-Skip "已装且未指定 -Force,跳过"
+                continue
+            }
+        } else {
+            Write-Warn "已装但 -Force 启用,继续重装"
         }
-        Write-Warn "已装但 -Force 启用,继续重装"
     } else {
         Write-Info "未安装"
         if ($Check) {
@@ -156,7 +217,13 @@ foreach ($tool in $Tools) {
     }
 
     # 2. 装(优先 winget,回退 scoop)
-    $ok = Install-ViaWinget -pkgId $tool.WingetId
+    # AlwaysLatest 工具:直接 winget install --force 强制安装最新;
+    # 该命令本身就会把旧版覆盖更新到最新,无需额外 upgrade。
+    if ($tool.AlwaysLatest) {
+        $ok = Install-ViaWinget -pkgId $tool.WingetId -ForceLatest
+    } else {
+        $ok = Install-ViaWinget -pkgId $tool.WingetId
+    }
     if (-not $ok) {
         Write-Warn "  winget 失败,尝试 scoop..."
         $ok = Install-ViaScoop -pkgId $tool.ScoopId
@@ -169,6 +236,7 @@ foreach ($tool in $Tools) {
         Write-Err "$($tool.Name) 安装失败"
         Write-Host "  请手动安装,参考:" -ForegroundColor Yellow
         switch ($tool.Name) {
+            "pwsh"    { Write-Host "    https://github.com/PowerShell/PowerShell/releases/latest" -ForegroundColor Yellow }
             "buf"     { Write-Host "    https://github.com/bufbuild/buf/releases/tag/$($tool.Version)" -ForegroundColor Yellow }
             "mkcert"  { Write-Host "    https://github.com/FiloSottile/mkcert/releases" -ForegroundColor Yellow }
             "grpcurl" { Write-Host "    https://github.com/fullstorydev/grpcurl/releases/tag/$($tool.Version)" -ForegroundColor Yellow }
@@ -202,6 +270,12 @@ Write-Host " 安装总结" -ForegroundColor Magenta
 Write-Host "======================================" -ForegroundColor Magenta
 
 $results | Format-Table -AutoSize
+
+# 当前会话若仍是 Windows PowerShell,后续建议切到 PowerShell 7
+$pwshInstalled = ($results | Where-Object { $_.Tool -eq "pwsh" -and $_.Status -eq "installed" }).Count -gt 0
+if ($pwshInstalled -and -not $Check -and ($PSVersionTable.PSVersion.Major -lt 7)) {
+    Write-Warn "PowerShell 7 已就绪,但当前仍是 Windows PowerShell。若刚安装 pwsh,请重开终端;后续建议用 'pwsh' 运行脚本。"
+}
 
 $failed = ($results | Where-Object { $_.Status -eq "failed" }).Count
 $missing = ($results | Where-Object { $_.Status -eq "missing" }).Count
