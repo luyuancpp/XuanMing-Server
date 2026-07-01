@@ -24,8 +24,9 @@ type fakeRepo struct {
 	assignments map[uint64]*hubv1.HubAssignmentStorageRecord
 	teamShards  map[uint64]string
 	members     map[string]map[uint64]bool // pod → set(player_id)
+	cooldowns   map[uint64]bool            // player_id → 切线冷却占坑
 
-	// setAssignErr 非 nil 时,SetAssignment 直接返回该错误(测试注入失败用)。
+	// setAssignErr 非 nil 时，SetAssignment 直接返回该错误（测试注入失败用）。
 	setAssignErr error
 }
 
@@ -36,6 +37,7 @@ func newFakeRepo() *fakeRepo {
 		assignments: map[uint64]*hubv1.HubAssignmentStorageRecord{},
 		teamShards:  map[uint64]string{},
 		members:     map[string]map[uint64]bool{},
+		cooldowns:   map[uint64]bool{},
 	}
 }
 
@@ -205,6 +207,26 @@ func (f *fakeRepo) ListShardMembers(_ context.Context, pod string) ([]uint64, er
 		out = append(out, pid)
 	}
 	return out, nil
+}
+
+func (f *fakeRepo) TryTransferCooldown(_ context.Context, playerID uint64, cooldown time.Duration) (bool, error) {
+	if cooldown <= 0 {
+		return true, nil
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.cooldowns[playerID] {
+		return false, nil
+	}
+	f.cooldowns[playerID] = true
+	return true, nil
+}
+
+func (f *fakeRepo) ClearTransferCooldown(_ context.Context, playerID uint64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.cooldowns, playerID)
+	return nil
 }
 
 // playerCount 是测试断言辅助。
@@ -809,5 +831,171 @@ func TestReconcile_ZeroPlayersDrainsEmptySurplusForReclaim(t *testing.T) {
 		if s.DrainingSinceMs == 0 {
 			t.Fatalf("surplus empty shard %s must stamp DrainingSinceMs for reclaim", pod)
 		}
+	}
+}
+
+// ── 玩家侧:线路列表 + 主动切线 ────────────────────────────────────────────────
+
+// fakeLocator 是 data.HubLocationChecker 的测试替身。
+type fakeLocator struct {
+	blocked bool
+	err     error
+}
+
+func (f *fakeLocator) InBattleOrMatching(context.Context, uint64) (bool, error) {
+	return f.blocked, f.err
+}
+
+var _ data.HubLocationChecker = (*fakeLocator)(nil)
+
+// 线路号 = region 内 ready 分片按 shard_id 升序的 1-based 序号;当前线路/满员正确标注。
+func TestListHubLinesForPlayer_OrderAndCurrent(t *testing.T) {
+	uc, repo, _ := newTestUsecase(500, 3)
+	ctx := context.Background()
+
+	// 乱序播三条 ready 线路 + 玩家在 shard 2(满员)。
+	seedShard(repo, "hub-c", 3, 10)
+	seedShard(repo, "hub-a", 1, 5)
+	seedShard(repo, "hub-b", 2, 500)
+	seedPlayer(repo, 1001, "hub-b", 2)
+
+	lines, err := uc.ListHubLinesForPlayer(ctx, 1001, "")
+	if err != nil {
+		t.Fatalf("list err: %v", err)
+	}
+	if len(lines) != 3 {
+		t.Fatalf("want 3 lines, got %d", len(lines))
+	}
+	// 按 shard_id 升序编号:1线→shard1, 2线→shard2, 3线→shard3。
+	for i, wantShard := range []uint32{1, 2, 3} {
+		if lines[i].LineNo != uint32(i+1) || lines[i].ShardID != wantShard {
+			t.Fatalf("line[%d] = {no=%d shard=%d}, want {no=%d shard=%d}",
+				i, lines[i].LineNo, lines[i].ShardID, i+1, wantShard)
+		}
+	}
+	// 玩家在 2线 → is_current;2线 500/500 → is_full。
+	if !lines[1].IsCurrent || !lines[1].IsFull {
+		t.Fatalf("line 2 should be current+full, got current=%v full=%v", lines[1].IsCurrent, lines[1].IsFull)
+	}
+	if lines[0].IsCurrent || lines[2].IsCurrent {
+		t.Fatal("only line 2 should be current")
+	}
+}
+
+func TestTransferToLineForPlayer_Success(t *testing.T) {
+	uc, repo, _ := newTestUsecase(500, 3)
+	ctx := context.Background()
+	seedShard(repo, "hub-a", 1, 1)
+	seedShard(repo, "hub-b", 2, 1)
+	seedPlayer(repo, 1001, "hub-a", 1)
+
+	res, err := uc.TransferToLineForPlayer(ctx, 1001, 2)
+	if err != nil {
+		t.Fatalf("transfer err: %v", err)
+	}
+	if res.NewShardID != 2 || res.LineNo != 2 {
+		t.Fatalf("want shard 2 / line 2, got shard %d / line %d", res.NewShardID, res.LineNo)
+	}
+	if res.NewHubTicket == "" {
+		t.Fatal("want new hub ticket")
+	}
+	a, _, _ := repo.GetAssignment(ctx, 1001)
+	if a.HubPodName != "hub-b" {
+		t.Fatalf("assignment not moved, pod=%s", a.HubPodName)
+	}
+}
+
+func TestTransferToLineForPlayer_Cooldown(t *testing.T) {
+	uc, repo, _ := newTestUsecase(500, 3)
+	ctx := context.Background()
+	seedShard(repo, "hub-a", 1, 1)
+	seedShard(repo, "hub-b", 2, 1)
+	seedPlayer(repo, 1001, "hub-a", 1)
+
+	if _, err := uc.TransferToLineForPlayer(ctx, 1001, 2); err != nil {
+		t.Fatalf("first transfer err: %v", err)
+	}
+	// 冷却窗口内再切(此时在 hub-b,切回 shard 1)应被冷却拒绝。
+	_, err := uc.TransferToLineForPlayer(ctx, 1001, 1)
+	if errcode.As(err) != errcode.ErrHubTransferCooldown {
+		t.Fatalf("want ErrHubTransferCooldown, got %d (err=%v)", errcode.As(err), err)
+	}
+}
+
+func TestTransferToLineForPlayer_LineFull(t *testing.T) {
+	uc, repo, _ := newTestUsecase(500, 3)
+	ctx := context.Background()
+	seedShard(repo, "hub-a", 1, 1)
+	seedShard(repo, "hub-b", 2, 500) // 满
+	seedPlayer(repo, 1001, "hub-a", 1)
+
+	_, err := uc.TransferToLineForPlayer(ctx, 1001, 2)
+	if errcode.As(err) != errcode.ErrHubLineFull {
+		t.Fatalf("want ErrHubLineFull, got %d (err=%v)", errcode.As(err), err)
+	}
+	// 满员失败应释放冷却占坑 → 玩家可立即改切未满线路。
+	seedShard(repo, "hub-c", 3, 1)
+	if _, err := uc.TransferToLineForPlayer(ctx, 1001, 3); err != nil {
+		t.Fatalf("retry after full-rejection should succeed, err: %v", err)
+	}
+}
+
+func TestTransferToLineForPlayer_CurrentFullLineResigns(t *testing.T) {
+	uc, repo, _ := newTestUsecase(500, 3)
+	ctx := context.Background()
+	seedShard(repo, "hub-a", 1, 500) // 当前线路已满,但玩家已经在里面
+	seedPlayer(repo, 1001, "hub-a", 1)
+
+	res, err := uc.TransferToLineForPlayer(ctx, 1001, 1)
+	if err != nil {
+		t.Fatalf("current full line should resign ticket, err: %v", err)
+	}
+	if res.NewShardID != 1 || res.LineNo != 1 || res.NewHubTicket == "" {
+		t.Fatalf("unexpected resign result: shard=%d line=%d ticket_empty=%v",
+			res.NewShardID, res.LineNo, res.NewHubTicket == "")
+	}
+}
+
+func TestTransferToLineForPlayer_NotInHub(t *testing.T) {
+	uc, repo, _ := newTestUsecase(500, 3)
+	ctx := context.Background()
+	seedShard(repo, "hub-a", 1, 1)
+
+	_, err := uc.TransferToLineForPlayer(ctx, 9999, 1)
+	if errcode.As(err) != errcode.ErrHubTransferNotInHub {
+		t.Fatalf("want ErrHubTransferNotInHub, got %d (err=%v)", errcode.As(err), err)
+	}
+}
+
+func TestTransferToLineForPlayer_BattleBlocked(t *testing.T) {
+	uc, repo, _ := newTestUsecase(500, 3)
+	uc.SetLocationChecker(&fakeLocator{blocked: true})
+	ctx := context.Background()
+	seedShard(repo, "hub-a", 1, 1)
+	seedShard(repo, "hub-b", 2, 1)
+	seedPlayer(repo, 1001, "hub-a", 1)
+
+	_, err := uc.TransferToLineForPlayer(ctx, 1001, 2)
+	if errcode.As(err) != errcode.ErrHubTransferNotInHub {
+		t.Fatalf("want ErrHubTransferNotInHub (battle block), got %d (err=%v)", errcode.As(err), err)
+	}
+	// 战斗护栏挡下不占冷却 → 战斗结束后可立即切。
+	uc.SetLocationChecker(&fakeLocator{blocked: false})
+	if _, err := uc.TransferToLineForPlayer(ctx, 1001, 2); err != nil {
+		t.Fatalf("after battle ends transfer should succeed, err: %v", err)
+	}
+}
+
+// locator 抖动(返回 err)不硬阻断大厅切线(弱依赖:放行,不占冷却外的额外风险)。
+func TestTransferToLineForPlayer_LocatorErrorAllows(t *testing.T) {
+	uc, repo, _ := newTestUsecase(500, 3)
+	uc.SetLocationChecker(&fakeLocator{err: errcode.New(errcode.ErrInternal, "locator down")})
+	ctx := context.Background()
+	seedShard(repo, "hub-a", 1, 1)
+	seedShard(repo, "hub-b", 2, 1)
+	seedPlayer(repo, 1001, "hub-a", 1)
+
+	if _, err := uc.TransferToLineForPlayer(ctx, 1001, 2); err != nil {
+		t.Fatalf("locator error should not block hub line switch, err: %v", err)
 	}
 }

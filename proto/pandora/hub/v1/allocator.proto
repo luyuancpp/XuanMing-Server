@@ -21,6 +21,16 @@ service HubAllocatorService {
   rpc TransferHub(TransferHubRequest) returns (TransferHubResponse);
   rpc ListHubs(ListHubsRequest) returns (ListHubsResponse);
    rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);  // Hub DS 每 5s 主动调
+
+  // ===== 玩家侧(经 Envoy :8443 客户端面,jwt_authn 注入 x-pandora-player-id)=====
+  // 这两个方法 player_id 一律取自 JWT sub(服务端从 ctx 读),不信请求体,
+  // 请求里不含 player_id。其余方法是后端内部/DS 调用,不经客户端面路由。
+
+  // ListHubLines 列出玩家当前 region 可切换的大厅线路(客户端可见视图,隐藏 pod 名/内部地址)。
+  rpc ListHubLines(ListHubLinesRequest) returns (ListHubLinesResponse);
+  // TransferToLine 玩家主动切换到指定线路(换实例,AB 互不可见)。带护栏:
+  // 冷却 / 战斗匹配中禁切 / 目标线路满则拒。
+  rpc TransferToLine(TransferToLineRequest) returns (TransferToLineResponse);
 }
 
 message AssignHubRequest {
@@ -54,6 +64,46 @@ message TransferHubResponse {
   pandora.common.v1.ErrCode code = 1;
   string new_hub_ds_addr = 2;
   string new_hub_ticket  = 3;
+}
+
+// ===== 玩家侧线路视图(客户端可见结构,CLAUDE.md §5.14)=====
+
+// HubLine 是客户端可见的大厅线路视图:只给玩家渲染线路列表 + 选择切换所需最小字段,
+// 隐藏 pod 名 / 内部 DS 地址等服务端存储快照(不变量 §14)。
+message HubLine {
+  // line_no: 展示用线路号(1-based,同 region 内按 shard_id 升序稳定编号,即"1线/2线/3线")。
+  uint32 line_no      = 1;
+  // shard_id: 切换选择器(TransferToLineRequest.target_shard_id 回传此值);
+  // 配置/拓扑分片号(uint32,不变量 §12),非 pod 名,可安全外发(HubMigrateEvent 已外发 to_shard_id)。
+  uint32 shard_id     = 2;
+  int32  player_count = 3;   // 当前人数(展示拥挤度)
+  int32  capacity     = 4;   // 人数上限
+  bool   is_full      = 5;   // 已满(不可切入)
+  bool   is_current   = 6;   // 玩家当前所在线路
+}
+
+message ListHubLinesRequest {
+  // region 留空 = 用玩家当前所在线路的 region(服务端权威,不信客户端跨区申报)。
+  string region = 1;
+}
+
+message ListHubLinesResponse {
+  pandora.common.v1.ErrCode code = 1;
+  repeated HubLine lines = 2;
+}
+
+message TransferToLineRequest {
+  // target_shard_id: 从 ListHubLines 拿到的目标线路 shard_id(玩家点的"N 线")。
+  // player_id 不在请求体,取自 JWT sub(服务端从 ctx 读)。
+  uint32 target_shard_id = 1;
+}
+
+message TransferToLineResponse {
+  pandora.common.v1.ErrCode code = 1;
+  string new_hub_ds_addr = 2;   // 新线路 DS 地址(客户端 NetDriver 重连)
+  string new_hub_ticket  = 3;   // 新线路 hub 票据(JWT,5min)
+  uint32 new_shard_id    = 4;
+  uint32 line_no         = 5;   // 新线路展示号
 }
 
 // ===== List =====

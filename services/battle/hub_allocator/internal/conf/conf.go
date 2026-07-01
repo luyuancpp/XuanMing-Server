@@ -193,6 +193,14 @@ type HubConf struct {
 	// ConsolidationBatch 单次 reconcile 每个排空分片最多迁移的玩家数(默认 50,防撑死)。
 	// 超过部分留给下一个 sweep 周期继续排。
 	ConsolidationBatch int `yaml:"consolidation_batch,omitempty" json:"consolidation_batch,omitempty"`
+
+	// TransferCooldown 玩家主动切线冷却(默认 10s,防刷)。
+	// 冷却窗口内再次 TransferToLine 返回 ErrHubTransferCooldown;<=0 视为不限流。
+	TransferCooldown config.Duration `yaml:"transfer_cooldown,omitempty" json:"transfer_cooldown,omitempty"`
+
+	// LocatorAddr player_locator gRPC 地址(玩家切线护栏:战斗/匹配中禁切)。
+	// 弱依赖:留空则跳过位置检查(locator 抖动不硬阻断低危的大厅切线)。
+	LocatorAddr string `yaml:"locator_addr,omitempty" json:"locator_addr,omitempty"`
 }
 
 // Defaults 填默认值。
@@ -253,6 +261,9 @@ func (c *Config) Defaults() {
 	}
 	if c.Hub.ConsolidationBatch == 0 {
 		c.Hub.ConsolidationBatch = 50
+	}
+	if c.Hub.TransferCooldown == 0 {
+		c.Hub.TransferCooldown = config.Duration(10 * time.Second)
 	}
 	if c.Agones.APIServer == "" {
 		c.Agones.APIServer = "https://kubernetes.default.svc"

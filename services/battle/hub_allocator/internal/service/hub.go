@@ -7,12 +7,16 @@
 //
 // 说明:调用方是后端内部(login 调 AssignHub、Hub DS 调 Heartbeat),不是玩家客户端,
 // 因此不从 ctx 取 player_id;player_id 由 login 等上游服务在请求里显式传入。
+//
+// 例外:ListHubLines / TransferToLine 是玩家侧 RPC(经 Envoy :8443 客户端面,
+// jwt_authn 注入 x-pandora-player-id),player_id 一律从 ctx 取(JWT sub 权威),不信请求体。
 package service
 
 import (
 	"context"
 
 	"github.com/luyuancpp/pandora/pkg/errcode"
+	pmw "github.com/luyuancpp/pandora/pkg/middleware"
 	commonv1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/common/v1"
 	hubv1 "github.com/luyuancpp/pandora/proto/gen/go/pandora/hub/v1"
 
@@ -97,6 +101,49 @@ func (s *HubService) Heartbeat(ctx context.Context, req *hubv1.HeartbeatRequest)
 		Code:         commonv1.ErrCode_OK,
 		Command:      res.Command,
 		GraceSeconds: res.GraceSeconds,
+	}, nil
+}
+
+// ListHubLines 列出玩家当前 region 可切换的大厅线路(玩家侧,player_id 取自 JWT sub)。
+func (s *HubService) ListHubLines(ctx context.Context, req *hubv1.ListHubLinesRequest) (*hubv1.ListHubLinesResponse, error) {
+	playerID := pmw.PlayerIDFromContext(ctx)
+	if playerID == 0 {
+		return &hubv1.ListHubLinesResponse{Code: commonv1.ErrCode_ERR_UNAUTHORIZED}, nil
+	}
+	views, err := s.uc.ListHubLinesForPlayer(ctx, playerID, req.GetRegion())
+	if err != nil {
+		return &hubv1.ListHubLinesResponse{Code: toProtoCode(err)}, nil
+	}
+	lines := make([]*hubv1.HubLine, 0, len(views))
+	for _, v := range views {
+		lines = append(lines, &hubv1.HubLine{
+			LineNo:      v.LineNo,
+			ShardId:     v.ShardID,
+			PlayerCount: v.PlayerCount,
+			Capacity:    v.Capacity,
+			IsFull:      v.IsFull,
+			IsCurrent:   v.IsCurrent,
+		})
+	}
+	return &hubv1.ListHubLinesResponse{Code: commonv1.ErrCode_OK, Lines: lines}, nil
+}
+
+// TransferToLine 玩家主动切换到指定线路(换实例,player_id 取自 JWT sub)。
+func (s *HubService) TransferToLine(ctx context.Context, req *hubv1.TransferToLineRequest) (*hubv1.TransferToLineResponse, error) {
+	playerID := pmw.PlayerIDFromContext(ctx)
+	if playerID == 0 {
+		return &hubv1.TransferToLineResponse{Code: commonv1.ErrCode_ERR_UNAUTHORIZED}, nil
+	}
+	res, err := s.uc.TransferToLineForPlayer(ctx, playerID, req.GetTargetShardId())
+	if err != nil {
+		return &hubv1.TransferToLineResponse{Code: toProtoCode(err)}, nil
+	}
+	return &hubv1.TransferToLineResponse{
+		Code:         commonv1.ErrCode_OK,
+		NewHubDsAddr: res.NewHubDSAddr,
+		NewHubTicket: res.NewHubTicket,
+		NewShardId:   res.NewShardID,
+		LineNo:       res.LineNo,
 	}, nil
 }
 

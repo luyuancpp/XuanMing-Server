@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/luyuancpp/pandora/pkg/auth"
+	"github.com/luyuancpp/pandora/pkg/grpcclient"
 	"github.com/luyuancpp/pandora/pkg/kafkax"
 	plog "github.com/luyuancpp/pandora/pkg/log"
 	"github.com/luyuancpp/pandora/pkg/redisx"
@@ -171,6 +172,18 @@ func main() {
 	} else if cfg.Hub.ConsolidationEnabled {
 		helper.Warnw("msg", "kafka_brokers_empty",
 			"hint", "consolidation_enabled 但无 kafka:迁移仅靠 Hub DS drain 心跳兜底,无无缝倒计时推送")
+	}
+
+	// 5.2 player_locator gRPC client → HubLocationChecker(弱依赖:玩家主动切线护栏。
+	// addr 空则跳过战斗/匹配中检查;真正的"一人一 DS"仍由 DS 侧 SetLocation 强制)。
+	if cfg.Hub.LocatorAddr != "" {
+		conn := grpcclient.MustDialInsecure(cfg.Hub.LocatorAddr)
+		defer func() { _ = conn.Close() }()
+		uc.SetLocationChecker(data.NewGrpcHubLocationChecker(conn))
+		helper.Infow("msg", "locator_client_ready", "locator_addr", cfg.Hub.LocatorAddr)
+	} else {
+		helper.Warnw("msg", "locator_addr_empty",
+			"hint", "玩家切线不做战斗/匹配中检查(弱依赖,DS 侧 SetLocation 仍强制一人一 DS)")
 	}
 
 	svc := service.NewHubService(uc)

@@ -87,6 +87,9 @@ enum ErrCode {
   ERR_DS_HEARTBEAT_TIMEOUT     = 5004;
   ERR_HUB_NO_AVAILABLE         = 5101;
   ERR_HUB_TRANSFER_FAILED      = 5102;
+  ERR_HUB_LINE_FULL            = 5103;  // 玩家切线:目标线路已满
+  ERR_HUB_TRANSFER_COOLDOWN    = 5104;  // 玩家切线:冷却中(防刷)
+  ERR_HUB_TRANSFER_NOT_IN_HUB  = 5105;  // 玩家切线:不在大厅(战斗/匹配中禁止切线)
 
   // 6000-6999 battle_result
   ERR_BATTLE_RESULT_DUPLICATE  = 6001;

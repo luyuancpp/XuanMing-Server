@@ -69,6 +69,7 @@ type HubUsecase struct {
 	scaler  HubFleetScaler
 	signer  TicketSigner
 	migrate HubMigratePusher
+	locator data.HubLocationChecker
 	cfg     conf.HubConf
 }
 
@@ -84,9 +85,13 @@ func NewHubUsecase(repo data.HubRepo, fleet HubFleetProvider, signer TicketSigne
 // SetMigratePusher 注入强制整合迁移通知推送器(弱依赖,不改 NewHubUsecase 签名以不破现有测试/调用方)。
 func (u *HubUsecase) SetMigratePusher(p HubMigratePusher) { u.migrate = p }
 
-func (u *HubUsecase) shardTTL() time.Duration  { return u.cfg.ShardTTL.Std() }
-func (u *HubUsecase) assignTTL() time.Duration { return u.cfg.AssignmentTTL.Std() }
-func (u *HubUsecase) retry() int               { return u.cfg.OptimisticRetry }
+// SetLocationChecker 注入 player_locator 位置检查器(弱依赖:玩家切线护栏,nil 时跳过战斗/匹配中检查)。
+func (u *HubUsecase) SetLocationChecker(c data.HubLocationChecker) { u.locator = c }
+
+func (u *HubUsecase) shardTTL() time.Duration         { return u.cfg.ShardTTL.Std() }
+func (u *HubUsecase) assignTTL() time.Duration        { return u.cfg.AssignmentTTL.Std() }
+func (u *HubUsecase) transferCooldown() time.Duration { return u.cfg.TransferCooldown.Std() }
+func (u *HubUsecase) retry() int                      { return u.cfg.OptimisticRetry }
 
 // ── RPC 1:AssignHub ───────────────────────────────────────────────────────────
 
@@ -259,6 +264,168 @@ func (u *HubUsecase) TransferHub(ctx context.Context, playerID uint64, targetHub
 	plog.With(ctx).Infow("msg", "hub_transferred",
 		"player_id", playerID, "from", assignment.HubPodName, "to", target.HubPodName)
 	return u.transferResult(ctx, playerID, target)
+}
+
+// ── 玩家侧:线路列表 + 主动切线 ────────────────────────────────────────────────
+// 经 Envoy :8443 客户端面(jwt_authn 注入 x-pandora-player-id),player_id 取自 JWT sub,
+// 不信请求体。ListHubs/TransferHub 是后端内部/DS 调用,不经客户端面路由。
+
+// HubLineView 是 ListHubLinesForPlayer 的单条出参(service 层转 proto HubLine)。
+type HubLineView struct {
+	LineNo      uint32
+	ShardID     uint32
+	PlayerCount int32
+	Capacity    int32
+	IsFull      bool
+	IsCurrent   bool
+}
+
+// ListHubLinesForPlayer 列出玩家当前 region 可切换的大厅线路(客户端可见视图,隐藏 pod 名)。
+// region 留空 = 用玩家当前归属的 region(服务端权威,忽略客户端申报);
+// 玩家无归属时回退 reqRegion 或默认 region。
+func (u *HubUsecase) ListHubLinesForPlayer(ctx context.Context, playerID uint64, reqRegion string) ([]*HubLineView, error) {
+	if playerID == 0 {
+		return nil, errcode.New(errcode.ErrInvalidArg, "player_id required")
+	}
+	region, curPod := reqRegion, ""
+	if assignment, found, err := u.repo.GetAssignment(ctx, playerID); err != nil {
+		return nil, err
+	} else if found {
+		region = assignment.Region // 归属 region 权威
+		curPod = assignment.HubPodName
+	}
+	if region == "" {
+		region = u.cfg.DefaultRegion
+	}
+	shards, err := u.repo.ListShards(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return buildHubLines(shards, region, curPod), nil
+}
+
+// buildHubLines 把某 region 的 ready 分片按 shard_id 升序编成 1-based 线路视图("1线/2线/…")。
+func buildHubLines(shards []*hubv1.HubShardStorageRecord, region, curPod string) []*HubLineView {
+	ready := make([]*hubv1.HubShardStorageRecord, 0, len(shards))
+	for _, s := range shards {
+		if s.Region == region && s.State == stateReady {
+			ready = append(ready, s)
+		}
+	}
+	sort.Slice(ready, func(i, j int) bool { return ready[i].ShardId < ready[j].ShardId })
+	out := make([]*HubLineView, 0, len(ready))
+	for i, s := range ready {
+		out = append(out, &HubLineView{
+			LineNo:      uint32(i + 1),
+			ShardID:     s.ShardId,
+			PlayerCount: s.PlayerCount,
+			Capacity:    s.Capacity,
+			IsFull:      s.PlayerCount >= s.Capacity,
+			IsCurrent:   curPod != "" && s.HubPodName == curPod,
+		})
+	}
+	return out
+}
+
+// lineNoOfShard 返回某 region 内目标 shard_id 的 1-based 线路号(不在 ready 列表返 0)。
+func lineNoOfShard(shards []*hubv1.HubShardStorageRecord, region string, shardID uint32) uint32 {
+	for _, v := range buildHubLines(shards, region, "") {
+		if v.ShardID == shardID {
+			return v.LineNo
+		}
+	}
+	return 0
+}
+
+// TransferToLineResult 是 TransferToLineForPlayer 的出参。
+type TransferToLineResult struct {
+	NewHubDSAddr string
+	NewHubTicket string
+	NewShardID   uint32
+	LineNo       uint32
+}
+
+// TransferToLineForPlayer 玩家主动切换到指定线路(换实例,AB 互不可见)。护栏:
+//  1. 战斗/匹配中禁切(查 player_locator,弱依赖:locator 不可达时放行低危的大厅切线)
+//  2. 冷却防刷(SET NX EX,窗口内再切拒绝;失败释放占坑让玩家可重试)
+//  3. 目标线路不存在/非本 region → ErrHubTransferFailed;已满 → ErrHubLineFull
+//  4. 复用内部 TransferHub 完成 占新→切归属→退旧→重签票
+func (u *HubUsecase) TransferToLineForPlayer(ctx context.Context, playerID uint64, targetShardID uint32) (*TransferToLineResult, error) {
+	if playerID == 0 {
+		return nil, errcode.New(errcode.ErrInvalidArg, "player_id required")
+	}
+
+	// 护栏 1:战斗/匹配中禁切(弱依赖,locator 不可达仅告警放行)
+	if u.locator != nil {
+		if blocked, err := u.locator.InBattleOrMatching(ctx, playerID); err != nil {
+			plog.With(ctx).Warnw("msg", "transfer_locator_check_failed", "player_id", playerID, "err", err)
+		} else if blocked {
+			return nil, errcode.New(errcode.ErrHubTransferNotInHub,
+				"player %d in battle/matching, cannot switch hub line", playerID)
+		}
+	}
+
+	// 护栏 2:冷却防刷(先占坑;后续失败再释放让玩家可立即重试)
+	ok, err := u.repo.TryTransferCooldown(ctx, playerID, u.transferCooldown())
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, errcode.New(errcode.ErrHubTransferCooldown, "player %d transfer on cooldown", playerID)
+	}
+
+	res, terr := u.transferToLineInner(ctx, playerID, targetShardID)
+	if terr != nil {
+		if cerr := u.repo.ClearTransferCooldown(ctx, playerID); cerr != nil {
+			plog.With(ctx).Warnw("msg", "clear_transfer_cooldown_failed", "player_id", playerID, "err", cerr)
+		}
+		return nil, terr
+	}
+	return res, nil
+}
+
+// transferToLineInner 做目标解析 + 满员判定 + 委托内部 TransferHub。
+func (u *HubUsecase) transferToLineInner(ctx context.Context, playerID uint64, targetShardID uint32) (*TransferToLineResult, error) {
+	assignment, found, err := u.repo.GetAssignment(ctx, playerID)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, errcode.New(errcode.ErrHubTransferNotInHub, "player %d not in any hub", playerID)
+	}
+
+	shards, err := u.repo.ListShards(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// 目标线路必须是本 region 的 ready 分片
+	var target *hubv1.HubShardStorageRecord
+	for _, s := range shards {
+		if s.ShardId == targetShardID && s.Region == assignment.Region && s.State == stateReady {
+			target = s
+			break
+		}
+	}
+	if target == nil {
+		return nil, errcode.New(errcode.ErrHubTransferFailed,
+			"line shard_id=%d not available in region %s", targetShardID, assignment.Region)
+	}
+	// 已满且不是当前线路 → 明确"线路已满"
+	if target.HubPodName != assignment.HubPodName && target.PlayerCount >= target.Capacity {
+		return nil, errcode.New(errcode.ErrHubLineFull, "line shard_id=%d is full", targetShardID)
+	}
+
+	tr, err := u.TransferHub(ctx, playerID, uint64(targetShardID))
+	if err != nil {
+		return nil, err
+	}
+	lineNo := lineNoOfShard(shards, assignment.Region, targetShardID)
+	return &TransferToLineResult{
+		NewHubDSAddr: tr.NewHubDSAddr,
+		NewHubTicket: tr.NewHubTicket,
+		NewShardID:   targetShardID,
+		LineNo:       lineNo,
+	}, nil
 }
 
 // ── RPC 4:ListHubs ────────────────────────────────────────────────────────────
@@ -598,8 +765,10 @@ func selectTransferTarget(shards []*hubv1.HubShardStorageRecord, cur *hubv1.HubA
 		}
 		want := uint32(targetHubID)
 		for _, s := range shards {
-			if s.ShardId == want && s.Region == cur.Region && s.State == stateReady && s.PlayerCount < s.Capacity {
-				return s
+			if s.ShardId == want && s.Region == cur.Region && s.State == stateReady {
+				if s.HubPodName == cur.HubPodName || s.PlayerCount < s.Capacity {
+					return s
+				}
 			}
 		}
 		return nil

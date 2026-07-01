@@ -35,6 +35,12 @@ func shardKey(pod string) string       { return fmt.Sprintf("pandora:hub:shard:{
 func assignKey(playerID uint64) string { return fmt.Sprintf("pandora:hub:player:%d", playerID) }
 func teamKey(teamID uint64) string     { return fmt.Sprintf("pandora:hub:team:%d", teamID) }
 
+// transferCooldownKey 是玩家主动切线冷却占坑键(string,SET NX EX,TTL=cooldown)。
+// 防止玩家高频刷线切换;冷却窗口内再切被拒(ErrHubTransferCooldown)。
+func transferCooldownKey(playerID uint64) string {
+	return fmt.Sprintf("pandora:hub:transfer_cd:%d", playerID)
+}
+
 // membersKey 是分片成员反向索引(SET,成员=player_id 十进制字符串)。
 // hashtag {pod} 与 shardKey 同 slot,强制整合时按分片枚举玩家做服务端权威搬迁。
 // best-effort:漂移不影响正确性(双通道中 Hub DS drain 心跳指令兼底漏听的玩家)。
@@ -81,6 +87,13 @@ type HubRepo interface {
 	RemoveShardMember(ctx context.Context, pod string, playerID uint64) error
 	// ListShardMembers 列出分片成员反向索引中的 player_id(强制整合时遍历待迁玩家)。
 	ListShardMembers(ctx context.Context, pod string) ([]uint64, error)
+
+	// TryTransferCooldown 玩家主动切线防刷占坑(SET NX EX,TTL=cooldown)。
+	// 冷却窗口内首次切线返 (true, nil) 并占坑;窗口内再切返 (false, nil)(应拒绝)。
+	// cooldown<=0 视为不限流,恒返 (true, nil)。
+	TryTransferCooldown(ctx context.Context, playerID uint64, cooldown time.Duration) (bool, error)
+	// ClearTransferCooldown 清除切线冷却占坑(切线失败时释放,让玩家可立即重试)。best-effort。
+	ClearTransferCooldown(ctx context.Context, playerID uint64) error
 }
 
 // ── Redis 实现 ────────────────────────────────────────────────────────────────
@@ -357,6 +370,22 @@ func (r *RedisHubRepo) ListShardMembers(ctx context.Context, pod string) ([]uint
 		out = append(out, pid)
 	}
 	return out, nil
+}
+
+func (r *RedisHubRepo) TryTransferCooldown(ctx context.Context, playerID uint64, cooldown time.Duration) (bool, error) {
+	if cooldown <= 0 {
+		return true, nil // 不限流
+	}
+	// SET key 1 NX EX cooldown:占坑成功=首次切线;已存在=冷却中。
+	ok, err := r.rdb.SetNX(ctx, transferCooldownKey(playerID), "1", cooldown).Result()
+	if err != nil {
+		return false, err
+	}
+	return ok, nil
+}
+
+func (r *RedisHubRepo) ClearTransferCooldown(ctx context.Context, playerID uint64) error {
+	return r.rdb.Del(ctx, transferCooldownKey(playerID)).Err()
 }
 
 // ── 序列化辅助 ────────────────────────────────────────────────────────────────

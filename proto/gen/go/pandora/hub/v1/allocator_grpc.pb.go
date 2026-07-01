@@ -30,11 +30,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	HubAllocatorService_AssignHub_FullMethodName   = "/pandora.hub.v1.HubAllocatorService/AssignHub"
-	HubAllocatorService_ReleaseHub_FullMethodName  = "/pandora.hub.v1.HubAllocatorService/ReleaseHub"
-	HubAllocatorService_TransferHub_FullMethodName = "/pandora.hub.v1.HubAllocatorService/TransferHub"
-	HubAllocatorService_ListHubs_FullMethodName    = "/pandora.hub.v1.HubAllocatorService/ListHubs"
-	HubAllocatorService_Heartbeat_FullMethodName   = "/pandora.hub.v1.HubAllocatorService/Heartbeat"
+	HubAllocatorService_AssignHub_FullMethodName      = "/pandora.hub.v1.HubAllocatorService/AssignHub"
+	HubAllocatorService_ReleaseHub_FullMethodName     = "/pandora.hub.v1.HubAllocatorService/ReleaseHub"
+	HubAllocatorService_TransferHub_FullMethodName    = "/pandora.hub.v1.HubAllocatorService/TransferHub"
+	HubAllocatorService_ListHubs_FullMethodName       = "/pandora.hub.v1.HubAllocatorService/ListHubs"
+	HubAllocatorService_Heartbeat_FullMethodName      = "/pandora.hub.v1.HubAllocatorService/Heartbeat"
+	HubAllocatorService_ListHubLines_FullMethodName   = "/pandora.hub.v1.HubAllocatorService/ListHubLines"
+	HubAllocatorService_TransferToLine_FullMethodName = "/pandora.hub.v1.HubAllocatorService/TransferToLine"
 )
 
 // HubAllocatorServiceClient is the client API for HubAllocatorService service.
@@ -46,6 +48,11 @@ type HubAllocatorServiceClient interface {
 	TransferHub(ctx context.Context, in *TransferHubRequest, opts ...grpc.CallOption) (*TransferHubResponse, error)
 	ListHubs(ctx context.Context, in *ListHubsRequest, opts ...grpc.CallOption) (*ListHubsResponse, error)
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
+	// ListHubLines 列出玩家当前 region 可切换的大厅线路(客户端可见视图,隐藏 pod 名/内部地址)。
+	ListHubLines(ctx context.Context, in *ListHubLinesRequest, opts ...grpc.CallOption) (*ListHubLinesResponse, error)
+	// TransferToLine 玩家主动切换到指定线路(换实例,AB 互不可见)。带护栏:
+	// 冷却 / 战斗匹配中禁切 / 目标线路满则拒。
+	TransferToLine(ctx context.Context, in *TransferToLineRequest, opts ...grpc.CallOption) (*TransferToLineResponse, error)
 }
 
 type hubAllocatorServiceClient struct {
@@ -106,6 +113,26 @@ func (c *hubAllocatorServiceClient) Heartbeat(ctx context.Context, in *Heartbeat
 	return out, nil
 }
 
+func (c *hubAllocatorServiceClient) ListHubLines(ctx context.Context, in *ListHubLinesRequest, opts ...grpc.CallOption) (*ListHubLinesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListHubLinesResponse)
+	err := c.cc.Invoke(ctx, HubAllocatorService_ListHubLines_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hubAllocatorServiceClient) TransferToLine(ctx context.Context, in *TransferToLineRequest, opts ...grpc.CallOption) (*TransferToLineResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TransferToLineResponse)
+	err := c.cc.Invoke(ctx, HubAllocatorService_TransferToLine_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HubAllocatorServiceServer is the server API for HubAllocatorService service.
 // All implementations should embed UnimplementedHubAllocatorServiceServer
 // for forward compatibility.
@@ -115,6 +142,11 @@ type HubAllocatorServiceServer interface {
 	TransferHub(context.Context, *TransferHubRequest) (*TransferHubResponse, error)
 	ListHubs(context.Context, *ListHubsRequest) (*ListHubsResponse, error)
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
+	// ListHubLines 列出玩家当前 region 可切换的大厅线路(客户端可见视图,隐藏 pod 名/内部地址)。
+	ListHubLines(context.Context, *ListHubLinesRequest) (*ListHubLinesResponse, error)
+	// TransferToLine 玩家主动切换到指定线路(换实例,AB 互不可见)。带护栏:
+	// 冷却 / 战斗匹配中禁切 / 目标线路满则拒。
+	TransferToLine(context.Context, *TransferToLineRequest) (*TransferToLineResponse, error)
 }
 
 // UnimplementedHubAllocatorServiceServer should be embedded to have
@@ -138,6 +170,12 @@ func (UnimplementedHubAllocatorServiceServer) ListHubs(context.Context, *ListHub
 }
 func (UnimplementedHubAllocatorServiceServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
+}
+func (UnimplementedHubAllocatorServiceServer) ListHubLines(context.Context, *ListHubLinesRequest) (*ListHubLinesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListHubLines not implemented")
+}
+func (UnimplementedHubAllocatorServiceServer) TransferToLine(context.Context, *TransferToLineRequest) (*TransferToLineResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TransferToLine not implemented")
 }
 func (UnimplementedHubAllocatorServiceServer) testEmbeddedByValue() {}
 
@@ -249,6 +287,42 @@ func _HubAllocatorService_Heartbeat_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HubAllocatorService_ListHubLines_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListHubLinesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HubAllocatorServiceServer).ListHubLines(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HubAllocatorService_ListHubLines_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HubAllocatorServiceServer).ListHubLines(ctx, req.(*ListHubLinesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HubAllocatorService_TransferToLine_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TransferToLineRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HubAllocatorServiceServer).TransferToLine(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HubAllocatorService_TransferToLine_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HubAllocatorServiceServer).TransferToLine(ctx, req.(*TransferToLineRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HubAllocatorService_ServiceDesc is the grpc.ServiceDesc for HubAllocatorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -275,6 +349,14 @@ var HubAllocatorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Heartbeat",
 			Handler:    _HubAllocatorService_Heartbeat_Handler,
+		},
+		{
+			MethodName: "ListHubLines",
+			Handler:    _HubAllocatorService_ListHubLines_Handler,
+		},
+		{
+			MethodName: "TransferToLine",
+			Handler:    _HubAllocatorService_TransferToLine_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

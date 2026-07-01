@@ -88,6 +88,11 @@ hub:
   consolidation_batch: 50
   # optimistic_retry: WATCH/MULTI/EXEC 乐观锁冲突最大重试次数
   optimistic_retry: 3
+  # transfer_cooldown: 玩家主动切线冷却(防刷);窗口内再切返回 ERR_HUB_TRANSFER_COOLDOWN。<=0 不限流
+  transfer_cooldown: "10s"
+  # locator_addr: player_locator gRPC 地址(玩家切线护栏:战斗/匹配中禁切)。
+  # 弱依赖:留空则跳过位置检查。dev 直连 player_locator 服务 gRPC :50006。
+  locator_addr: "127.0.0.1:50006"
   # mock_shard_count: W4 ⑤ MockHubFleetProvider 每 region 种的假分片数
   mock_shard_count: 3
   # mock_hub_addr_host: Mock 分片返回的假 Hub DS host

@@ -179,6 +179,18 @@ static_resources:
                   prefix: "/pandora.leaderboard.v1.LeaderboardService/"
                 requires:
                   provider_name: "pandora_session"
+              # hub_allocator 仅开放「玩家侧」两个精确 method:列线路 + 主动切线(换实例)。
+              # ⚠️ 用 path 精确匹配,绝不能挂整个 /pandora.hub.v1.HubAllocatorService/ 前缀,
+              #    否则会把 AssignHub / ReleaseHub / Heartbeat / TransferHub 等后端内部/DS RPC
+              #    暴露给公网客户端。player_id 由 sub claim 注入 x-pandora-player-id,服务层信 ctx 不信请求体。
+              - match:
+                  path: "/pandora.hub.v1.HubAllocatorService/ListHubLines"
+                requires:
+                  provider_name: "pandora_session"
+              - match:
+                  path: "/pandora.hub.v1.HubAllocatorService/TransferToLine"
+                requires:
+                  provider_name: "pandora_session"
               # 没列到的 path(login.Login / login.VerifyDSTicket / grpc reflection)默认放行。
               # VerifyDSTicket 是 DS → login 的内部调用,不带玩家 JWT;靠 ext_authz 限内网(W3+)。
 
@@ -290,6 +302,21 @@ static_resources:
                   prefix: "/pandora.leaderboard.v1.LeaderboardService/"
                 route:
                   cluster: leaderboard_cluster
+                  timeout: 15s
+                  idle_timeout: 60s
+
+              # ----- hub_allocator 玩家侧(仅两个精确 method:列线路 + 主动切线)-----
+              # ⚠️ 精确 path 路由,绝不路由整个 HubAllocatorService 前缀(内部/DS RPC 不对客户端开放)。
+              - match:
+                  path: "/pandora.hub.v1.HubAllocatorService/ListHubLines"
+                route:
+                  cluster: hub_allocator_cluster
+                  timeout: 15s
+                  idle_timeout: 60s
+              - match:
+                  path: "/pandora.hub.v1.HubAllocatorService/TransferToLine"
+                route:
+                  cluster: hub_allocator_cluster
                   timeout: 15s
                   idle_timeout: 60s
 

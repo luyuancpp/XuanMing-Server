@@ -95,12 +95,15 @@ const (
 
 // ds_allocator / hub_allocator(5000-5999)
 const (
-	ErrDSNoAvailable      Code = 5001
-	ErrDSAllocationFailed Code = 5002
-	ErrDSPodNotFound      Code = 5003
-	ErrDSHeartbeatTimeout Code = 5004
-	ErrHubNoAvailable     Code = 5101
-	ErrHubTransferFailed  Code = 5102
+	ErrDSNoAvailable       Code = 5001
+	ErrDSAllocationFailed  Code = 5002
+	ErrDSPodNotFound       Code = 5003
+	ErrDSHeartbeatTimeout  Code = 5004
+	ErrHubNoAvailable      Code = 5101
+	ErrHubTransferFailed   Code = 5102
+	ErrHubLineFull         Code = 5103 // 玩家切线:目标线路已满
+	ErrHubTransferCooldown Code = 5104 // 玩家切线:冷却中(防刷)
+	ErrHubTransferNotInHub Code = 5105 // 玩家切线:不在大厅(战斗/匹配中禁止切线)
 )
 
 // battle_result(6000-6999)
