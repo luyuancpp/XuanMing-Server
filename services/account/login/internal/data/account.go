@@ -4,9 +4,6 @@
 //   - MySQL: pandora_account.accounts / account_devices / account_bans 三表
 //   - Redis: pandora:sess:<player_id>      (hash, TTL 24h)        session 状态
 //   - Redis: pandora:ticket:<jti>          (string, TTL 5min)     DSTicket 防重放(SETNX)
-//
-// W2 MockAccountRepo 留作旁路:cfg.Node.MySQLClient.DSN 为空时 fallback,
-// 便于不带 mysql 跑 push 联调。
 package data
 
 import (
@@ -20,7 +17,6 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/luyuancpp/pandora/pkg/errcode"
-	plog "github.com/luyuancpp/pandora/pkg/log"
 )
 
 // AccountRepo 是账号数据访问接口。biz 层依赖本接口,而不是具体实现,
@@ -39,47 +35,6 @@ type AccountRepo interface {
 
 	// TouchDevice 记录最近一次登录设备(account_devices upsert)。失败由 biz 层只记日志。
 	TouchDevice(ctx context.Context, playerID uint64, deviceID string) error
-}
-
-// =====================================================================
-// MockAccountRepo:W2 mock 实现(yaml 没配 mysql DSN 时 fallback)。
-// =====================================================================
-
-// MockAccountRepo 固定账号 + 固定 bcrypt 哈希,不接 mysql。
-type MockAccountRepo struct {
-	Account      string
-	PasswordHash string
-	PlayerID     uint64
-}
-
-// NewMockAccountRepo 构造 mock。bcryptHash 必须是 pkg/passwd.Hash 结果(60 字节)。
-//
-// W3 ②:为了跟真实 MySQL 实现行为一致,main 启动时调一次 passwd.Hash(MockPasswordHash) 转换。
-func NewMockAccountRepo(account, bcryptHash string, playerID uint64) *MockAccountRepo {
-	return &MockAccountRepo{
-		Account:      account,
-		PasswordHash: bcryptHash,
-		PlayerID:     playerID,
-	}
-}
-
-func (m *MockAccountRepo) FindByAccount(_ context.Context, account string) (uint64, string, error) {
-	if account != m.Account {
-		return 0, "", errcode.New(errcode.ErrLoginAccountNotFound, "account=%s not found", account)
-	}
-	return m.PlayerID, m.PasswordHash, nil
-}
-
-func (m *MockAccountRepo) CreateAccount(_ context.Context, _ uint64, _, _ string) error {
-	return errcode.New(errcode.ErrAlreadyExists, "mock repo does not support create")
-}
-
-func (m *MockAccountRepo) CheckBanned(_ context.Context, _ uint64, _ string) (bool, error) {
-	return false, nil
-}
-
-func (m *MockAccountRepo) TouchDevice(_ context.Context, _ uint64, _ string) error {
-	return nil
 }
 
 // =====================================================================
@@ -249,42 +204,4 @@ func (r *RedisTicketJTIRepo) MarkUsed(ctx context.Context, jti string, ttl time.
 		return errcode.New(errcode.ErrLoginTicketReplayed, "ticket jti=%s already used", jti)
 	}
 	return nil
-}
-
-// =====================================================================
-// SeedAccount:开发期 mock_account 自动注册(避免每次手动 INSERT)。
-// =====================================================================
-
-// SeedAccount 在 accounts 表里查/建一条种子账号。
-//
-// bcryptHash 必须由调用方用 pkg/passwd.Hash 算好(避免在不同 cost 下产出不同哈希)。
-// 返回 (playerID, created, err):
-//   - 已存在:created=false,playerID=表中现存的
-//   - 新建:created=true,playerID=传入的 fallbackPlayerID
-func SeedAccount(ctx context.Context, db *sql.DB, account, bcryptHash string, fallbackPlayerID uint64) (uint64, bool, error) {
-	repo := &MySQLAccountRepo{db: db}
-
-	// 1. 先查
-	id, _, e := repo.FindByAccount(ctx, account)
-	if e == nil {
-		return id, false, nil
-	}
-	var ce *errcode.Error
-	if !errors.As(e, &ce) || ce.Code != errcode.ErrLoginAccountNotFound {
-		return 0, false, e
-	}
-
-	// 2. 不存在则建
-	if err := repo.CreateAccount(ctx, fallbackPlayerID, account, bcryptHash); err != nil {
-		// 并发种了 → 回查
-		var ce2 *errcode.Error
-		if errors.As(err, &ce2) && ce2.Code == errcode.ErrAlreadyExists {
-			if id2, _, e2 := repo.FindByAccount(ctx, account); e2 == nil {
-				return id2, false, nil
-			}
-		}
-		return 0, false, err
-	}
-	plog.With(ctx).Infow("msg", "seed_account_created", "account", account, "player_id", fallbackPlayerID)
-	return fallbackPlayerID, true, nil
 }

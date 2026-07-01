@@ -8,7 +8,7 @@
 
 - 账号登录 / 登出
 - 颁发 Session Token + Hub DS 票据
-- 验证 DS 票据(W3 接入,本服 W2 mock 返 `ErrCode_ERR_UNKNOWN`)
+- 验证 DS 票据(JWT + Redis JTI 防重放)
 
 ## 端口
 
@@ -28,33 +28,34 @@ internal/
   conf/                       配置结构(嵌入 pkg/config.Base)
   service/                    RPC 入口(实现 loginv1.LoginServiceServer)
   biz/                        usecase(纯业务逻辑,不依赖 grpc/redis)
-  data/                       repository(W2 mock,W3 接 mysql + redis)
+  data/                       repository(MySQL 账号 + Redis session / 票据防重放)
   server/                     grpc / http server 注册
 ```
 
-## W2 mock 行为
+## 当前登录行为
 
 - `Login(account, password_hash, ...)`:
-  - 账号 = `test` 且 password_hash = `abc` → 返 OK + session_token (uuid) + hub_ds_addr = `127.0.0.1:7777`
-  - 否则返 `ErrCode_ERR_LOGIN_ACCOUNT_NOT_FOUND` / `ErrCode_ERR_LOGIN_PASSWORD_MISMATCH`
-- `Logout`:总是返 OK
-- `IssueDSTicket` / `VerifyDSTicket`:返 `ErrCode_ERR_UNKNOWN`(W3 接 JWT + hub_allocator 后真实化)
+  - 默认走 MySQL `pandora_account.accounts` 查询账号,用 bcrypt 校验密码。
+  - `dev_skip_password` / `dev_auto_register` 只供本机联调,见下文。
+  - hub_allocator 可用时返回真实 hub 地址和票据;不可用时回退静态 `mock_hub_ds_addr` + login 自签 hub 票据。
+- `Logout`:删除 Redis session(未启 Redis 时幂等返回)。
+- `IssueDSTicket` / `VerifyDSTicket`:JWT 签发 / 校验,Redis JTI repo 启用时做票据防重放。
 
 ## 本地启动
 
 ```powershell
-# 1. 基础设施(redis 可选,W2 不连也能跑)
+# 1. 基础设施(MySQL / Redis)
 pwsh tools/scripts/dev_up.ps1
 
 # 2. 启 login
-cd F:\work\Pandora
+cd F:\work\XuanMing-Server
 go run ./services/account/login/cmd/login -conf services/account/login/etc/login-dev.yaml
 ```
 
 ## 验证(可选,需装 grpcurl)
 
 ```powershell
-# 直连 gRPC(W2 没经 Envoy)
+# 直连 gRPC
 grpcurl -plaintext -d '{\"account\":\"test\",\"password_hash\":\"abc\",\"device_id\":\"d1\"}' `
   127.0.0.1:50001 pandora.login.v1.LoginService/Login
 
@@ -91,7 +92,7 @@ login:
 ⚠️ **绝不能上生产** —— 否则任意账号名都能登录任意 `player_id`。
 生产环境留 `false`（默认），走正常 bcrypt 校验。
 
-> 注:`mock` 模式（未配 MySQL DSN 时的 fallback）仍是单账号，“任意账号”懒注册只在接了 MySQL 的路径生效。
+> 注:login 当前不再支持未配 MySQL DSN 的内存 mock fallback;DSN 为空会启动失败。
 
 ## 开发期“假注册”开关 `login.dev_auto_register`
 
@@ -118,8 +119,7 @@ login:
 | true | true | 最宽松:任意账号名 + 任意密码都能进 |
 
 ⚠️ **绝不能上生产** —— 生产留 `false`（默认），账号不存在直接返 `ErrLoginAccountNotFound`。
-- [ ] 接 MySQL pandora_account 库(替 MockAccountRepo)
-- [ ] 接 Redis session 缓存
-- [ ] 调 hub_allocator.Assign 拿真实 hub_ds_addr
-- [ ] 实现 JWT 签发(IssueDSTicket)+ 校验(VerifyDSTicket)+ jti 黑名单
+
+## 后续待办
+
 - [ ] 生产 `pandora.login.event` topic(登入登出事件,给风控 / 审计)

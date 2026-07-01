@@ -10,11 +10,11 @@ go 1.26.4
 //   - proto/gen/go/pandora/common/v1 (错误码)
 //   - Kratos v2.9.2 / sarama 1.43.1 / zap 等(由 pkg 间接拉)
 //
-// W2 mock 范围:
-//   - Login / Logout 走 mock(账号 test / password_hash abc 通过,其它拒)
-//   - IssueDSTicket / VerifyDSTicket 返回 ErrUnknown(W3 接 JWT 再实现)
-//   - 不接 MySQL / 不接 Redis(BaseContext 只起 Redis 客户端,失败也不致命)
-//   - 不接 Kafka
+// 当前范围:
+//   - Login / Logout 走 MySQL 账号仓储 + Redis session
+//   - IssueDSTicket / VerifyDSTicket 走 JWT + Redis JTI 防重放
+//   - hub_allocator 不可用时,Login 回退静态 hub 地址 + 自签 hub 票据
+//   - 暂未生产 pandora.login.event
 
 require (
 	github.com/go-kratos/kratos/v2 v2.9.2

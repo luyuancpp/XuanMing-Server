@@ -25,7 +25,7 @@ node:
     db: 0
     dial_timeout: "2s"          # W3 ⑥ 示范:Duration 字符串(此前必须 yaml 留空走 pkg 默认)
   # W3 ② 接 MySQL:dev 连本机 docker mysql 的 pandora_account 库。
-  # DSN 留空 → fallback 到 MockAccountRepo(不接 mysql 也能跑通 login 联调)。
+  # DSN 必填(为空 login 直接退出);dev 免密 / 首登自动注册靠下方两个开关。
   mysql_client:
     dsn: "pandora:pandora_dev_pwd@tcp(127.0.0.1:3307)/pandora_account?parseTime=true&loc=UTC&charset=utf8mb4&collation=utf8mb4_0900_ai_ci"
     max_open_conns: 32
@@ -56,8 +56,6 @@ login:
   session_token_ttl: "24h"      # W3 ⑥ 示范:此前靠 Defaults() 填,现可直写
   ds_ticket_ttl: "5m"           # 不变量 §3:DS 票据短时效
   mock_hub_ds_addr: "127.0.0.1:7777"
-  mock_account: "test"
-  mock_password_hash: "abc"
 
   # 开发期免密登录(⚠️ 仅本机 / 联调,严禁上生产):
   #   true  → 跳过密码校验;账号不存在时自动懒注册,返回稳定 player_id

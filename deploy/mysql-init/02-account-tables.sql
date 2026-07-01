@@ -52,5 +52,5 @@ CREATE TABLE IF NOT EXISTS `account_bans` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   COMMENT='Pandora 账号 / 设备 封禁记录';
 
--- 注:开发期 test 账号不在此 init.sql 写入(bcrypt cost 不固定,且需要应用层 hash)。
--- 由 login 服务启动后,根据 etc/login-dev.yaml 的 mock_account 自动 seed 一条。
+-- 注:开发期账号不在此 init.sql 写入(bcrypt cost 不固定,且需要应用层 hash)。
+-- login 开 dev_skip_password / dev_auto_register 时,客户端首次登录即自动懒注册账号。

@@ -11,9 +11,9 @@
 // 信号处理:Kratos App 默认监听 SIGINT/SIGTERM,优雅 stop server。
 //
 // W3 ②(2026-06-05):
-//   - cfg.Node.MySQLClient.DSN 非空时,接 MySQL(NewMySQLAccountRepo + SeedAccount 种 dev 账号)
+//   - cfg.Node.MySQLClient.DSN 接 MySQL(NewMySQLAccountRepo)；DSN 为空致命退出
 //   - cfg.Node.RedisClient.Host 非空时,接 Redis(NewRedisSessionRepo + NewRedisTicketJTIRepo)
-//   - 任一为空 → fallback 到 MockAccountRepo / 无 SessionRepo / 无 jtiRepo
+//   - dev 免密 / 首登自动注册由 dev_skip_password / dev_auto_register 开关控制
 package main
 
 import (
@@ -35,7 +35,6 @@ import (
 	"github.com/luyuancpp/pandora/pkg/grpcclient"
 	plog "github.com/luyuancpp/pandora/pkg/log"
 	"github.com/luyuancpp/pandora/pkg/mysqlx"
-	"github.com/luyuancpp/pandora/pkg/passwd"
 	"github.com/luyuancpp/pandora/pkg/redisx"
 	"github.com/luyuancpp/pandora/pkg/snowflake"
 
@@ -106,7 +105,7 @@ func main() {
 	}
 
 	// 5. data 层装配
-	accountRepo, mode, db := mustBuildAccountRepo(&cfg, helper, sf)
+	accountRepo, mode, db := mustBuildAccountRepo(&cfg, helper)
 	defer func() {
 		if db != nil {
 			_ = db.Close()
@@ -192,44 +191,19 @@ func main() {
 	}
 }
 
-// mustBuildAccountRepo 按 cfg 决定 MySQL or Mock,失败 panic。
-// 返回 (repo, "mysql"|"mock", *sql.DB nullable)。
-func mustBuildAccountRepo(cfg *conf.Config, h kratosHelper, sf *snowflake.Node) (data.AccountRepo, string, sqlDBLike) {
+// mustBuildAccountRepo 连 MySQL 构造账号仓储,失败致命退出。
+// 返回 (repo, "mysql", *sql.DB)。dev 免密 / 首登自动注册由 biz 层的
+// dev_skip_password / dev_auto_register 负责,不再种子固定 mock 账号。
+func mustBuildAccountRepo(cfg *conf.Config, h kratosHelper) (data.AccountRepo, string, sqlDBLike) {
 	if cfg.Node.MySQLClient.DSN == "" {
-		// fallback mock
-		mockPlayerID := sf.Generate()
-		bcryptHash, err := passwd.Hash(cfg.Login.MockPasswordHash, passwd.DevCost)
-		if err != nil {
-			h.Errorw("msg", "mock_hash_failed", "err", err)
-			os.Exit(1)
-		}
-		h.Infow("msg", "account_repo_mock", "account", cfg.Login.MockAccount, "player_id", mockPlayerID)
-		return data.NewMockAccountRepo(cfg.Login.MockAccount, bcryptHash, mockPlayerID), "mock", nil
+		h.Errorw("msg", "mysql_dsn_required", "hint", "set node.mysql_client.dsn to pandora_account DSN")
+		os.Exit(1)
 	}
 
 	db, err := mysqlx.NewClient(cfg.Node.MySQLClient)
 	if err != nil {
 		h.Errorw("msg", "mysql_init_failed", "err", err, "dsn_masked", maskDSN(cfg.Node.MySQLClient.DSN))
 		os.Exit(1)
-	}
-
-	// W3 ②:dev 模式如果配了 mock_account,自动种子(便于不手 INSERT 就能联调)
-	if cfg.Login.MockAccount != "" && cfg.Login.MockPasswordHash != "" {
-		bcryptHash, herr := passwd.Hash(cfg.Login.MockPasswordHash, passwd.DevCost)
-		if herr != nil {
-			h.Errorw("msg", "seed_hash_failed", "err", herr)
-			os.Exit(1)
-		}
-		seedID := sf.Generate()
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		realID, created, serr := data.SeedAccount(ctx, db, cfg.Login.MockAccount, bcryptHash, seedID)
-		cancel()
-		if serr != nil {
-			h.Errorw("msg", "seed_account_failed", "err", serr)
-			os.Exit(1)
-		}
-		h.Infow("msg", "account_seed_done",
-			"account", cfg.Login.MockAccount, "player_id", realID, "created", created)
 	}
 
 	h.Infow("msg", "account_repo_mysql", "dsn_masked", maskDSN(cfg.Node.MySQLClient.DSN))

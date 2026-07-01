@@ -27,20 +27,15 @@ type Config struct {
 
 // LoginConf 是 login 服务私有配置。
 type LoginConf struct {
-	// SessionTokenTTL session_token 的有效期(写到 redis,W2 mock 暂不用;W3 ① 用作 JWT exp)。
+	// SessionTokenTTL session_token 的有效期(写到 Redis,也用作 JWT exp)。
 	SessionTokenTTL config.Duration `yaml:"session_token_ttl,omitempty" json:"session_token_ttl,omitempty"`
 
 	// DSTicketTTL DS 票据有效期(JWT exp - issued_at)。
 	// 不变量 §3:DS 票据短时效。默认 5 分钟。
 	DSTicketTTL config.Duration `yaml:"ds_ticket_ttl,omitempty" json:"ds_ticket_ttl,omitempty"`
 
-	// MockHubDSAddr W2 mock 阶段直接返给客户端的 hub DS 地址。
-	// W3 改成调 hub_allocator.Assign 拿真实地址。
+	// MockHubDSAddr 是 hub_allocator 不可用时的本地回退 hub DS 地址。
 	MockHubDSAddr string `yaml:"mock_hub_ds_addr,omitempty" json:"mock_hub_ds_addr,omitempty"`
-
-	// MockAccount / MockPasswordHash W2 mock 允许通过的固定账号(便于联调)。
-	MockAccount      string `yaml:"mock_account,omitempty" json:"mock_account,omitempty"`
-	MockPasswordHash string `yaml:"mock_password_hash,omitempty" json:"mock_password_hash,omitempty"`
 
 	// DevSkipPassword 开发期免密登录开关(默认 false)。
 	//
@@ -106,7 +101,7 @@ type JWTConf struct {
 	DSTicketTTL config.Duration `yaml:"ds_ticket_ttl,omitempty" json:"ds_ticket_ttl,omitempty"`
 }
 
-// Defaults 把零值填成 Pandora 标准默认值(W2 mock 阶段用)。
+// Defaults 把零值填成 Pandora 标准默认值。
 func (c *Config) Defaults() {
 	if c.Login.SessionTokenTTL == 0 {
 		c.Login.SessionTokenTTL = config.Duration(24 * time.Hour)
@@ -116,12 +111,6 @@ func (c *Config) Defaults() {
 	}
 	if c.Login.MockHubDSAddr == "" {
 		c.Login.MockHubDSAddr = "127.0.0.1:7777"
-	}
-	if c.Login.MockAccount == "" {
-		c.Login.MockAccount = "test"
-	}
-	if c.Login.MockPasswordHash == "" {
-		c.Login.MockPasswordHash = "abc"
 	}
 	// JWT(W3 ① 默认)
 	if c.Login.JWT.Issuer == "" {
