@@ -76,9 +76,10 @@ pwsh tools/scripts/play.ps1 -Battle -OpenClient
 > (本机 Agones)或 `local`(宿主直接 exec Windows DS)。`k8s` 模式起完后再跑
 > `pwsh tools/scripts/e2e_k8s.ps1`(load DS 镜像 + 起宿主 Envoy 桥接 + 等 Fleet + UDP 中继),
 > 详见 `deploy/k8s/agones/README.md`。
-> `local` 模式依赖 cook 好的 WindowsServer staged 包。先用 F 盘源码工程跑
-> `pwsh tools/scripts/build_windows_server_ds.ps1`,并让 allocator 配置指向
-> `F:\work\PandoraDSArchive\WindowsServerLocal\Pandora\Binaries\Win64\PandoraServer.exe`;
+> `local` 模式依赖 cook 好的 WindowsServer staged 包。先在本后端仓库根目录运行
+> `pwsh tools/scripts/build_windows_server_ds.ps1`；如 UE 工程不在脚本默认路径,用 `-Project`
+> 指向实际的 `Pandora.uproject`,并让 allocator 配置指向
+> `F:\work\Pandora-Client-SVN\Packages\Server_Win64_Development\WindowsServer\PandoraServer.exe`;
 > 不能使用 `Pandora\Binaries\Win64` 下的裸 server 二进制,否则 DS 加载资产会崩。
 > 本地 dev 的 DS 面 Envoy `:8444` 是明文 grpc-web,local DS env 里 `PANDORA_DS_ALLOCATOR_TLS`
 > 应保持 `0`。
