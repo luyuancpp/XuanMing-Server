@@ -35,6 +35,11 @@ type Config struct {
 	Allocator AllocatorConf `yaml:"allocator" json:"allocator"`
 	Agones    AgonesConf    `yaml:"agones" json:"agones"`
 	LocalDS   LocalDSConf   `yaml:"local_ds" json:"local_ds"`
+
+	// LocatorAddr player_locator gRPC 地址(断线重连:心跳时续期玩家 BATTLE 位置 TTL,
+	// docs/design/battle-reconnect.md §2.2)。留空 → 不续期(弱依赖,不影响心跳/对局,
+	// 但长对局中途掉线重登可能因位置 TTL 过期无法直连回原 battle DS,退化为回大厅)。
+	LocatorAddr string `yaml:"locator_addr,omitempty" json:"locator_addr,omitempty"`
 }
 
 // LocalDSConf 是「本机拉起 Windows Dedicated Server 进程」的调试后端配置。

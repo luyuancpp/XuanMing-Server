@@ -75,8 +75,43 @@ func (f *fakeHubAssigner) AssignHub(_ context.Context, playerID uint64, region s
 	return f.res, nil
 }
 
+// fakeNotifier 实现 data.LocationNotifier(断线重连测试用)。
+type fakeNotifier struct {
+	bl            data.BattleLocation
+	blErr         error
+	loginPendingN int
+
+	// failFirst:前 failFirst 次 GetBattleLocation 返回 blErr(模拟 locator 瞬时抖动),
+	// 之后返回 bl(验证有界重试能把可恢复失败救回来)。0 表示行为由 blErr 恒定决定。
+	failFirst int
+	getN      int // GetBattleLocation 被调用次数
+}
+
+func (f *fakeNotifier) NotifyLoginPending(_ context.Context, _ uint64, _ string) error {
+	f.loginPendingN++
+	return nil
+}
+
+func (f *fakeNotifier) GetBattleLocation(_ context.Context, _ uint64) (data.BattleLocation, error) {
+	f.getN++
+	if f.getN <= f.failFirst {
+		err := f.blErr
+		if err == nil {
+			err = errcode.New(errcode.ErrInternal, "transient locator blip")
+		}
+		return data.BattleLocation{}, err
+	}
+	return f.bl, f.blErr
+}
+
 // newTestUsecase 构造一个登录用例(密码 bcrypt 校验在 biz 之外,这里直接给明文等值匹配)。
 func newTestUsecase(t *testing.T, hub data.HubAssigner) *LoginUsecase {
+	t.Helper()
+	return newTestUsecaseWithNotifier(t, hub, nil)
+}
+
+// newTestUsecaseWithNotifier 同 newTestUsecase,但可注入 locator notifier(断线重连测试用)。
+func newTestUsecaseWithNotifier(t *testing.T, hub data.HubAssigner, notifier data.LocationNotifier) *LoginUsecase {
 	t.Helper()
 	cfg := auth.Config{Secret: []byte(testSecret)}
 	signer, err := auth.NewSigner(cfg)
@@ -91,7 +126,7 @@ func newTestUsecase(t *testing.T, hub data.HubAssigner) *LoginUsecase {
 	hash := mustBcrypt(t, "pw")
 	repo := &fakeAccountRepo{playerID: 42, passwordHash: hash}
 	sf := snowflake.NewNode(1)
-	return NewLoginUsecase(repo, fakeSessionRepo{}, nil, hub, sf, "127.0.0.1:7777", "cn", signer, verifier, false, false)
+	return NewLoginUsecase(repo, fakeSessionRepo{}, notifier, hub, sf, "127.0.0.1:7777", "cn", signer, verifier, false, false)
 }
 
 func TestLogin_HubAssignerSuccess(t *testing.T) {
@@ -443,5 +478,110 @@ func TestLogin_DevAutoRegister_FirstLoginRegisters(t *testing.T) {
 		t.Errorf("wrong password should be rejected when only auto_register is on")
 	} else if errcode.As(err) != errcode.ErrLoginPasswordMismatch {
 		t.Errorf("err code = %d, want ErrLoginPasswordMismatch(%d)", errcode.As(err), errcode.ErrLoginPasswordMismatch)
+	}
+}
+
+// ---- 断线重连(docs/design/battle-reconnect.md)----
+
+// TestLogin_BattleReconnect_ReturnsBattleAndSkipsHub 验证:玩家在 battle DS 中掉线重登时,
+// Login 直接下发 battle DS 直连信息(battle_ds_addr/battle_ticket/match_id),且:
+//   - 跳过 hub 分配(hub 字段为空);
+//   - 跳过 NotifyLoginPending(不顶掉 BATTLE 位置);
+//   - battle 票据可被 verifier 验通过,类型=battle、绑定正确 player_id/match_id。
+func TestLogin_BattleReconnect_ReturnsBattleAndSkipsHub(t *testing.T) {
+	notifier := &fakeNotifier{bl: data.BattleLocation{InBattle: true, MatchID: 9001, BattleAddr: "10.1.2.3:7000"}}
+	// hub 传 nil:命中重连时根本不该走 hub 分配,自签回退也不该发生(battle 分支提前 return)。
+	uc := newTestUsecaseWithNotifier(t, nil, notifier)
+
+	res, err := uc.Login(context.Background(), "acc", "pw", "dev-1")
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	if res.BattleDSAddr != "10.1.2.3:7000" {
+		t.Errorf("BattleDSAddr = %q, want battle ds addr", res.BattleDSAddr)
+	}
+	if res.MatchID != 9001 {
+		t.Errorf("MatchID = %d, want 9001", res.MatchID)
+	}
+	if res.HubDSAddr != "" || res.HubTicket != "" {
+		t.Errorf("battle reconnect should skip hub, got addr=%q ticket_len=%d", res.HubDSAddr, len(res.HubTicket))
+	}
+	if notifier.loginPendingN != 0 {
+		t.Errorf("battle reconnect should skip NotifyLoginPending, got %d calls", notifier.loginPendingN)
+	}
+	claims, verr := uc.verifier.VerifyDSTicket(res.BattleTicket)
+	if verr != nil {
+		t.Fatalf("battle reconnect ticket not verifiable: %v", verr)
+	}
+	if claims.DSType != string(auth.DSTypeBattle) || claims.PlayerID() != 42 || claims.MatchID != 9001 {
+		t.Errorf("battle ticket claims = (ds=%s pid=%d match=%d), want (battle,42,9001)",
+			claims.DSType, claims.PlayerID(), claims.MatchID)
+	}
+}
+
+// TestLogin_BattleReconnect_NotInBattleFallsToHub 验证:玩家不在战斗中时,走正常 hub 流程,
+// battle 字段为空,且 NotifyLoginPending 被调用。
+func TestLogin_BattleReconnect_NotInBattleFallsToHub(t *testing.T) {
+	notifier := &fakeNotifier{bl: data.BattleLocation{InBattle: false}}
+	uc := newTestUsecaseWithNotifier(t, nil, notifier) // hub=nil → 自签回退
+
+	res, err := uc.Login(context.Background(), "acc", "pw", "dev-1")
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	if res.BattleDSAddr != "" || res.MatchID != 0 {
+		t.Errorf("not-in-battle should not set battle fields, got addr=%q match=%d", res.BattleDSAddr, res.MatchID)
+	}
+	if res.HubDSAddr == "" || res.HubTicket == "" {
+		t.Errorf("not-in-battle should go hub, got addr=%q ticket_len=%d", res.HubDSAddr, len(res.HubTicket))
+	}
+	if notifier.loginPendingN != 1 {
+		t.Errorf("normal login should NotifyLoginPending once, got %d", notifier.loginPendingN)
+	}
+}
+
+// TestLogin_BattleReconnect_QueryErrorFallsToHub 验证:locator 查询失败(弱依赖)不阻断登录,
+// 降级走正常 hub 流程。
+func TestLogin_BattleReconnect_QueryErrorFallsToHub(t *testing.T) {
+	notifier := &fakeNotifier{blErr: errcode.New(errcode.ErrInternal, "locator down")}
+	uc := newTestUsecaseWithNotifier(t, nil, notifier)
+
+	res, err := uc.Login(context.Background(), "acc", "pw", "dev-1")
+	if err != nil {
+		t.Fatalf("Login should not fail when locator query errors: %v", err)
+	}
+	if res.BattleDSAddr != "" {
+		t.Errorf("query error should not set battle fields, got addr=%q", res.BattleDSAddr)
+	}
+	if res.HubDSAddr == "" {
+		t.Errorf("query error should fall back to hub, got empty hub addr")
+	}
+}
+
+// TestLogin_BattleReconnect_TransientErrorRetriesThenReconnects 验证:locator 瞬时抖动(前几次
+// 查询失败)时,有界重试能把可恢复失败救回来——只要重试内拿到 InBattle,仍然跳去 battle 重连,
+// 不会因为"第一次没查着"就把战斗中的玩家误送进 hub(docs/design/battle-reconnect.md §2.3)。
+func TestLogin_BattleReconnect_TransientErrorRetriesThenReconnects(t *testing.T) {
+	notifier := &fakeNotifier{
+		bl:        data.BattleLocation{InBattle: true, MatchID: 9001, BattleAddr: "10.1.2.3:7000"},
+		failFirst: 2, // 前两次查询抖动失败,第三次成功返回 InBattle
+	}
+	uc := newTestUsecaseWithNotifier(t, nil, notifier)
+
+	res, err := uc.Login(context.Background(), "acc", "pw", "dev-1")
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	if res.BattleDSAddr != "10.1.2.3:7000" || res.MatchID != 9001 {
+		t.Errorf("transient blip should still reconnect to battle, got addr=%q match=%d", res.BattleDSAddr, res.MatchID)
+	}
+	if res.HubDSAddr != "" {
+		t.Errorf("recovered reconnect should skip hub, got hub addr=%q", res.HubDSAddr)
+	}
+	if notifier.getN != 3 {
+		t.Errorf("GetBattleLocation called %d times, want 3 (2 fail + 1 success)", notifier.getN)
+	}
+	if notifier.loginPendingN != 0 {
+		t.Errorf("battle reconnect should skip NotifyLoginPending, got %d", notifier.loginPendingN)
 	}
 }

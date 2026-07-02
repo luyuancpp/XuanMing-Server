@@ -26,6 +26,7 @@ import (
 	"github.com/go-kratos/kratos/v2/config/file"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/luyuancpp/pandora/pkg/grpcclient"
 	"github.com/luyuancpp/pandora/pkg/kafkax"
 	plog "github.com/luyuancpp/pandora/pkg/log"
 	"github.com/luyuancpp/pandora/pkg/redisx"
@@ -147,6 +148,18 @@ func main() {
 		}
 	} else {
 		helper.Warnw("msg", "kafka_brokers_empty", "hint", "ds.lifecycle abandoned 事件禁用")
+	}
+
+	// 4.2 player_locator 客户端(弱依赖:心跳时续期玩家 BATTLE 位置 TTL,支持断线重连直连回原
+	// battle DS,docs/design/battle-reconnect.md §2.2)。locator_addr 留空 → 不续期,不影响对局。
+	if cfg.LocatorAddr != "" {
+		conn := grpcclient.MustDialInsecure(cfg.LocatorAddr)
+		defer func() { _ = conn.Close() }()
+		uc.SetLocationRefresher(data.NewGrpcLocationRefresher(conn))
+		helper.Infow("msg", "locator_client_ready", "locator_addr", cfg.LocatorAddr)
+	} else {
+		helper.Warnw("msg", "locator_addr_empty",
+			"hint", "BATTLE 位置不续期,长对局中途掉线重登可能退化为回大厅(仍可回大厅,不阻断)")
 	}
 
 	svc := service.NewAllocatorService(uc)

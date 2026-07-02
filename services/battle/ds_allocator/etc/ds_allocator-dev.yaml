@@ -47,6 +47,10 @@ kafka:
   group_id: "pandora-ds-allocator"
   partition_cnt: 4
 
+# player_locator gRPC 地址(断线重连:心跳时续期玩家 BATTLE 位置 TTL,docs/design/battle-reconnect.md §2.2)。
+# 留空 → 不续期(弱依赖,不影响心跳/对局,但长对局中途掉线重登可能退化为回大厅)。
+locator_addr: "127.0.0.1:50006"
+
 allocator:
   # heartbeat_timeout: DS 心跳超时阈值(不变量 §4),超过没收到 Heartbeat → abandoned
   heartbeat_timeout: "15s"

@@ -18,6 +18,10 @@
 //	战斗、回到大厅时上报 HUB,须携带该玩家刚结束那场战斗的 match_id(从 battle DSTicket 取得)。
 //	守卫在 cur.State==BATTLE 时:仅当 HUB 报文 match_id == cur.MatchID(且 != 0)才放行
 //	(合法回流);match_id 不匹配 / 为 0 = 不知道 active BATTLE 的 stale hub DS,拒 ErrLocatorConflict。
+//	BATTLE fence 加固(2026-07-02,docs/design/battle-reconnect.md §5):原守卫只拦 HUB 上报,
+//	使得 login 断线重登降级写的 LOGIN_PENDING 能无条件顶掉 active BATTLE → matchmaker 误判
+//	空闲 → 一人两处(破 §1)。现改为:cur.State==BATTLE 时只接受对局写(BATTLE 同 match
+//	续期/推进、MATCHING 下一局撮合、带令牌 HUB 回流),其余写(LOGIN_PENDING 等裸登录)一律拒 ErrLocatorConflict。
 package biz
 
 import (
@@ -169,37 +173,57 @@ func (u *LocatorUsecase) SetLocation(ctx context.Context, in LocationInput) erro
 
 // guardTransition 返回 SetGuarded 的状态机守卫闭包,实现不变量 §1。
 //
-// 守卫只针对 HUB 上报(唯一来自数据面 hub DS、可能 stale 的写):
-//   - 当前是 MATCHING 时拒绝 HUB 上报 → ErrLocatorConflict。
-//     玩家在撮合确认期物理上仍连着 hub DS,hub DS 会持续上报 HUB,
-//     若放行会把 matchmaker 刚写的 MATCHING 顶掉,使其他服务误判玩家仍在大厅闲逛。
+// 守卫只在当前状态是 MATCHING / BATTLE(对局相关、需保护的状态)时介入:
 //
-// 控制面写(LOGIN_PENDING / MATCHING / BATTLE 来自 login / matchmaker)一律放行(顶号语义)。
+// 当前 MATCHING(撮合确认期):
+//   - 拒 HUB 上报 → ErrLocatorConflict。玩家在确认期物理上仍连 hub DS,hub DS 会持续上报 HUB,
+//     若放行会顶掉 matchmaker 刚写的 MATCHING。其余写放行(顶号语义)。
 //
-// BATTLE fence(W4 ⑪):BATTLE→HUB 不再无条件放行。hub DS 回流上报须携带玩家刚结束
-// 那场战斗的 match_id(fence 令牌):
-//   - in.MatchID == cur.MatchID(且 != 0):该 hub DS 知道这局已结束 → 合法回流,放行。
-//   - in.MatchID 不匹配 / 为 0:不知道 active BATTLE 的 stale hub DS → 拒 ErrLocatorConflict,
-//     防它把玩家从战斗 DS 顶回大厅。
+// 当前 BATTLE(active 战斗,docs/design/battle-reconnect.md §5):只接受两类写,其余一律拒:
+//   - BATTLE 且 match_id 相同:同局心跳续期 / 推进 → 放行。
+//   - MATCHING:对局生命周期控制面写(下一局撮合决策)→ 放行。
+//   - HUB 带正确 match_id 令牌(== cur.MatchID 且 != 0):玩家打完回大厅的合法回流(W4⑪)→ 放行。
+//   - 其余写(LOGIN_PENDING 裸登录/断线重登降级、无令牌 HUB)→ 拒 ErrLocatorConflict。
+//     否则客户端反复重登会把 BATTLE 冲成 LOGIN_PENDING,形成抖动窗口,matchmaker 读到
+//     误判空闲 → 一人两处(破 §1)。一次裸登录本就不该有权终止一场进行中的战斗。
+//
+// 控制面写(LOGIN_PENDING / MATCHING / BATTLE 来自 login / matchmaker)在 cur 非 MATCHING/BATTLE 时一律放行。
 func guardTransition(in LocationInput) func(cur data.LocationRecord, found bool) error {
 	return func(cur data.LocationRecord, found bool) error {
 		if !found {
 			return nil
 		}
-		// 只守卫 HUB 上报(数据面、可能 stale);控制面写一律顶号放行。
-		if in.State != LocationStateHub {
-			return nil
-		}
 		switch cur.State {
 		case LocationStateMatching:
-			return errcode.New(errcode.ErrLocatorConflict,
-				"player %d in MATCHING(match_id=%d), reject stale HUB report pod=%s",
-				in.PlayerID, cur.MatchID, in.HubPod)
-		case LocationStateBattle:
-			if in.MatchID == 0 || in.MatchID != cur.MatchID {
+			// 撮合确认期只拦可能 stale 的 hub DS 上报。
+			if in.State == LocationStateHub {
 				return errcode.New(errcode.ErrLocatorConflict,
-					"player %d in BATTLE(match_id=%d), reject stale HUB report pod=%s fence_match_id=%d",
-					in.PlayerID, cur.MatchID, in.HubPod, in.MatchID)
+					"player %d in MATCHING(match_id=%d), reject stale HUB report pod=%s",
+					in.PlayerID, cur.MatchID, in.HubPod)
+			}
+		case LocationStateBattle:
+			switch in.State {
+			case LocationStateBattle:
+				// 同局心跳续期放行;不同 match_id 视为迟到旧写入。
+				if in.MatchID != cur.MatchID {
+					return errcode.New(errcode.ErrLocatorConflict,
+						"player %d in BATTLE(match_id=%d), reject BATTLE write for different match_id=%d",
+						in.PlayerID, cur.MatchID, in.MatchID)
+				}
+			case LocationStateMatching:
+				// matchmaker 控制面写下一局撮合,放行。
+			case LocationStateHub:
+				// hub 回流必须带当前战斗的 match_id 令牌。
+				if in.MatchID == 0 || in.MatchID != cur.MatchID {
+					return errcode.New(errcode.ErrLocatorConflict,
+						"player %d in BATTLE(match_id=%d), reject stale HUB report pod=%s fence_match_id=%d",
+						in.PlayerID, cur.MatchID, in.HubPod, in.MatchID)
+				}
+			default:
+				// LOGIN_PENDING 等裸写无对局上下文,不得顶掉 active BATTLE。
+				return errcode.New(errcode.ErrLocatorConflict,
+					"player %d in BATTLE(match_id=%d), reject non-battle write state=%d (bare login/reconnect cannot evict active battle)",
+					in.PlayerID, cur.MatchID, in.State)
 			}
 		}
 		return nil

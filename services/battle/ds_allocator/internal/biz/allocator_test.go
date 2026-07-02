@@ -595,3 +595,75 @@ func TestSweepReliableCompensation_KeepsTTLOnFailure(t *testing.T) {
 		t.Fatalf("pod released %d times, want exactly 1 (no re-release during retry)", alloc.releases)
 	}
 }
+
+// ---- 断线重连:心跳续期 BATTLE 位置(docs/design/battle-reconnect.md)----
+
+type refreshCall struct {
+	players []uint64
+	matchID uint64
+	dsAddr  string
+}
+
+// fakeRefresher 记录 RefreshBattleLocations 调用(异步续期,用带缓冲 channel 接收)。
+type fakeRefresher struct {
+	calls chan refreshCall
+}
+
+func newFakeRefresher() *fakeRefresher { return &fakeRefresher{calls: make(chan refreshCall, 8)} }
+
+func (f *fakeRefresher) RefreshBattleLocations(_ context.Context, players []uint64, matchID uint64, dsAddr string) error {
+	cp := append([]uint64(nil), players...)
+	f.calls <- refreshCall{players: cp, matchID: matchID, dsAddr: dsAddr}
+	return nil
+}
+
+// TestHeartbeatRefreshesBattleLocation 验证:running 心跳后异步给在场玩家续期 BATTLE 位置,
+// 携带正确的 match_id / ds_addr / 玩家列表(让登录侧能在整局内识别重连)。
+func TestHeartbeatRefreshesBattleLocation(t *testing.T) {
+	ctx := context.Background()
+	uc, repo, _ := newUsecaseWithAlloc(t, NewMockGameServerAllocator(testCfg()))
+	matchID := uint64(555)
+	players := []uint64{1, 2, 3}
+	res := allocateReady(t, uc, repo, matchID, players, 10, "5v5_ranked")
+
+	fr := newFakeRefresher()
+	uc.SetLocationRefresher(fr)
+
+	b, found, err := repo.GetBattle(ctx, matchID)
+	if err != nil || !found {
+		t.Fatalf("get battle: err=%v found=%v", err, found)
+	}
+	if _, err := uc.Heartbeat(ctx, matchID, b.DsPodName, int32(len(players)), "running", time.Now().UnixMilli()); err != nil {
+		t.Fatalf("heartbeat: %v", err)
+	}
+
+	select {
+	case c := <-fr.calls:
+		if c.matchID != matchID {
+			t.Errorf("refresh matchID = %d, want %d", c.matchID, matchID)
+		}
+		if c.dsAddr != res.DSAddr {
+			t.Errorf("refresh dsAddr = %q, want %q", c.dsAddr, res.DSAddr)
+		}
+		if len(c.players) != len(players) {
+			t.Errorf("refresh players = %v, want %v", c.players, players)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("running heartbeat did not trigger battle location refresh")
+	}
+}
+
+// TestHeartbeatNoRefreshWhenNilRefresher 验证:未注入 refresher(dev / 未配 locator_addr)时,
+// running 心跳不 panic、正常返回(弱依赖降级)。
+func TestHeartbeatNoRefreshWhenNilRefresher(t *testing.T) {
+	ctx := context.Background()
+	uc, repo, _ := newUsecaseWithAlloc(t, NewMockGameServerAllocator(testCfg()))
+	matchID := uint64(556)
+	players := []uint64{1, 2}
+	allocateReady(t, uc, repo, matchID, players, 10, "5v5_ranked") // 未 SetLocationRefresher
+
+	b, _, _ := repo.GetBattle(ctx, matchID)
+	if _, err := uc.Heartbeat(ctx, matchID, b.DsPodName, int32(len(players)), "running", time.Now().UnixMilli()); err != nil {
+		t.Fatalf("heartbeat with nil refresher should not fail: %v", err)
+	}
+}

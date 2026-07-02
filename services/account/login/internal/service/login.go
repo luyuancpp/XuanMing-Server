@@ -55,6 +55,11 @@ func (s *LoginService) Login(ctx context.Context, req *loginv1.LoginRequest) (*l
 		HubTicket:    res.HubTicket,
 		RegionId:     res.RegionID,
 		CellId:       res.CellID,
+		// 断线重连(docs/design/battle-reconnect.md):命中时非空,客户端直连 battle DS 重连;
+		// 未命中时为空(零值),客户端走 hub_ds_addr / hub_ticket 进大厅。
+		BattleDsAddr: res.BattleDSAddr,
+		BattleTicket: res.BattleTicket,
+		MatchId:      res.MatchID,
 	}, nil
 }
 

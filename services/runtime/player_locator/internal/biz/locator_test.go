@@ -283,12 +283,17 @@ func TestGuard_ControlPlaneAlwaysWins(t *testing.T) {
 		t.Errorf("state should be BATTLE, got %d", out.State)
 	}
 
-	// 新登录 LOGIN_PENDING 顶号(覆盖 BATTLE)
-	if err := uc.SetLocation(ctx, LocationInput{PlayerID: 1, State: LocationStateLoginPending}); err != nil {
-		t.Fatalf("LOGIN_PENDING 顶号 should pass, got %v", err)
+	// BATTLE fence 加固(§5):LOGIN_PENDING(裸登录 / 断线重登降级)不得顶掉 active BATTLE,
+	// 否则客户端反复重登会把玩家冲出战斗 → 一人两处。断言:被拒 + BATTLE 存活。
+	err := uc.SetLocation(ctx, LocationInput{PlayerID: 1, State: LocationStateLoginPending})
+	if err == nil {
+		t.Fatal("expected ErrLocatorConflict: LOGIN_PENDING must not evict active BATTLE, got nil")
 	}
-	if out, _ := uc.GetLocation(ctx, 1); out.State != LocationStateLoginPending {
-		t.Errorf("state should be LOGIN_PENDING, got %d", out.State)
+	if got := errcode.As(err); got != errcode.ErrLocatorConflict {
+		t.Errorf("expected ErrLocatorConflict(9202), got %d", got)
+	}
+	if out, _ := uc.GetLocation(ctx, 1); out.State != LocationStateBattle || out.MatchID != 7 {
+		t.Errorf("BATTLE(match_id=7) should survive LOGIN_PENDING, got state=%d match_id=%d", out.State, out.MatchID)
 	}
 }
 
@@ -410,5 +415,139 @@ func TestFence_WrongMatchHubRejectedDuringBattle(t *testing.T) {
 	out, _ := uc.GetLocation(ctx, 202)
 	if out.State != LocationStateBattle || out.MatchID != 5 {
 		t.Errorf("BATTLE(match_id=5) should survive wrong-token HUB, got state=%d match_id=%d", out.State, out.MatchID)
+	}
+}
+
+// --- BATTLE fence 加固(2026-07-02,docs/design/battle-reconnect.md §5)---
+// 严重 bug 修复:原守卫只拦 HUB 上报,LOGIN_PENDING(裸登录 / 断线重登降级)能无条件顶掉
+// active BATTLE → matchmaker 误判空闲 → 一人两处(破 §1)。
+
+// TestFence_LoginPendingRejectedDuringBattle:玩家在 BATTLE,login 断线重登降级写 LOGIN_PENDING
+// → 被拒,BATTLE 存活。客户端反复重登也不会把玩家顶出战斗。
+func TestFence_LoginPendingRejectedDuringBattle(t *testing.T) {
+	repo := newStubRepo()
+	uc := NewLocatorUsecase(repo, 30*time.Second)
+	ctx := context.Background()
+
+	if err := uc.SetLocation(ctx, LocationInput{
+		PlayerID: 300, State: LocationStateBattle, MatchID: 5, BattlePod: "bp-5",
+	}); err != nil {
+		t.Fatalf("set BATTLE failed: %v", err)
+	}
+
+	// 模拟客户端猛重登:多次 LOGIN_PENDING 都应被拒,BATTLE 每次都存活。
+	for i := 0; i < 5; i++ {
+		err := uc.SetLocation(ctx, LocationInput{PlayerID: 300, State: LocationStateLoginPending})
+		if err == nil {
+			t.Fatalf("attempt %d: expected ErrLocatorConflict for LOGIN_PENDING during BATTLE, got nil", i)
+		}
+		if got := errcode.As(err); got != errcode.ErrLocatorConflict {
+			t.Errorf("attempt %d: expected ErrLocatorConflict(9202), got %d", i, got)
+		}
+		out, _ := uc.GetLocation(ctx, 300)
+		if out.State != LocationStateBattle || out.MatchID != 5 || out.BattlePod != "bp-5" {
+			t.Fatalf("attempt %d: BATTLE(match_id=5,bp-5) must survive, got state=%d match_id=%d pod=%q",
+				i, out.State, out.MatchID, out.BattlePod)
+		}
+	}
+}
+
+// TestFence_BattleHeartbeatRefreshAllowed:ds_allocator 心跳续期(BATTLE→BATTLE 同 match)
+// 在 active BATTLE 下放行,是位置续期(battle-reconnect §2.2)的前提。
+func TestFence_BattleHeartbeatRefreshAllowed(t *testing.T) {
+	repo := newStubRepo()
+	uc := NewLocatorUsecase(repo, 30*time.Second)
+	ctx := context.Background()
+
+	if err := uc.SetLocation(ctx, LocationInput{
+		PlayerID: 301, State: LocationStateBattle, MatchID: 5, BattlePod: "bp-5",
+	}); err != nil {
+		t.Fatalf("set BATTLE failed: %v", err)
+	}
+	// 心跳再次写 BATTLE(同 match,续 TTL / 可换 battle_pod 地址)
+	if err := uc.SetLocation(ctx, LocationInput{
+		PlayerID: 301, State: LocationStateBattle, MatchID: 5, BattlePod: "bp-5b",
+	}); err != nil {
+		t.Fatalf("BATTLE heartbeat refresh should pass, got %v", err)
+	}
+	if out, _ := uc.GetLocation(ctx, 301); out.State != LocationStateBattle || out.BattlePod != "bp-5b" {
+		t.Errorf("state should be BATTLE(bp-5b), got state=%d pod=%q", out.State, out.BattlePod)
+	}
+}
+
+// TestFence_BattleHeartbeatDifferentMatchRejected:旧对局 / 旧 allocator 的迟到心跳不得把
+// 当前 active BATTLE 覆盖成另一个 match_id。
+func TestFence_BattleHeartbeatDifferentMatchRejected(t *testing.T) {
+	repo := newStubRepo()
+	uc := NewLocatorUsecase(repo, 30*time.Second)
+	ctx := context.Background()
+
+	if err := uc.SetLocation(ctx, LocationInput{
+		PlayerID: 303, State: LocationStateBattle, MatchID: 5, BattlePod: "bp-5",
+	}); err != nil {
+		t.Fatalf("set BATTLE failed: %v", err)
+	}
+	err := uc.SetLocation(ctx, LocationInput{
+		PlayerID: 303, State: LocationStateBattle, MatchID: 6, BattlePod: "bp-6",
+	})
+	if err == nil {
+		t.Fatal("expected ErrLocatorConflict for different-match BATTLE write, got nil")
+	}
+	if got := errcode.As(err); got != errcode.ErrLocatorConflict {
+		t.Errorf("expected ErrLocatorConflict(9202), got %d", got)
+	}
+	if out, _ := uc.GetLocation(ctx, 303); out.State != LocationStateBattle || out.MatchID != 5 || out.BattlePod != "bp-5" {
+		t.Errorf("BATTLE(match_id=5,bp-5) should survive, got state=%d match_id=%d pod=%q",
+			out.State, out.MatchID, out.BattlePod)
+	}
+}
+
+// TestFence_MatchingAllowedDuringBattle:BATTLE 结束后紧接下一局撮合,matchmaker 写 MATCHING
+// 在 active BATTLE 下放行(对局生命周期控制面写不被 fence 拦)。
+func TestFence_MatchingAllowedDuringBattle(t *testing.T) {
+	repo := newStubRepo()
+	uc := NewLocatorUsecase(repo, 30*time.Second)
+	ctx := context.Background()
+
+	if err := uc.SetLocation(ctx, LocationInput{
+		PlayerID: 302, State: LocationStateBattle, MatchID: 5, BattlePod: "bp-5",
+	}); err != nil {
+		t.Fatalf("set BATTLE failed: %v", err)
+	}
+	if err := uc.SetLocation(ctx, LocationInput{PlayerID: 302, State: LocationStateMatching, MatchID: 8}); err != nil {
+		t.Fatalf("MATCHING during BATTLE should pass (control-plane), got %v", err)
+	}
+	if out, _ := uc.GetLocation(ctx, 302); out.State != LocationStateMatching || out.MatchID != 8 {
+		t.Errorf("state should be MATCHING(match_id=8), got state=%d match_id=%d", out.State, out.MatchID)
+	}
+}
+
+// TestFence_LoginPendingAllowedWhenNotBattle:未在战斗时(OFFLINE/HUB/MATCHING),LOGIN_PENDING
+// 顶号放行——fence 只保护 active BATTLE,不误伤正常登录。
+func TestFence_LoginPendingAllowedWhenNotBattle(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name string
+		seed *LocationInput
+	}{
+		{"from offline", nil},
+		{"from hub", &LocationInput{PlayerID: 1, State: LocationStateHub, HubPod: "hub-a"}},
+		{"from matching", &LocationInput{PlayerID: 1, State: LocationStateMatching, MatchID: 7}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			uc := NewLocatorUsecase(newStubRepo(), 30*time.Second)
+			if c.seed != nil {
+				if err := uc.SetLocation(ctx, *c.seed); err != nil {
+					t.Fatalf("seed failed: %v", err)
+				}
+			}
+			if err := uc.SetLocation(ctx, LocationInput{PlayerID: 1, State: LocationStateLoginPending}); err != nil {
+				t.Fatalf("LOGIN_PENDING should pass from %s, got %v", c.name, err)
+			}
+			if out, _ := uc.GetLocation(ctx, 1); out.State != LocationStateLoginPending {
+				t.Errorf("state should be LOGIN_PENDING, got %d", out.State)
+			}
+		})
 	}
 }

@@ -40,6 +40,14 @@ type LoginResult struct {
 	HubTicket      string // hub DS JWT(W3 ①)
 	HubTicketExpMs int64
 
+	// 断线重连(docs/design/battle-reconnect.md §2.1):玩家在 battle DS 掉线重登时,
+	// login 查 player_locator 发现其处于 BATTLE 态,直接下发原对局 battle DS 直连信息。
+	// 三字段"要么全空、要么全填":非空时客户端直连 battle DS 重连;为空则走 hub 进大厅。
+	BattleDSAddr      string
+	BattleTicket      string // battle DS JWT(新 jti)
+	BattleTicketExpMs int64
+	MatchID           uint64 // 重连对局 ID(Snowflake uint64)
+
 	// RegionID / CellID 是玩家的确定性路由落点(docs/design/scale-cellular-20m.md §3.2/§4.2)。
 	// 由 cellroute.Router 按 player_id 算出;未配 Router(单 Cell / dev)时为 0。
 	// 客户端 / 边缘网关据此连到正确 Region 的正确 Cell 接入入口。
@@ -181,6 +189,17 @@ func (u *LoginUsecase) Login(ctx context.Context, account, passwordHash, deviceI
 	// router 为 nil(单 Cell / dev)或 Route 报错 → 降级 0/0(同单 Cell 行为),不阻断登录。
 	regionID, cellID := u.routeRegionCell(ctx, playerID)
 
+	// 断线重连(docs/design/battle-reconnect.md §2.1):玩家在 battle DS 中掉线重登时,
+	// 查 player_locator 若发现其仍处于 BATTLE 态,直接下发原对局的 battle DS 直连信息,
+	// 而非把玩家丢回大厅。命中重连时:跳过 hub 分配 + 跳过 NotifyLoginPending
+	// (避免把 BATTLE 位置顶成 LOGIN_PENDING / HUB,把玩家从战斗里拉出来)。
+	// 弱依赖:locator 不可用 / 签票失败 → 只 Warn 并降级走正常 hub 流程,绝不阻断登录。
+	if u.notifier != nil {
+		if res := u.tryBattleReconnect(ctx, playerID, deviceID, sessionToken, sessExpMs, regionID, cellID); res != nil {
+			return res, nil
+		}
+	}
+
 	// 解析 hub 分片 + hub 票据(W4 ⑥):
 	// hub_allocator 是 hub 票据权威,优先调 AssignHub 拿真实地址 + 票据;
 	// 未配 / 调用失败 → 回退自签票据(盖 region/cell 戳) + 静态 hubDSAddr(弱依赖,不阻断登录)。
@@ -218,6 +237,97 @@ func (u *LoginUsecase) Login(ctx context.Context, account, passwordHash, deviceI
 		RegionID:       regionID,
 		CellID:         cellID,
 	}, nil
+}
+
+// battleLocationQueryRetries / battleLocationQueryBackoff:BATTLE 位置查询的有界重试
+// (docs/design/battle-reconnect.md §2.3)。locator 是核心弱依赖,偶发抖动/超时不该让
+// "正在战斗的玩家"被误判成"不在战斗"从而错进大厅——重试把可恢复失败救回来,拿到
+// InBattle 就照常跳回 battle。仅当重试全失败(locator 真的挂了)才降级走 hub,残余情况
+// 由 hub 入口对账兜底(§2.3)。重试只发生在错误路径(罕见),不加正常登录延迟。
+const (
+	battleLocationQueryRetries = 3
+	battleLocationQueryBackoff = 50 * time.Millisecond
+)
+
+// queryBattleLocation 查玩家 BATTLE 位置,对可恢复的查询失败做有界重试(§2.3)。
+// 重试期间 ctx 被取消则立刻返回;重试全失败返回最后一次错误,由调用方降级走 hub。
+func (u *LoginUsecase) queryBattleLocation(ctx context.Context, playerID uint64) (data.BattleLocation, error) {
+	h := plog.With(ctx)
+	var lastErr error
+	for attempt := 0; attempt < battleLocationQueryRetries; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return data.BattleLocation{}, ctx.Err()
+			case <-time.After(battleLocationQueryBackoff):
+			}
+		}
+		bl, err := u.notifier.GetBattleLocation(ctx, playerID)
+		if err == nil {
+			return bl, nil
+		}
+		lastErr = err
+		h.Warnw("msg", "battle_location_query_retry", "err", err,
+			"player_id", playerID, "attempt", attempt+1, "max", battleLocationQueryRetries)
+	}
+	return data.BattleLocation{}, lastErr
+}
+
+// tryBattleReconnect 检测玩家是否在 battle DS 中掉线,是则组装"直连 battle DS 重连"的
+// LoginResult(docs/design/battle-reconnect.md §2.1)。返回 nil 表示未命中重连 → 调用方继续
+// 走正常 hub 登录流程。
+//
+// 弱依赖:任何一步失败(locator 查询失败 / 玩家不在战斗 / 签 battle 票失败)都返回 nil 降级,
+// 绝不阻断登录。查询失败已在 queryBattleLocation 做有界重试(§2.3),重试全挂才降级——此时
+// "战斗中却误进 hub" 的残余风险由 hub 入口对账兜底(见设计文档 §2.3)。命中重连时:
+//   - 用 login 自己的 signer 现签一张新 jti 的 battle 票(sub=playerID,盖 region/cell 落点);
+//   - best-effort 记录登录设备;
+//   - 不调 NotifyLoginPending / 不分配 hub(避免顶掉 BATTLE 位置把玩家拉出战斗)。
+func (u *LoginUsecase) tryBattleReconnect(
+	ctx context.Context, playerID uint64, deviceID, sessionToken string, sessExpMs int64, regionID, cellID uint32,
+) *LoginResult {
+	h := plog.With(ctx)
+
+	bl, err := u.queryBattleLocation(ctx, playerID)
+	if err != nil {
+		// 重试仍失败:locator 不可用,无法确认玩家是否在战斗 → 降级走 hub(不阻断登录),
+		// "战斗中误进 hub" 的兜底交给 hub 入口对账(§2.3)。
+		h.Warnw("msg", "battle_location_query_failed", "err", err, "player_id", playerID)
+		return nil
+	}
+	if !bl.InBattle {
+		return nil
+	}
+
+	battleTicket, battleExpMs, terr := u.signer.SignDSTicketWithCell(
+		playerID, auth.DSTypeBattle, bl.MatchID, regionID, cellID, uuid.NewString())
+	if terr != nil {
+		// 签票失败 → 降级走正常 hub 流程(玩家至少能回大厅,不卡登录)。
+		h.Errorw("msg", "sign_battle_reconnect_ticket_failed", "err", terr,
+			"player_id", playerID, "match_id", bl.MatchID)
+		return nil
+	}
+
+	// 记录最近登录设备(失败不阻塞登录,只日志告警)。
+	if err := u.repo.TouchDevice(ctx, playerID, deviceID); err != nil {
+		h.Warnw("msg", "touch_device_failed", "err", err, "player_id", playerID, "device_id", deviceID)
+	}
+
+	h.Infow("msg", "login_battle_reconnect", "player_id", playerID, "device_id", deviceID,
+		"match_id", bl.MatchID, "battle_ds_addr", bl.BattleAddr,
+		"battle_ticket_exp_ms", battleExpMs, "region_id", regionID, "cell_id", cellID)
+
+	return &LoginResult{
+		PlayerID:          playerID,
+		SessionToken:      sessionToken,
+		SessionExpMs:      sessExpMs,
+		BattleDSAddr:      bl.BattleAddr,
+		BattleTicket:      battleTicket,
+		BattleTicketExpMs: battleExpMs,
+		MatchID:           bl.MatchID,
+		RegionID:          regionID,
+		CellID:            cellID,
+	}
 }
 
 // ensureAccount 在开发期假注册 / 免密模式下为不存在的账号首登注册一条记录,返回稳定 player_id。

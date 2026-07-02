@@ -21,10 +21,22 @@ import (
 	"github.com/luyuancpp/pandora/pkg/errcode"
 )
 
-// LocationNotifier 给 login.biz 上报玩家"登录中"状态。
+// BattleLocation 是玩家当前 BATTLE 位置的最小快照(断线重连检测用,
+// docs/design/battle-reconnect.md §2.1)。仅当玩家确实处于 BATTLE 态且 match_id /
+// battle 地址齐全时 InBattle=true;其余情况(离线 / 大厅 / 撮合中 / locator 不可用)均为 false。
+type BattleLocation struct {
+	InBattle   bool
+	MatchID    uint64
+	BattleAddr string // battle DS 直连地址(locator 的 battle_pod 存的就是 ds_addr)
+}
+
+// LocationNotifier 给 login.biz 上报玩家"登录中"状态 + 查询玩家当前是否在战斗中。
 // addr 未配 → main 注入 nil,biz 检查 nil 直接跳过。
 type LocationNotifier interface {
 	NotifyLoginPending(ctx context.Context, playerID uint64, deviceID string) error
+	// GetBattleLocation 查玩家当前是否在 battle DS 中(断线重连检测)。
+	// 弱依赖:locator 不可用 / 玩家不在战斗 → 返回 InBattle=false(绝不阻断登录)。
+	GetBattleLocation(ctx context.Context, playerID uint64) (BattleLocation, error)
 }
 
 // GrpcLocationNotifier 实现 LocationNotifier,内嵌 grpc client。
@@ -63,4 +75,29 @@ func (n *GrpcLocationNotifier) NotifyLoginPending(ctx context.Context, playerID 
 	}
 	_ = deviceID // 当前 LOGIN_PENDING 状态不需要 device_id,保留参数便于以后扩展
 	return nil
+}
+
+// GetBattleLocation 调 PlayerLocatorService.GetLocation,判断玩家是否正处于 battle DS 中。
+//
+// 断线重连(docs/design/battle-reconnect.md §2.1):玩家在 battle DS 掉线重登时,login 据此
+// 直接下发原对局的 battle DS 直连信息,而非把玩家丢回大厅。
+// 只有 state==BATTLE 且 match_id!=0 且 battle_pod!="" 才认定"在战斗中";其余一律 InBattle=false。
+func (n *GrpcLocationNotifier) GetBattleLocation(ctx context.Context, playerID uint64) (BattleLocation, error) {
+	resp, err := n.client.GetLocation(ctx, &locatorv1.GetLocationRequest{PlayerId: playerID})
+	if err != nil {
+		return BattleLocation{}, errcode.New(errcode.ErrInternal, "locator GetLocation rpc: %v", err)
+	}
+	if resp.GetCode() != commonv1.ErrCode_OK {
+		return BattleLocation{}, errcode.New(errcode.Code(resp.GetCode()), "locator GetLocation code=%d", resp.GetCode())
+	}
+	loc := resp.GetLocation()
+	if loc.GetState() != locatorv1.LocationState_LOCATION_STATE_BATTLE ||
+		loc.GetMatchId() == 0 || loc.GetBattlePod() == "" {
+		return BattleLocation{}, nil
+	}
+	return BattleLocation{
+		InBattle:   true,
+		MatchID:    loc.GetMatchId(),
+		BattleAddr: loc.GetBattlePod(),
+	}, nil
 }

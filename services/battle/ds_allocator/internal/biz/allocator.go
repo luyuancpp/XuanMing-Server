@@ -69,6 +69,10 @@ var readyPollInterval = 1 * time.Second
 // 失败,留下 warming 镜像 + 已分配 pod 泄漏;故清理用一个与入站 ctx 解耦的短超时 ctx。
 const detachedCleanupTimeout = 5 * time.Second
 
+// locationRefreshTimeout 是心跳后异步续期玩家 BATTLE 位置的独立 ctx 预算(断线重连,弱依赖)。
+// 短超时防 locator 卡死时后台续期 goroutine 泄漏。
+const locationRefreshTimeout = 3 * time.Second
+
 // DSLifecyclePusher 发 pandora.ds.lifecycle 事件(W4 ③,2026-06-06)。
 //
 // 心跳超时标记 abandoned 后,由它把 DSLifecycleEvent{phase=ABANDONED} 发给 battle_result
@@ -81,12 +85,25 @@ type DSLifecyclePusher interface {
 	PublishLifecycle(ctx context.Context, evt *dsv1.DSLifecycleEvent) error
 }
 
+// LocationRefresher 续期玩家 BATTLE 位置 TTL(断线重连,docs/design/battle-reconnect.md §2.2)。
+//
+// 心跳成功且对局处于 ready/running 时,ds_allocator 用它把该对局玩家的位置刷新为 BATTLE
+// (同 match_id 续期,BATTLE→BATTLE),使玩家整局在线期间 login 都能检测到"在战斗中",
+// 从而支持中途掉线重登直连回原 battle DS。
+//
+// 由 player_locator gRPC 客户端实现;可为 nil(未配 locator_addr → 不续期,弱依赖,
+// 不影响心跳 / 对局,仅长对局中途重登可能因位置过期退化为回大厅)。
+type LocationRefresher interface {
+	RefreshBattleLocations(ctx context.Context, playerIDs []uint64, matchID uint64, dsAddr string) error
+}
+
 // AllocatorUsecase 是 ds_allocator 业务逻辑核心。
 type AllocatorUsecase struct {
 	repo      data.BattleRepo
 	alloc     GameServerAllocator
 	cfg       conf.AllocatorConf
 	lifecycle DSLifecyclePusher // 可为 nil(kafka 不可用时静默不发 abandoned 事件)
+	locator   LocationRefresher // 可为 nil(未配 locator_addr 时不续期 BATTLE 位置)
 }
 
 // NewAllocatorUsecase 构造 AllocatorUsecase。
@@ -96,6 +113,9 @@ func NewAllocatorUsecase(repo data.BattleRepo, alloc GameServerAllocator, cfg co
 
 // SetLifecyclePusher 注入 ds.lifecycle 事件发送器(main 在 kafka 就绪时调用,弱依赖)。
 func (u *AllocatorUsecase) SetLifecyclePusher(p DSLifecyclePusher) { u.lifecycle = p }
+
+// SetLocationRefresher 注入 BATTLE 位置续期器(main 在 locator_addr 已配时调用,弱依赖)。
+func (u *AllocatorUsecase) SetLocationRefresher(r LocationRefresher) { u.locator = r }
 
 func (u *AllocatorUsecase) battleTTL() time.Duration { return u.cfg.BattleTTL.Std() }
 
@@ -305,6 +325,11 @@ func (u *AllocatorUsecase) Heartbeat(ctx context.Context, matchID uint64, podNam
 	now := time.Now().UnixMilli()
 
 	var becameReady bool
+	// 断线重连(docs/design/battle-reconnect.md §2.2):捕获对局在 ready/running 时的玩家名单 +
+	// ds_addr,心跳成功后续期这些玩家的 BATTLE 位置 TTL。回调可能因 CAS 冲突重跑,故每轮重置。
+	var refreshActive bool
+	var refreshAddr string
+	var refreshPlayers []uint64
 	err := u.repo.UpdateBattleWithLock(ctx, matchID, updateMaxRetry, func(b *dsv1.BattleStorageRecord) error {
 		// 已是终态(ended/abandoned):中止写回(哨兵错误),不刷新 TTL/active,令 DS 停机
 		if b.State == stateEnded || b.State == stateAbandoned {
@@ -324,6 +349,12 @@ func (u *AllocatorUsecase) Heartbeat(ctx context.Context, matchID uint64, podNam
 		// warming → ready/running:DS 首次确认就绪,这一跳让 AllocateBattle 得以放行 matchmaker。
 		if prevState == stateWarming && (b.State == stateReady || b.State == stateRunning) {
 			becameReady = true
+		}
+		// 对局活跃(ready/running):记下玩家名单 + ds_addr,供心跳后续期 BATTLE 位置。
+		if b.State == stateReady || b.State == stateRunning {
+			refreshActive = true
+			refreshAddr = b.DsAddr
+			refreshPlayers = append(refreshPlayers[:0], b.PlayerIds...)
 		}
 		return nil
 	}, u.battleTTL())
@@ -350,7 +381,28 @@ func (u *AllocatorUsecase) Heartbeat(ctx context.Context, matchID uint64, podNam
 		// 验收日志:Battle DS heartbeat match_id=<id> pod=<pod> state=running/ready
 		plog.With(ctx).Infow("msg", "battle_ds_heartbeat_ready", "match_id", matchID, "pod", podName, "state", state)
 	}
+	// 断线重连(docs/design/battle-reconnect.md §2.2):对局活跃时续期玩家 BATTLE 位置 TTL,
+	// 使玩家整局在线期间 login 都能检测到"在战斗中",支持中途掉线重登直连回原 battle DS。
+	if u.locator != nil && refreshActive && refreshAddr != "" && len(refreshPlayers) > 0 {
+		u.refreshBattleLocations(ctx, refreshPlayers, matchID, refreshAddr)
+	}
 	return &HeartbeatResult{Command: commandNone}, nil
+}
+
+// refreshBattleLocations 异步续期一批玩家的 BATTLE 位置 TTL(断线重连,弱依赖)。
+//
+// fire-and-forget:不给心跳响应加尾延迟;用 detached ctx(保留 trace_id 满足不变量 §8
+// 写带 trace_id,但脱离心跳 RPC 取消)+ 短超时防 locator 卡死泄漏 goroutine。
+// 失败只 Warn,绝不影响心跳 / 对局。
+func (u *AllocatorUsecase) refreshBattleLocations(ctx context.Context, playerIDs []uint64, matchID uint64, dsAddr string) {
+	players := append([]uint64(nil), playerIDs...) // 拷贝,脱离调用方切片复用
+	go func() {
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), locationRefreshTimeout)
+		defer cancel()
+		if err := u.locator.RefreshBattleLocations(rctx, players, matchID, dsAddr); err != nil {
+			plog.With(rctx).Warnw("msg", "refresh_battle_locations_failed", "match_id", matchID, "err", err)
+		}
+	}()
 }
 
 // ── RPC 4:ListBattles ─────────────────────────────────────────────────────────
